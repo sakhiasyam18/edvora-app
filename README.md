@@ -130,8 +130,38 @@ Karena proyek ini menggunakan arsitektur **Laravel + Inertia + React**, harap pe
 
 *Jangan mencari fail `.blade.php`. Semua tampilan antarmuka (View) kita menggunakan **React (TSX)** dan **Tailwind CSS**.*
 
-- 📄 **`Pages/`** $\rightarrow$ Tempat membuat halaman utama (misal: `Dashboard.tsx`, `HalamanUjian.tsx`). Data dari Laravel akan langsung diterima di sini sebagai *props*.
-- 🧩 **`Components/`** $\rightarrow$ Tempat membuat potongan UI yang bisa dipakai berulang kali (misal: `TombolBiru.tsx`, `KartuSoal.tsx`, `Navbar.tsx`).
+- 📄 **`Pages/`** $\rightarrow$ Tempat membuat halaman utama.
+- 🧩 **`Components/`** $\rightarrow$ Tempat membuat potongan UI yang bisa dipakai berulang kali.
+
+#### 🗂️ Struktur Folder Frontend (Sudah Tersedia)
+Agar tim UI/UX tidak kebingungan harus meletakkan kodenya di mana, kerangka folder dan fail kosong (*placeholder*) sudah dibuatkan. Silakan bagi tugas dan langsung kerjakan fail masing-masing!
+
+**1. Kerangka Halaman (Di dalam `resources/js/Pages/`)**
+Ini adalah fail-fail yang akan dipanggil langsung oleh *Controller* Laravel melalui Inertia.
+
+* 📁 **`Dashboard/`**
+  * `Siswa.tsx` *(Menampilkan XP, poin, dan menu utama)*
+  * `Admin.tsx` *(Dasbor ringkasan untuk admin)*
+* 📁 **`Latihan/`**
+  * `PilihPaket.tsx` *(Daftar paket A, B, C yang bisa diklik)*
+  * `ArenaUjian.tsx` *(Layar saat ujian berlangsung)*
+  * `HasilUjian.tsx` *(Rekapitulasi benar/salah dan perolehan poin)*
+* 📁 **`Battle/`**
+  * `LobbyWaiting.tsx` *(Menunggu lawan)*
+  * `ArenaBattle.tsx` *(Pertandingan real-time)*
+* 📁 **`MasterData/`**
+  * `KelolaSoal.tsx` *(Halaman admin untuk menambah soal)*
+
+**2. Kerangka Komponen Reusable (Di dalam `resources/js/Components/`)**
+Ini adalah fail-fail UI yang tidak dipanggil oleh Laravel, melainkan dipanggil oleh fail di folder `Pages` agar desainnya konsisten.
+
+* 📁 **`Ujian/`**
+  * `KartuSoal.tsx` *(Bungkus kotak berisi teks pertanyaan dan gambar)*
+  * `TombolOpsi.tsx` *(Tombol A, B, C, D, E yang bisa berubah warna)*
+  * `TimerMundur.tsx` *(Komponen jam hitung mundur di pojok atas)*
+* 📁 **`Gamifikasi/`**
+  * `BadgeLevel.tsx` *(Ikon level siswa)*
+  * `ProgressXP.tsx` *(Bilah progres XP horizontal)*
 
 ### 🧠 2. Tim Logika & Backend 
 > **Fokus di direktori:** 📂 `app/Http/Controllers/`
