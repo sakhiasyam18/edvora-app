@@ -174,7 +174,10 @@ Ini adalah fail-fail UI yang tidak dipanggil oleh Laravel, melainkan dipanggil o
 
 Tim UI/UX dapat menjalankan `npm run dev` dan melihat pratinjau halaman melalui tautan berikut:
 
-- [`/`](http://localhost:8000/) $\rightarrow$ Dasbor Utama
+- [`/`](http://localhost:8000/) $\rightarrow$ Landing Page / Company Page
+- [`/login`](http://localhost:8000/login) $\rightarrow$ Login
+- [`/register`](http://localhost:8000/register) $\rightarrow$ Register
+- [`/dashboard`](http://localhost:8000/dashboard) $\rightarrow$ Dasbor Utama
 - [`/latihan/persiapan`](http://localhost:8000/latihan/persiapan) $\rightarrow$ Persiapan Latihan
 - [`/latihan/ujian`](http://localhost:8000/latihan/ujian) $\rightarrow$ Arena Ujian
 - [`/latihan/hasil`](http://localhost:8000/latihan/hasil) $\rightarrow$ Rekap Hasil Latihan
@@ -183,7 +186,7 @@ Tim UI/UX dapat menjalankan `npm run dev` dan melihat pratinjau halaman melalui 
 - [`/battle/matchmaking`](http://localhost:8000/battle/matchmaking) $\rightarrow$ Cari Lawan Battle
 - [`/battle/arena`](http://localhost:8000/battle/arena) $\rightarrow$ Arena Battle
 - [`/battle/hasil`](http://localhost:8000/battle/hasil) $\rightarrow$ Hasil Head-to-head
-- [`/profil`](http://localhost:8000/profil) $\rightarrow$ Profil Akun & Lencana
+- [`/profile`](http://localhost:8000/profile) $\rightarrow$ Profil Akun & Lencana
 - [`/jadwal`](http://localhost:8000/jadwal) $\rightarrow$ Jadwal Belajar
 - [`/admin/kelola-soal`](http://localhost:8000/admin/kelola-soal) $\rightarrow$ Halaman Tambah Soal (Admin)
 

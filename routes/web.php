@@ -9,10 +9,13 @@ use App\Http\Controllers\AdminSoalController;
 use App\Http\Controllers\BattleController;
 use App\Http\Controllers\JadwalController;
 use App\Http\Controllers\LatihanController;
-use App\Http\Controllers\ProfilController;
 use App\Http\Controllers\RiwayatController;
 
-Route::get('/', function () {
+use App\Http\Controllers\WelcomeController;
+
+Route::get('/', [WelcomeController::class, 'index'])->name('welcome');
+
+Route::get('/dashboard', function () {
     return Inertia::render('Dashboard/Siswa');
 })->middleware(['auth', 'verified'])->name('dashboard');
 
@@ -39,9 +42,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/pembahasan', [RiwayatController::class, 'pembahasan'])->name('riwayat.pembahasan');
     });
 
-    // Rute Akun / Profil (Menimpa default breeze)
-    Route::get('/profil', [ProfilController::class, 'index'])->name('profil.index');
-    Route::post('/profil/update', [ProfilController::class, 'update'])->name('profil.update');
+
 
     // Rute Jadwal
     Route::prefix('jadwal')->group(function () {
