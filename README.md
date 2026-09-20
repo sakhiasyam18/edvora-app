@@ -163,6 +163,19 @@ Ini adalah fail-fail UI yang tidak dipanggil oleh Laravel, melainkan dipanggil o
   * `BadgeLevel.tsx` *(Ikon level siswa)*
   * `ProgressXP.tsx` *(Bilah progres XP horizontal)*
 
+**3. URL Akses Sementara (Untuk Preview)**
+Seluruh halaman di atas sudah dihubungkan ke pengatur rute. Tim UI/UX dapat menjalankan `npm run dev` dan melihat hasilnya secara *real-time* di peramban melalui tautan berikut:
+
+- [`/`](http://localhost:8000/) $\rightarrow$ Dasbor Utama Siswa
+- [`/admin`](http://localhost:8000/admin) $\rightarrow$ Dasbor Admin
+- [`/latihan`](http://localhost:8000/latihan) $\rightarrow$ Pilih Paket Latihan
+- [`/ujian`](http://localhost:8000/ujian) $\rightarrow$ Arena Ujian
+- [`/hasil`](http://localhost:8000/hasil) $\rightarrow$ Rekap Hasil Ujian
+- [`/lobby`](http://localhost:8000/lobby) $\rightarrow$ Ruang Tunggu Battle
+- [`/battle`](http://localhost:8000/battle) $\rightarrow$ Arena Pertandingan Battle
+- [`/kelola-soal`](http://localhost:8000/kelola-soal) $\rightarrow$ Pengaturan Master Data Soal
+
+
 ### 🧠 2. Tim Logika & Backend 
 > **Fokus di direktori:** 📂 `app/Http/Controllers/`
 
