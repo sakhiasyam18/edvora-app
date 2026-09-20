@@ -140,40 +140,52 @@ Agar tim UI/UX tidak kebingungan harus meletakkan kodenya di mana, kerangka fold
 Ini adalah fail-fail yang akan dipanggil langsung oleh *Controller* Laravel melalui Inertia.
 
 * 📁 **`Dashboard/`**
-  * `Siswa.tsx` *(Menampilkan XP, poin, dan menu utama)*
-  * `Admin.tsx` *(Dasbor ringkasan untuk admin)*
+  * `Index.tsx` *(Halaman utama Dasbor Siswa/Admin)*
 * 📁 **`Latihan/`**
-  * `PilihPaket.tsx` *(Daftar paket A, B, C yang bisa diklik)*
-  * `ArenaUjian.tsx` *(Layar saat ujian berlangsung)*
-  * `HasilUjian.tsx` *(Rekapitulasi benar/salah dan perolehan poin)*
+  * `Persiapan.tsx` *(Pilih Mode Simulasi / Fleksibel)*
+  * `Ujian.tsx` *(Layar saat ujian berlangsung)*
+  * `Hasil.tsx` *(Skor dan perolehan poin/XP)*
+* 📁 **`Riwayat/`**
+  * `Index.tsx` *(Daftar paket yang sudah dikerjakan)*
+  * `Pembahasan.tsx` *(Review jawaban benar/salah)*
 * 📁 **`Battle/`**
-  * `LobbyWaiting.tsx` *(Menunggu lawan)*
-  * `ArenaBattle.tsx` *(Pertandingan real-time)*
-* 📁 **`MasterData/`**
-  * `KelolaSoal.tsx` *(Halaman admin untuk menambah soal)*
+  * `Matchmaking.tsx` *(Mencari lawan)*
+  * `Arena.tsx` *(Pertandingan real-time)*
+  * `Hasil.tsx` *(Hasil Head-to-head)*
+* 📁 **`Akun/`**
+  * `Profil.tsx` *(Avatar, biodata, dan lencana)*
+* 📁 **`Jadwal/`**
+  * `Index.tsx` *(Kalender dan tabel jadwal belajar)*
+* 📁 **`Admin/`**
+  * `KelolaSoal.tsx` *(Formulir tambah soal baru)*
 
 **2. Kerangka Komponen Reusable (Di dalam `resources/js/Components/`)**
 Ini adalah fail-fail UI yang tidak dipanggil oleh Laravel, melainkan dipanggil oleh fail di folder `Pages` agar desainnya konsisten.
 
+* 📁 **`Layouts/`**
+  * `MainLayout.tsx` *(Navbar utama aplikasi dengan navigasi antar menu)*
 * 📁 **`Ujian/`**
+  * `ArenaPengerjaan.tsx` *(Layout grid navigasi soal di kiri, area pengerjaan di kanan)*
   * `KartuSoal.tsx` *(Bungkus kotak berisi teks pertanyaan dan gambar)*
-  * `TombolOpsi.tsx` *(Tombol A, B, C, D, E yang bisa berubah warna)*
-  * `TimerMundur.tsx` *(Komponen jam hitung mundur di pojok atas)*
-* 📁 **`Gamifikasi/`**
-  * `BadgeLevel.tsx` *(Ikon level siswa)*
-  * `ProgressXP.tsx` *(Bilah progres XP horizontal)*
 
 **3. URL Akses Sementara (Untuk Preview)**
-Seluruh halaman di atas sudah dihubungkan ke pengatur rute. Tim UI/UX dapat menjalankan `npm run dev` dan melihat hasilnya secara *real-time* di peramban melalui tautan berikut:
+> [!WARNING]
+> Seluruh halaman di bawah ini sekarang **dilindungi oleh sistem Autentikasi** bawaan Laravel Breeze (`auth`). Sebelum mengakses *link* di bawah, pastikan Anda **membuat akun (Register) atau Login** terlebih dahulu di halaman awal.
 
-- [`/`](http://localhost:8000/) $\rightarrow$ Dasbor Utama Siswa
-- [`/admin`](http://localhost:8000/admin) $\rightarrow$ Dasbor Admin
-- [`/latihan`](http://localhost:8000/latihan) $\rightarrow$ Pilih Paket Latihan
-- [`/ujian`](http://localhost:8000/ujian) $\rightarrow$ Arena Ujian
-- [`/hasil`](http://localhost:8000/hasil) $\rightarrow$ Rekap Hasil Ujian
-- [`/lobby`](http://localhost:8000/lobby) $\rightarrow$ Ruang Tunggu Battle
-- [`/battle`](http://localhost:8000/battle) $\rightarrow$ Arena Pertandingan Battle
-- [`/kelola-soal`](http://localhost:8000/kelola-soal) $\rightarrow$ Pengaturan Master Data Soal
+Tim UI/UX dapat menjalankan `npm run dev` dan melihat pratinjau halaman melalui tautan berikut:
+
+- [`/`](http://localhost:8000/) $\rightarrow$ Dasbor Utama
+- [`/latihan/persiapan`](http://localhost:8000/latihan/persiapan) $\rightarrow$ Persiapan Latihan
+- [`/latihan/ujian`](http://localhost:8000/latihan/ujian) $\rightarrow$ Arena Ujian
+- [`/latihan/hasil`](http://localhost:8000/latihan/hasil) $\rightarrow$ Rekap Hasil Latihan
+- [`/riwayat`](http://localhost:8000/riwayat) $\rightarrow$ Daftar Riwayat Ujian
+- [`/riwayat/pembahasan`](http://localhost:8000/riwayat/pembahasan) $\rightarrow$ Mode Pembahasan/Review
+- [`/battle/matchmaking`](http://localhost:8000/battle/matchmaking) $\rightarrow$ Cari Lawan Battle
+- [`/battle/arena`](http://localhost:8000/battle/arena) $\rightarrow$ Arena Battle
+- [`/battle/hasil`](http://localhost:8000/battle/hasil) $\rightarrow$ Hasil Head-to-head
+- [`/profil`](http://localhost:8000/profil) $\rightarrow$ Profil Akun & Lencana
+- [`/jadwal`](http://localhost:8000/jadwal) $\rightarrow$ Jadwal Belajar
+- [`/admin/kelola-soal`](http://localhost:8000/admin/kelola-soal) $\rightarrow$ Halaman Tambah Soal (Admin)
 
 
 ### 🧠 2. Tim Logika & Backend 

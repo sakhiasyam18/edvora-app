@@ -5,22 +5,56 @@ use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
+use App\Http\Controllers\AdminSoalController;
+use App\Http\Controllers\BattleController;
+use App\Http\Controllers\JadwalController;
+use App\Http\Controllers\LatihanController;
+use App\Http\Controllers\ProfilController;
+use App\Http\Controllers\RiwayatController;
+
 Route::get('/', function () {
     return Inertia::render('Dashboard/Siswa');
-});
-
-// Rute Dummy untuk Tim UI/UX (Agar bisa melihat hasil slicing lewat browser)
-Route::get('/admin', function () { return Inertia::render('Dashboard/Admin'); });
-Route::get('/latihan', function () { return Inertia::render('Latihan/PilihPaket'); });
-Route::get('/ujian', function () { return Inertia::render('Latihan/ArenaUjian'); });
-Route::get('/hasil', function () { return Inertia::render('Latihan/HasilUjian'); });
-Route::get('/lobby', function () { return Inertia::render('Battle/LobbyWaiting'); });
-Route::get('/battle', function () { return Inertia::render('Battle/ArenaBattle'); });
-Route::get('/kelola-soal', function () { return Inertia::render('MasterData/KelolaSoal'); });
-
-Route::get('/dashboard', function () {
-    return Inertia::render('Dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
+
+Route::middleware(['auth', 'verified'])->group(function () {
+    
+    // Rute Latihan
+    Route::prefix('latihan')->group(function () {
+        Route::get('/persiapan', [LatihanController::class, 'persiapan'])->name('latihan.persiapan');
+        Route::get('/ujian', [LatihanController::class, 'mulaiUjian'])->name('latihan.ujian');
+        Route::post('/ujian/simpan', [LatihanController::class, 'simpanJawaban'])->name('latihan.simpan');
+        Route::get('/hasil', [LatihanController::class, 'hasil'])->name('latihan.hasil');
+    });
+
+    // Rute Battle
+    Route::prefix('battle')->group(function () {
+        Route::get('/matchmaking', [BattleController::class, 'cariLawan'])->name('battle.matchmaking');
+        Route::get('/arena', [BattleController::class, 'mulaiBattle'])->name('battle.arena');
+        Route::get('/hasil', [BattleController::class, 'hasilBattle'])->name('battle.hasil');
+    });
+
+    // Rute Riwayat
+    Route::prefix('riwayat')->group(function () {
+        Route::get('/', [RiwayatController::class, 'index'])->name('riwayat.index');
+        Route::get('/pembahasan', [RiwayatController::class, 'pembahasan'])->name('riwayat.pembahasan');
+    });
+
+    // Rute Akun / Profil (Menimpa default breeze)
+    Route::get('/profil', [ProfilController::class, 'index'])->name('profil.index');
+    Route::post('/profil/update', [ProfilController::class, 'update'])->name('profil.update');
+
+    // Rute Jadwal
+    Route::prefix('jadwal')->group(function () {
+        Route::get('/', [JadwalController::class, 'index'])->name('jadwal.index');
+        Route::post('/simpan', [JadwalController::class, 'simpan'])->name('jadwal.simpan');
+    });
+
+    // Rute Admin
+    Route::prefix('admin')->group(function () {
+        Route::get('/kelola-soal', [AdminSoalController::class, 'index'])->name('admin.soal.index');
+        Route::post('/kelola-soal', [AdminSoalController::class, 'simpan'])->name('admin.soal.simpan');
+    });
+});
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

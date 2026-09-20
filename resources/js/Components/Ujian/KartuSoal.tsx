@@ -1,17 +1,17 @@
 interface KartuSoalProps {
-    // Nanti tim backend akan menambahkan definisi data di sini
-    label?: string; 
+    teksSoal: string;
+    gambarUrl?: string;
 }
 
-export default function KartuSoal({ label = "Komponen KartuSoal" }: KartuSoalProps) {
+export default function KartuSoal({ teksSoal, gambarUrl }: KartuSoalProps) {
     return (
-        <div className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
-            <h3 className="text-lg font-semibold text-gray-700 mb-2">{label}</h3>
-            
-            {/* Tempat temanmu mendesain komponen nanti */}
-            <div className="p-4 border border-dashed border-gray-300 rounded text-center text-gray-400">
-                Area UI Komponen
-            </div>
+        <div className="mb-6">
+            {gambarUrl && (
+                <div className="mb-4">
+                    <img src={gambarUrl} alt="Ilustrasi Soal" className="max-w-full rounded-md border border-gray-200" />
+                </div>
+            )}
+            <p className="text-gray-800 text-lg leading-relaxed">{teksSoal}</p>
         </div>
     );
 }

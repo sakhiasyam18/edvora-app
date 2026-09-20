@@ -1,4 +1,5 @@
-export default function ApplicationLogo(props) {
+import { HTMLAttributes, ButtonHTMLAttributes, SVGAttributes } from 'react';
+export default function ApplicationLogo(props: SVGAttributes<SVGElement>) {
     return (
         <svg
             {...props}

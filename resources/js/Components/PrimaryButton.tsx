@@ -1,3 +1,4 @@
+import { HTMLAttributes, ButtonHTMLAttributes, SVGAttributes } from 'react';
 export default function PrimaryButton({
     className = '',
     disabled,
