@@ -46,7 +46,7 @@ Ikuti langkah-langkah di bawah ini secara berurutan saat pertama kali mengunduh 
 
 ### 1. Kloning Repositori
 ```bash
-git clone https://github.com/USERNAME_KAMU/edvora-app.git
+git clone https://github.com/sakhiasyam18/edvora-app.git
 cd edvora-app
 ```
 
