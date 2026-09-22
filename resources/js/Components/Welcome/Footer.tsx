@@ -1,7 +1,10 @@
 export default function Footer() {
     return (
-        <footer className="border-2 border-dashed border-gray-400 bg-gray-100 p-6 text-center rounded w-full">
-            <p className="text-gray-600 font-semibold">[ Area Footer ]</p>
+        <footer className="bg-[#5B88DD] border-t border-white/20 py-6 text-center text-xs text-white/80" data-purpose="footer-info">
+            <div className="max-w-7xl mx-auto px-4">
+                <p>© 2024 EDVORA. Seluruh hak cipta dilindungi undang-undang.</p>
+            </div>
         </footer>
     );
 }
+
