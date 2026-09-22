@@ -22,7 +22,7 @@ const JUMLAH_SOAL_MAKS = 20;
 const JUMLAH_SOAL_SIMULASI = dummyKonfigurasiSesi.jumlahSoal;
 const WAKTU_SIMULASI_MENIT = dummyKonfigurasiSesi.waktuPengerjaanMenit ?? 20;
 
-function konfigurasiUntukMode(subtesId: number, namaSubtes: string, mode: ModeLatihan): KonfigurasiSesiLatihan {
+function konfigurasiUntukMode(subtesId: string | number, namaSubtes: string, mode: ModeLatihan): KonfigurasiSesiLatihan {
     if (mode === 'simulasi') {
         return { subtesId, namaSubtes, mode, jumlahSoal: JUMLAH_SOAL_SIMULASI, waktuPengerjaanMenit: WAKTU_SIMULASI_MENIT };
     }

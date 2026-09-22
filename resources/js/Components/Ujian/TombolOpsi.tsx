@@ -36,7 +36,7 @@ export default function TombolOpsi({ opsi, status = 'default', disabled = false,
             </span>
             <span className={`flex flex-1 items-center justify-between gap-3 rounded-lg border px-4 py-2 shadow-sm transition ${gaya}`}>
                 <span>
-                    <TeksMatematika teks={opsi.teksOpsi} />
+                    <TeksMatematika teks={opsi.teks_opsi} />
                 </span>
                 {status === 'benar' && (
                     <svg className="h-5 w-5 shrink-0 text-[#4C9A2A]" viewBox="0 0 24 24" fill="currentColor" aria-label="Jawaban benar">

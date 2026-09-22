@@ -140,7 +140,7 @@ class ImportSoal extends Command
                         ];
 
                         foreach ($opsiMap as $label => $opsi) {
-                            if (empty($opsi['teks']) && empty($opsi['gambar'])) {
+                            if ($opsi['teks'] === '' && $opsi['gambar'] === '') {
                                 continue; // Skip if completely empty
                             }
 

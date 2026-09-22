@@ -28,7 +28,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Rute Latihan
     Route::prefix('latihan')->group(function () {
         Route::get('/persiapan', [LatihanController::class, 'persiapan'])->name('latihan.persiapan');
-        Route::get('/ujian', [LatihanController::class, 'mulaiUjian'])->name('latihan.ujian');
+        Route::get('/ujian', [LatihanSoalController::class, 'ujian'])->name('latihan.ujian');
         Route::post('/ujian/simpan', [LatihanController::class, 'simpanJawaban'])->name('latihan.simpan');
         Route::get('/hasil', [LatihanController::class, 'hasil'])->name('latihan.hasil');
     });

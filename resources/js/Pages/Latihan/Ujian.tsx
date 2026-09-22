@@ -12,48 +12,29 @@ import { dummyKonfigurasiSesi, dummyKunciJawaban, dummySoalList } from '@/data/d
 // Sementara: Soal belum punya field hint.
 const HINT_SEMENTARA = 'Hint untuk soal ini belum tersedia.';
 
-// Konfigurasi dikirim Persiapan lewat query param; fallback ke dummy kalau kosong.
-function bacaKonfigurasiDariUrl(): KonfigurasiSesiLatihan {
-    const query = new URLSearchParams(window.location.search);
-    const subtesId = Number(query.get('subtesId'));
-    if (!subtesId) return dummyKonfigurasiSesi;
-
-    const mode = query.get('mode') === 'simulasi' ? 'simulasi' : 'fleksibel';
-    const jumlahSoal = Math.min(dummySoalList.length, Math.max(1, Number(query.get('jumlahSoal')) || dummySoalList.length));
-    const namaSubtes = query.get('namaSubtes') ?? '';
-
-    if (mode === 'simulasi') {
-        return { subtesId, namaSubtes, mode, jumlahSoal, waktuPengerjaanMenit: Number(query.get('waktuPengerjaanMenit')) || 20 };
-    }
-    return { subtesId, namaSubtes, mode, jumlahSoal, iceBreakingAktif: query.get('iceBreakingAktif') === 'true' };
-}
-
 type ModalAktif = 'hint' | 'keluar' | 'selesai' | null;
 
-export default function Ujian() {
-    const konfigurasi = useMemo(bacaKonfigurasiDariUrl, []);
-    // Dummy: semua soal PK, jadi cukup ambil sejumlah jumlahSoal.
-    const soalList = useMemo(() => dummySoalList.slice(0, konfigurasi.jumlahSoal), [konfigurasi]);
+export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; soalList: any[]; konfigurasi: any }) {
     const simulasi = konfigurasi.mode === 'simulasi';
 
     const form = useForm({
         ...konfigurasi,
-        jawaban: [] as { soalId: number; opsiId: number }[],
+        jawaban: [] as { soalId: string | number; opsiId: string | number }[],
     });
 
     const [indeksAktif, setIndeksAktif] = useState(0);
     // Mode fleksibel: pilihan belum final sampai "Simpan Jawaban" ditekan.
-    const [pilihanSementara, setPilihanSementara] = useState<Record<number, number>>({});
+    const [pilihanSementara, setPilihanSementara] = useState<Record<string | number, string | number>>({});
     const [modal, setModal] = useState<ModalAktif>(null);
 
     const soal = soalList[indeksAktif];
-    const jawabanTersimpan = (soalId: number) => form.data.jawaban.find((j) => j.soalId === soalId)?.opsiId;
+    const jawabanTersimpan = (soalId: string | number) => form.data.jawaban.find((j: any) => j.soalId === soalId)?.opsiId;
     const opsiTersimpan = jawabanTersimpan(soal.id);
     const terkunci = !simulasi && opsiTersimpan !== undefined;
     const opsiTerpilih = simulasi || terkunci ? opsiTersimpan : pilihanSementara[soal.id];
 
-    const simpanJawaban = (soalId: number, opsiId: number) => {
-        form.setData('jawaban', [...form.data.jawaban.filter((j) => j.soalId !== soalId), { soalId, opsiId }]);
+    const simpanJawaban = (soalId: string | number, opsiId: string | number) => {
+        form.setData('jawaban', [...form.data.jawaban.filter((j: any) => j.soalId !== soalId), { soalId, opsiId }]);
     };
 
     const pilihOpsi = (opsi: OpsiJawaban) => {
@@ -63,7 +44,7 @@ export default function Ujian() {
 
     const statusOpsi = (opsi: OpsiJawaban): StatusOpsi => {
         if (terkunci) {
-            if (opsi.id === dummyKunciJawaban[soal.id]) return 'benar';
+            if (opsi.is_kunci) return 'benar'; // asumsikan is_kunci boolean datang dari db
             if (opsi.id === opsiTerpilih) return 'salah';
             return 'default';
         }
@@ -134,10 +115,10 @@ export default function Ujian() {
                     )
                 }
             >
-                <KartuSoal nomor={indeksAktif + 1} teksSoal={soal.teksSoal} gambarUrl={soal.gambarUrl} />
+                <KartuSoal nomor={indeksAktif + 1} teksSoal={soal.teks_soal} gambarUrl={soal.gambar_soal} />
 
                 <div className="mt-4 space-y-2.5">
-                    {soal.opsi.map((opsi) => (
+                    {soal.opsi_jawaban.map((opsi: any) => (
                         <TombolOpsi key={opsi.id} opsi={opsi} status={statusOpsi(opsi)} disabled={terkunci} onPilih={pilihOpsi} />
                     ))}
                 </div>

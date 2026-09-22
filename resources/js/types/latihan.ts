@@ -4,23 +4,24 @@ export type ModeLatihan = 'fleksibel' | 'simulasi';
 export type TipeSoal = 'pilihan_ganda' | 'isian_singkat';
 
 export interface OpsiJawaban {
-  id: number;
+  id: string | number;
   label: 'A' | 'B' | 'C' | 'D' | 'E';
-  teksOpsi: string;
+  teks_opsi: string; // Database mapped
+  is_kunci: boolean;
 }
 
 export interface Soal {
-  id: number;
-  subtesId: number;
-  tipeSoal: TipeSoal;
-  teksSoal: string;
-  gambarUrl?: string;
-  opsi: OpsiJawaban[];          // hanya untuk pilihan_ganda, selalu 5 (A-E)
+  id: string | number;
+  subtes_id: string | number;
+  tipe: TipeSoal; // DB mapped
+  teks_soal: string; // DB mapped
+  gambar_soal?: string; // DB mapped
+  opsi_jawaban: OpsiJawaban[]; // DB mapped relation
   pembahasan: string;
 }
 
 export interface KonfigurasiSesiLatihan {
-  subtesId: number;
+  subtesId: string | number;
   namaSubtes: string;
   mode: ModeLatihan;
   jumlahSoal: number;

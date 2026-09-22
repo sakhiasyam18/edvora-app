@@ -35,6 +35,6 @@ class Soal extends Model
 
     public function opsiJawaban()
     {
-        return $this->hasMany(OpsiJawaban::class, 'soal_id', 'id');
+        return $this->hasMany(OpsiJawaban::class, 'soal_id', 'id')->orderBy('urutan');
     }
 }
