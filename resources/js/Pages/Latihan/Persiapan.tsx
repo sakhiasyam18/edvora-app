@@ -39,12 +39,22 @@ function IkonPanah() {
     );
 }
 
-export default function Persiapan() {
+const warnaBawaan = [
+    'bg-[#DFDFF3]', // PK
+    'bg-[#D9EFE0]', // PM
+    'bg-[#DCE7F0]', 
+    'bg-[#F3D6D6]', 
+    'bg-[#EDF0D8]', 
+    'bg-[#F2D6EC]', 
+    'bg-[#F2EED8]', 
+];
+
+export default function Persiapan({ subtes = [] }: { subtes?: any[] }) {
     const [tampilModal, setTampilModal] = useState(false);
     const [konfigurasi, setKonfigurasi] = useState<KonfigurasiSesiLatihan | null>(null);
 
-    const bukaModal = (subtes: (typeof daftarSubtes)[number]) => {
-        setKonfigurasi(konfigurasiUntukMode(subtes.id, subtes.nama, 'fleksibel'));
+    const bukaModal = (item: any) => {
+        setKonfigurasi(konfigurasiUntukMode(item.id, item.nama_subtes, 'fleksibel'));
         setTampilModal(true);
     };
 
@@ -74,18 +84,19 @@ export default function Persiapan() {
                 <p className="mt-1 text-sm font-medium text-gray-600">Pilih subtest UTBK yang ingin kamu kerjakan hari ini!</p>
 
                 <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                    {daftarSubtes.map((subtes) => (
+                    {subtes.map((item, index) => (
                         <button
-                            key={subtes.id}
+                            key={item.id}
                             type="button"
-                            onClick={() => bukaModal(subtes)}
+                            onClick={() => bukaModal(item)}
                             className="flex min-h-[190px] flex-col rounded-xl bg-white p-4 text-left shadow-md transition hover:-translate-y-0.5 hover:shadow-lg"
                         >
-                            <span className={`h-12 w-12 rounded-full ${subtes.warna}`} />
+                            <span className={`h-12 w-12 rounded-full ${warnaBawaan[index % warnaBawaan.length]}`} />
                             <span className="mt-4 font-semibold leading-snug text-[#1F2D5C]">
-                                {subtes.nama} ({subtes.singkatan})
+                                {item.nama_subtes} ({item.kode_subtes})
                             </span>
-                            <span className="mt-1 text-xs text-gray-600">{subtes.deskripsi}</span>
+                            <span className="mt-1 text-xs font-semibold text-green-600">Tersedia {item.soal_count} Soal</span>
+                            <span className="mt-1 text-xs text-gray-600">{item.deskripsi || 'Selesaikan tantangan di subtes ini!'}</span>
                             <span className="mt-auto flex justify-end pt-3">
                                 <IkonPanah />
                             </span>

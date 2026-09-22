@@ -12,6 +12,7 @@ use App\Http\Controllers\LatihanController;
 use App\Http\Controllers\RiwayatController;
 
 use App\Http\Controllers\WelcomeController;
+use App\Http\Controllers\LatihanSoalController;
 
 Route::get('/', [WelcomeController::class, 'index'])->name('welcome');
 
@@ -21,6 +22,9 @@ Route::get('/dashboard', function () {
 
 Route::middleware(['auth', 'verified'])->group(function () {
     
+    // Rute Latihan Soal (Index)
+    Route::get('/latihan', [LatihanSoalController::class, 'index'])->name('latihan.index');
+
     // Rute Latihan
     Route::prefix('latihan')->group(function () {
         Route::get('/persiapan', [LatihanController::class, 'persiapan'])->name('latihan.persiapan');

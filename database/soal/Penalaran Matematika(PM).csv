@@ -1,0 +1,213 @@
+Kode Soal;Tipe Soal;Teks Soal;Gambar Soal (nama file) (opsional);Opsi A - Teks;Opsi A - Gambar (opsional);Opsi B - Teks;Opsi B - Gambar (opsional);Opsi C - Teks;Opsi C - Gambar (opsional);Opsi D - Teks;Opsi D - Gambar (opsional);Opsi E - Teks (opsional);Opsi E - Gambar (opsional);Kunci Jawaban;Hint (opsional);Pembahasan;Tingkat Kesulitan
+PM-001;Pilihan Ganda Kompleks;Sebuah kolam renang berbentuk persegi panjang berukuran 12 m x 8 m akan diisi air hingga penuh dengan debit 4 m3/menit. Pernyataan yang benar adalah... (pilih lebih dari satu jika perlu, pisahkan dengan koma);;Volume kolam adalah 96 m3 (kedalaman 1 m);;Waktu pengisian sekitar 24 menit;;Debit tidak memengaruhi volume kolam;;Volume kolam adalah 96 m2;;;;A,B,C;Hitung volume = p x l x t, lalu waktu = volume / debit;Dengan asumsi kedalaman 1 m, volume = 12 x 8 x 1 = 96 m3. Waktu = 96/4 = 24 menit. Debit tetap memengaruhi lama pengisian, bukan volume kolam itu sendiri, sehingga pernyataan A, B, dan C benar.;Sulit
+PM-001;Pilihan Ganda Kompleks;"Gambar di atas menunjukkan denah rumah Anton dengan skala 1:100. Diketahui luas bangunan sebenarnya adalah 12 m x 16 m. Setiap ruangan kecuali ruang keluarga dan ruang tamu berbentuk persegi panjang. Kemudian, diketahui pula luas setiap kamar sama.
+Luas toilet rumah Anton sebenarnya adalah ….
+";Gambar;6m^2;;12m^2;;1.200m^2;;6.000m^2;;12.000m^2;;B;;"Dapat diperhatikan bahwa panjang toilet pada denah tersebut adalah 6 cm. Artinya, panjang toilet sebenarnya adalah 100?6 cm = 600 cm.
+Kemudian, lebar toilet pada denah tersebut adalah 16 – 5 – 5 – 4 = 2 cm. Artinya, lebar toilet sebenarnya adalah 100?2 cm = 200 cm.
+Dengan demikian, luas toilet sebenarnya adalah sebagai berikut.
+Ltoilet = p.l = 600cm.200cm= 120.000 cm^2 = 120.000/10.000m^2= 12m^2";Sedang
+PM-002;Pilihan Ganda Kompleks;"Gambar di atas menunjukkan denah rumah Anton dengan skala 1:100. Diketahui luas bangunan sebenarnya adalah 12 m x 16 m. Setiap ruangan kecuali ruang keluarga dan ruang tamu berbentuk persegi panjang. Kemudian, diketahui pula luas setiap kamar sama.
+Total luas ruang tamu dan luas ruang keluarga pada denah adalah … cm^2
+";Gambar;76;;82;;94;;110;;116;;A;;"Diketahui luas bangunan sebenarnya adalah 12 m x 16 m atau dapat ditulis 1.200 cm x 1.600 cm. Karena skala yang digunakan adalah 1:100, maka luas bangunan pada denah tersebut adalah 12 cm x 16 cm = 192 CM^2
+ Misalkan A menyatakan jumlah luas kamar 1, kamar 2, dan toilet sehingga didapat perhitungan sebagai berikut.
+A=6.(16-4)=6.12=72CM^2, Dengan demikian, total luas ruang tamu dan luas ruang keluarga pada denah tersebut dapat dihitung sebagai berikut.
+Lruang tamu +Lruang Keluarga = Lbangunan - (Lgarasi+Ldapur+A) = 192-(24+20+72) = 192-116 = 76cm^2";Sedang
+PM-003;Pilihan Ganda Kompleks;"Gambar di atas menunjukan denah rumah Anton dengan skala 1:100. Diketahui luas bangunan sebenarnya adalah 12 m x 16 m. Setiap ruangan kecuali ruang keluarga dan ruang tamu berbentuk persegi panjang.
+Anton hendak memasang karpet pada daerah berwarna biru yang diberi label X. Jika harga karpet tersebut adalah Rp120.000,00 m^2 per , total biaya yang dibutuhkan Anton untuk membeli karpet tersebut adalah
+";Gambar;Rp120.000,00;;Rp200.000;;Rp240.000,00;;Rp400.000,00;;Rp480.000,00;;E;;"Dapat diperhatikan pada denah tersebut bahwa garasinya memiliki luas 24 CM^2 . Karena panjang garasi adalah 4 cm, maka lebar garasi tersebut adalah 24/4  = 6 cm. Akibatnya, lebar daerah X pada denah adalah 6 – 4 = 2 cm.
+Kemudian, diketahui panjang kamar pada denah tersebut adalah 6 cm. Karena panjang bangunan pada denah adalah 12 m, maka panjang daerah pada denah X adalah 12 – 6 – 4 = 2 cm.
+Karena skala denah tersebut adalah 1:100, maka panjang dan lebar daerah X sebenarnya masing-masing adalah 100?2 cm=200 cm=2 m.
+Diketahui harga karpet tersebut adalah Rp120.000,00 M^2. Akibatnya, total biaya yang dibutuhkan Anton untuk membeli karpet tersebut adalah sebagai berikut.
+Total biaya= Ldaerahx .Rp120.000,00/m^2 = (2m.2m). Rp120.000,00/m^2 = 4 m^2.Rp120.000,00/m^2= Rp480.000,00";Sedang
+PM-004;Pilihan Ganda Singkat;"Suatu kelompok belajar terdiri dari siswa laki-laki dan siswa perempuan. Salah satu siswa laki-laki bernama Edo dan salah satu siswa perempuan bernama Tari. Banyak teman laki-laki Edo di kelompok belajar tersebut sama dengan setengah dari banyak siswa perempuan. Banyak teman perempuan Tari di kelompok belajar tersebut satu lebihnya dari banyak siswa laki-laki.
+Selisih banyaknya siswa laki-laki dan perempuan di kelompok belajar tersebut adalah … siswa.
+";;0;;1;;2;;3;;4;;C;;"Misalkan banyak siswa laki-laki di kelompok tersebut adalah x dan banyak siswa perempuan di kelompok tersebut adalah y.
+Diketahui banyak teman perempuan Tari di kelompok belajar tersebut satu lebihnya dari banyak siswa laki-laki. Oleh karena itu, dapat dibuat persamaan sebagai berikut.
+Y-1=X+1 --> Y-X= 1+1--> Y-X= 2";Sedang
+PM-005;Pilihan Ganda Singkat;"Suatu kelompok belajar terdiri dari siswa laki-laki dan siswa perempuan. Salah satu siswa laki-laki bernama Edo dan salah satu siswa perempuan bernama Tari. Banyak teman laki-laki Edo di kelompok belajar tersebut sama dengan setengah dari banyak siswa perempuan. Banyak teman perempuan Tari di kelompok belajar tersebut satu lebihnya dari banyak siswa laki-laki.
+Jumlah seluruh siswa di kelompok belajar tersebut adalah … siswa.
+";;3;;4;;6;;7;;10;;E;;"Misalkan banyak siswa laki-laki di kelompok tersebut adalah x dan banyak siswa perempuan di kelompok tersebut adalah y.
+Diketahui banyak teman laki-laki Edo di kelompok belajar tersebut sama dengan setengah dari banyak siswa perempuan. Artinya, dapat dibuat persamaan berikut.
+X-1 = 1/2y....(i), Kemudian, diketahui banyak teman perempuan Tari di kelompok belajar tersebut satu lebihnya dari banyak siswa laki-laki. Artinya, dapat dibuat persamaan berikut.
+Y-1=X+1--> Y=X+2.....(ii), Substitusikan persamaan ii ke persamaan i sehingga didapat nilai x sebagai berikut.
+X-1= 1/2Y--> 2.(X-1)=2.1/2Y--> 2X-2=y--> 2x-2= x+2---> x=4, Substitusikan nilai x = 4 ke persamaan ii sehingga didapat nilai y sebagai berikut.
+y=x+2=4+2= 6, Didapat bahwa banyak siswa laki-laki dan perempuan di kelompok belajar tersebut secara berurutan  adalah 4 dan 6.
+Dengan demikian, jumlah seluruh siswa di kelompok belajar tersebut adalah 4 + 6 = 10 siswa.
+";mudah
+PM-006;Pilihan Ganda Singkat;"Suatu kelompok belajar terdiri dari siswa laki-laki dan siswa perempuan. Salah satu siswa laki-laki bernama Edo dan salah satu siswa perempuan bernama Tari. Banyak teman laki-laki Edo di kelompok belajar tersebut sama dengan setengah dari banyak siswa perempuan. Banyak teman perempuan Tari di kelompok belajar tersebut satu lebihnya dari banyak siswa laki-laki.
+Jika siswa laki-laki bertambah 1 dan siswa perempuan berkurang 1, perbandingan banyak siswa laki-laki dan perempuan di kelompok tersebut adalah ….
+";;1:1;;1:2;;2:1;;2:3;;3:4;;A;;"Misalkan banyak siswa laki-laki di kelompok tersebut adalah x dan banyak siswa perempuan di kelompok tersebut adalah y.
+Diketahui banyak teman laki-laki Edo di kelompok belajar tersebut sama dengan setengah dari banyak siswa perempuan. Artinya, dapat dibuat persamaan berikut.
+X-1 = 1/2y....(i), Kemudian, diketahui banyak teman perempuan Tari di kelompok belajar tersebut satu lebihnya dari banyak siswa laki-laki. Artinya, dapat dibuat persamaan berikut.
+Y-1=X+1--> Y=X+2.....(ii), Substitusikan persamaan ii ke persamaan i sehingga didapat nilai x sebagai berikut.
+X-1= 1/2Y--> 2.(X-1)=2.1/2Y--> 2X-2=y--> 2x-2= x+2---> x=4, Substitusikan nilai x = 4 ke persamaan ii sehingga didapat nilai y sebagai berikut.
+y=x+2=4+2= 6, Didapat bahwa banyak siswa laki-laki dan perempuan di kelompok belajar tersebut secara berurutan  adalah 4 dan 6.
+Jika siswa laki-laki bertambah 1, banyak siswa laki-laki menjadi 4 + 1 = 5 siswa.
+Jika siswa perempuan berkurang 1, banyak siswa perempuan menjadi 6 – 1 = 5 siswa.
+ 
+Dengan demikian, perbandingan banyak siswa laki-laki dan perempuan di kelompok tersebut adalah 5:5 = 1:1.
+
+";mudah
+PM-007;Pilihan Ganda Kompleks;"Sebuah bianglala di taman hiburan memiliki 36 kabin penumpang. Setiap kabin hanya boleh diisi oleh 2 orang dewasa atau 1 orang dewasa dan 2 anak-anak. Berikut adalah daftar harga tiket bianglala tersebut.
+Senin–Jumat: anak-anak Rp20.000,00 dan dewasa Rp30.000,00
+Sabtu, Minggu, dan Hari libur: anak-anak Rp35.000,00 dan dewasa Rp50.000,00
+ 
+Jika pada jam 18.30 di hari Minggu setengah kabin diisi oleh anak-anak dan seluruh kabin tidak ada yang kosong, jumlah pendapatan maksimum taman hiburan dari bianglala yang mungkin diperoleh pada saat itu adalah ….
+";;Rp1.260.000,00;;Rp2.340.000,00;;Rp2.700.000,00;;Rp2.610.000,00;;Rp3.960.000,00;;E;;"Berdasarkan informasi pada soal, disebutkan bahwa kondisinya adalah sebagai berikut.
+Hari Minggu, maka harga tiket anak-anak Rp35.000,00 dan dewasa Rp50.000,00.
+Setengah kabin (18 kabin) diisi anak-anak = tidak boleh ada kabin yang hanya diisi anak-anak, maka harus ada orang dewasa. Karena yang ditanyakan adalah pendapatan maksimum, maka digunakan asumsi sejumlah 18 kabin diisi 1 dewasa dan 2 anak-anak.
+Seluruh kabin tidak ada yang kosong, maka 18 kabin sisanya diisi oleh 2 orang dewasa.
+Pendapatan maksimum yang mungkin diperoleh dapat diketahui dengan perhitungan berikut
+Setengah Kabin dewasa + anak
+=18x(1 dewasa+2 anak)
+18 dewasa+36 anak
+
+setengah kabin hanya dewasa
+18x2 dewasa
+=36 dewasa
+
+total pengunjung
+=18 dewasa+36anak+36 dewasa
+=54 dewasa+36 anak
+
+Total pendapatan yang mungkin diperoleh
+54xRp50.000,00+(36xRp35.000,00)
+=Rp2.700.000,00+Rp1.260.000,00
+= Rp3.960.000,00
+Berdasarkan hasil perhitungan tersebut, dapat diketahui bahwa jumlah pendapatan maksimum taman hiburan dari bianglala yang mungkin diperoleh pada saat itu adalah Rp3.960.000,00.";mudah
+PM-008;Pilihan Ganda Singkat;"Per 1 September 2020, Indonesia telah melaporkan 177.571 kasus positif COVID-19, dengan catatan sebanyak 42.009 dirawat/isolasi mandiri, 128.057 sembuh, dan 7.505 meninggal. Case fatality ratio (CFR) adalah proporsi individu terkonfirmasi penyakit yang meninggal karena penyakit tersebut. Berikut merupakan data perkembangan kasus pasien COVID-19. 
+
+Penambahan kasus terkonfirmasi tertinggi terjadi pada rentang tanggal ….
+";Gambar;7 September – 8 September;;9 September – 10 September;;10 September – 11 September;;"11 September – 12 September
+";;"12 September – 13 September
+";;B;;"Berdasarkan informasi pada soal dapat diketahui jumlah kasus terkonfirmasi adalah sebagai berikut.
+7 September 2020 = 196.989
+8 September 2020 = 200.035
+9 September 2020 = 203.342
+10 September 2020 = 207.203
+11 September 2020 = 210.940
+12 September 2020 = 214.746
+13 September 2020 = 218.382
+ 
+Penambahan kasus terkonfirmasi pada rentang tanggal 7 September – 8 September
+= 200.035 – 196.989 = 3.046
+Penambahan kasus terkonfirmasi pada rentang tanggal 9 September – 10 September
+= 207.203 – 203.342 = 3.861
+Penambahan kasus terkonfirmasi pada rentang tanggal 10 September – 11 September
+= 210.940 – 207.203 = 3.737
+Penambahan kasus terkonfirmasi pada rentang tanggal 11 September – 12 September
+= 214.746 – 210.940 = 3.806
+Penambahan kasus terkonfirmasi pada rentang tanggal 12 September – 13 September
+= 218.382 – 214.746 = 3.636
+Berdasarkan hasil perhitungan tersebut, dapat diketahui bahwa penambahan kasus terkonfirmasi terbesar berada pada rentang tanggal 9 September – 10 September, yakni sebanyak 3.861.
+";sedang
+PM-009;Pilihan Ganda Singkat;"Per 1 September 2020, Indonesia telah melaporkan 177.571 kasus positif COVID-19, dengan catatan sebanyak 42.009 dirawat/isolasi mandiri, 128.057 sembuh, dan 7.505 meninggal. Case fatality ratio (CFR) adalah proporsi individu terkonfirmasi penyakit yang meninggal karena penyakit tersebut. Berikut merupakan data perkembangan kasus pasien COVID-19. 
+Jangkauan data berdasarkan grafik kasus sembuh pada rentang tanggal 7 September 2020 – 13 September 2020 adalah ….
+
+";Gambar;"14.358
+";;25.552;;"140.652
+";;152.458;;"155.010
+";;A;;"Data terendah = 140.652
+Data tertinggi = 155.010
+Jangkauan data adalah selisih data dengan nilai terbesar dan nilai terkecil.
+Jangkauan data = data tertinggi – data terendah
+Jangkauan data = 155.010 – 140.652
+Jangkauan data = 14.358
+";sedang
+PM_10;Pilihan Ganda Singkat;"Anggun membawa tiga buah barang, yaitu A, B, dan C yang beratnya berturut-turut 1.450 g, 0,5 kg, dan 3,2 kg ke WahAda Cargo untuk dikirimkan ke Cimahi. Berikut ini tabel yang menunjukkan biaya pengiriman barang.
+Apabila terdapat potongan harga sebesar 10% untuk setiap pengiriman barang, total biaya yang dikeluarkan Anggun untuk mengirimkan barang A, B, dan C secara terpisah adalah ….";Gambar;Rp28.060,00;;Rp30.060,00;;Rp33.400,00;;"Rp35.490,00
+";;Rp37.700,00;;B;;"Diketahui bahwa barang A seberat 1.450 g barang B seberat 0,5 kg = 500 g dan barang C seberat 3,2 g = 3.200 g.
+Total biaya yang dikeluarkan untuk mengirimkan barang A, B, dan C secara terpisah dapat dihitung sebagai berikut.
+Total biaya awal= Biaya A+Biaya b+Biaya c
+= 13.250+6.900+13.250
+Karena setiap pengiriman barang akan mendapatkan potongan harga sebesar , maka biaya yang dikeluarkan Anggun menjadi sebagai berikut.
+Total biaya akhir = Total biaya awal - potongan harga
+=33.400-(10%x total biaya awal)
+=33.400-(10/100 x 33.400) 
+Karena setiap pengiriman barang akan mendapatkan potongan harga sebesar , maka biaya yang dikeluarkan Anggun menjadi sebagai berikut.
+Total biaya akhir= Total biaya awal-Potongan harga
+=33.400-(10%x total biaya awal)
+=33.400-(10/100 x 33.400) 
+33.400-3.340
+= 30.060
+Dengan demikian, total biaya yang dikeluarkan Anggun untuk mengirimkan barang A, B, dan C secara terpisah adalah Rp30.060,00.
+";mudah
+PM_11;Pilihan Ganda Singkat;"Pajak Penghasilan (PPh) berdasarkan UU PPh didefinisikan sebagai pajak yang dikenakan kepada orang pribadi atau badan atas penghasilan yang diperoleh dalam tahun pajak. Untuk Penghasilan Tidak Kena Pajak (PTKP), karyawan yang memiliki status belum menikah dan tidak memiliki tanggungan adalah Rp54.000.000,00 per tahun. PPh termasuk ke dalam pajak progresif sehingga tarif pajak yang akan makin naik sesuai dengan naiknya dasar pengenaan pajak. Diketahui perhitungan tarif PPh berdasarkan pasal 21 sesuai UU PPh didasari oleh Penghasilan Kena Pajak (PKP) dan disajikan dalam tabel berikut.
+Sebagai contoh, untuk penghasilan Andi setelah dikurangi PTKP adalah Rp300.000.000,00 per tahun, maka dikenakan tarif pajak sampai lapis ketiga, yaitu 25%. Pada tarif lapis pertama, Rp60.000.000,00 pertama dikenakan tarif pajak 5%. Kemudian, pada tarif lapis kedua, Rp190.000.000,00 berikutnya (dari 60 juta sampai 250 juta) dikenakan tarif pajak 15%. Selanjutnya, pada tarif lapis terakhir, sisa Rp50.000,000 dikenakan tarif pajak 25%.
+Diketahui Egi adalah seorang karyawan tetap PT X dengan status belum menikah dan tidak memiliki tanggungan dengan penghasilan netto sebesar Rp 16.000.000,00 per bulan. Tarif pajak tahunan yang harus dibayarkan Egi adalah ….
+ ";;Rp6.900.000,00;;Rp96.000.000,00;;Rp11.700.000,00;;Rp14.700.000,00;;Rp20.700.000,00;;D;;"Perhatikan bahwa penghasilan netto Egi sebesar Rp16.000.000,00 per bulan sehingga penghasilan Egi dalam setahun adalah sebagai berikut.
+12XRp16.00.00,00= Rp192.000.000,00
+Karena Egi belum menikah dan tidak memiliki tanggungan, maka PTKPnya adalah Rp54.000.000,00 sehingga penghasilan kena pajaknya adalah sebagai berikut.
+PKP= Rp192.000.000,00-Rp54.000.000,00
+= Rp 138.000.000,00
+Karena Penghasilan Kena Pajak (PKP) Egi lebih dari Rp60.000.000,00 dan kurang dari Rp250.000.000,00, maka Egi dikenakan tarif pajak progresif hingga tarif lapis kedua, yaitu 15%.
+Untuk menghitung pajak penghasilannya, maka dibagi menjadi dua lapis tarif, yaitu lapis pertama (5%) dan sisa perhitungan lainnya dihitung dengan tarif lapisan kedua (15%) dengan perhitungan sebagai berikut.
+Lapisan pertama: dikenakan tarif 5%.
+5%xRp60.000.000,00=Rp3.000.000,00
+
+Lapisan kedua: dikenakan tarif 15%.
+
+15%x(Rp138.000.000,00-Rp60.000.000,00)
+=15%xRp78.000.000,00,00
+Rp11.700.000,00
+
+Oleh karena itu, pajak penghasilan egi secara profesional adalah sebagai berikut
+Rp3.000.000,00+Rp11.700.000,00
+=Rp.700.000";sulit
+PM_12;Pilihan Ganda Kompleks;"Pajak Penghasilan (PPh) berdasarkan UU PPh didefinisikan sebagai pajak yang dikenakan kepada orang pribadi atau badan atas penghasilan yang diperoleh dalam tahun pajak. Untuk Penghasilan Tidak Kena Pajak (PTKP), karyawan yang memiliki status belum menikah dan tidak memiliki tanggungan adalah Rp54.000.000,00 per tahun. PPh termasuk ke dalam pajak progresif sehingga tarif pajak yang akan makin naik sesuai dengan naiknya dasar pengenaan pajak. Diketahui perhitungan tarif PPh berdasarkan pasal 21 sesuai UU PPh didasari oleh Penghasilan Kena Pajak (PKP) dan disajikan dalam tabel berikut. 
+Sebagai contoh, untuk penghasilan Andi setelah dikurangi PTKP adalah Rp300.000.000,00 per tahun, maka dikenakan tarif pajak sampai lapis ketiga, yaitu 25%. Pada tarif lapis pertama, Rp60.000.000,00 pertama dikenakan tarif pajak 5%. Kemudian, pada tarif lapis kedua, Rp190.000.000,00 berikutnya (dari 60 juta sampai 250 juta) dikenakan tarif pajak 15%. Selanjutnya, pada tarif lapis terakhir, sisa Rp50.000,000 dikenakan tarif pajak 25%.
+John adalah seorang guru dengan status belum menikah dan tidak memiliki tanggungan dengan penghasilan netto sebesar Rp4.000.000,00 per bulan. Tarif pajak tahunan yang harus dibayar oleh John adalah ….
+";Gambar;"Rp0,00
+";;"Rp200.000,00
+";;"Rp300.000,00
+";;"Rp2.400.000,00
+";;Rp2.700.000,00;;A;;"Misalkan penghasilan John selama 1 tahun adalah P, maka besarnya dalam setahun adalah sebagai berikut.
+P= Rp4.000.000,00x12
+P=Rp48.000.000,00
+Karena Penghasilan Tidak Kena Pajak (PTKP) karyawan yang memiliki status belum menikah dan tidak memiliki tanggungan adalah Rp54.000.000,00 per tahun dan penghasilan John selama 1 tahun hanya Rp48.000.000,00, maka John tidak berkewajiban membayar pajak.
+Dengan demikian, tarif pajak tahunan yang harus dibayar oleh John adalah Rp0,00.
+";mudah
+PM_13;Pilihan Ganda Kompleks;"Tujuh buah silinder dengan jari-jari 7 cm disusun dan dibungkus sehingga membentuk tampak atas seperti gambar berikut.
+Jika ketujuh silinder tersebut dililit beberapa lapis oleh tali yang panjangnya 768 cm, banyak lilitan yang dibuat adalah … lapis.";Gambar;2;;3;;4;;6;;9;;D;;;
+PM_14;Pilihan Ganda Singkat;"Perhatikan informasi berikut!
+Berdasarkan perspektif ekonomi, usia penduduk dikategorikan menjadi dua bagian, yaitu usia produktif (15—59 tahun) dan usia tidak produktif (di bawah 15 tahun dan 60 tahun ke atas). Jumlah penduduk pada suatu negara tahun 2021 tercatat sebagai berikut.
+Jika dipilih satu orang dari negara tersebut pada tahun 2021, peluang terpilihnya seseorang yang berada pada usia produktif setelah dilakukan pembulatan adalah sekitar ….
+";Gambar;0,66;;0,67;;0,72;;0,75;;0,9;;A;;"Peluang terpilihnya seseorang yang berada pada usia produktif dapat dihitung sebagai berikut
+
+Peluang= Jumlah Penduduk Berusia Produktif/Jumlah penduduk keseluruhan
+= 66+62+48/65+66+62+48+24
+=176/265
+=0,66";mudah
+PM_15;Pilihan Ganda Singkat;"Berdasarkan perspektif ekonomi, usia penduduk dikategorikan menjadi dua bagian, yaitu usia produktif (15—59 tahun) dan usia tidak produktif (di bawah 15 tahun dan 60 tahun ke atas). Jumlah penduduk pada suatu negara tahun 2021 tercatat sebagai berikut.
+";Gambar;37,50%;;35,23%;;"31,52%
+";;27,28%;;24,22%;;B;;"Kategori penduduk usia 30—44 tahun atau dapat ditulis n(30-44) merupakan kategori usia produktif dengan jumlah penduduk sebesar 62 juta jiwa.
+Sementara itu, penduduk yang berada pada usia produktif merupakan penduduk dengan kelompok usia 15—59 tahun dengan jumlah penduduk sebagai berikut.
+
+n(produktif)= 66+62+48
+=176
+
+Persentase penduduk yang berusia 30—44 tahun terhadap jumlah seluruh penduduk yang berada pada usia produktif dapat dihitung sebagai berikut.
+
+n(30-44)/n(produktif)x100%= 62/176x100%
+=35,28";sedang
+PM_16;Isian Singkat;"Yoga memiliki wadah-wadah dengan tiga ukuran yang berbeda, yaitu S, M, dan L. Diketahui massa wadah berukuran M adalah dua kali lipat massa wadah berukuran S dan setiap wadah dengan ukuran yang sama memiliki massa yang sama. Ia kemudian menimbang kombinasi dua wadah dari wadah-wadah yang dimilikinya pada timbangan digital dan didapat hasil sebagai berikut.
+
+Jika Yoga menimbang 2 wadah berukuran L bersama-sama, massa kedua wadah tersebut adalah … gram.
+";Gambar;;;;;;;;;;;84;;"Misalkan x, y, dan z secara berurutan menyatakan massa wadah S, M, dan L. Berdasarkan gambar pada soal, didapat persamaan-persamaan sebagai berikut.
+
+x+y = 21
+y+z = 56
+
+Kemudian, diketahui massa wadah berukuran M adalah dua kali lipat massa wadah berukuran S maka diperoleh y= 2x atau x=1/2y . Akibatnya nilai dari dapat ditentukan dengan substitusi x=1/2y ke persamaan x+y = 21  ke persamaan sebagai berikut.
+
+x+y=21
+1/y+y = 21
+3/2y= 21
+y= 14
+
+Selanjutnya, substitusi y = 14 ke persamaan y + z = 56 sebagai berikut.
+
+y+z=56
+14+z= 56
+z=42
+Diperoleh z = 42, dengan kata lain massa dari wadah berukuran L adalah 42 gram. Oleh karena itu, jika dua wadah berukuran L ditimbang bersama-sama, massa kedua wadah tersebut adalah 84 gram.";sedang
