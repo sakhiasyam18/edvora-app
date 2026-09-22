@@ -107,7 +107,7 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
                             Selesaikan Sekarang
                         </button>
                     ) : (
-                        !terkunci && (
+                        !terkunci ? (
                             <button
                                 type="button"
                                 onClick={() => opsiTerpilih !== undefined && simpanJawaban(soal.id, opsiTerpilih)}
@@ -116,6 +116,25 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
                             >
                                 Simpan Jawaban
                             </button>
+                        ) : (
+                            <div className="flex gap-2">
+                                {indeksAktif < soalList.length - 1 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setIndeksAktif(indeksAktif + 1)}
+                                        className={`${tombolKecil} border border-gray-300 bg-white text-[#1F2D5C] hover:bg-gray-50`}
+                                    >
+                                        Lanjut Soal Berikutnya &rarr;
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => setModal('selesai')}
+                                    className={`${tombolKecil} bg-[#5B86DB] text-white hover:bg-[#4673CD]`}
+                                >
+                                    Selesaikan Latihan
+                                </button>
+                            </div>
                         )
                     )
                 }
