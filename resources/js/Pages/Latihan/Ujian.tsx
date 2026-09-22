@@ -53,10 +53,15 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
 
     const kirimJawaban = (tujuan: string) => {
         if (form.processing) return;
-        form.post(route('latihan.simpan'), {
-            // Controller masih return back(); pindah halaman dari sisi frontend dulu.
-            onSuccess: () => router.visit(tujuan),
-        });
+        
+        const aksi = tujuan === route('dashboard') ? 'keluar' : 'selesai';
+        
+        form.transform((data) => ({
+            ...data,
+            aksi
+        }));
+        
+        form.post(route('latihan.simpan'));
     };
 
     const tombolKecil = 'rounded-md px-4 py-1.5 text-xs font-medium shadow transition disabled:opacity-50';

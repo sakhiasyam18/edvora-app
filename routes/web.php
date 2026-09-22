@@ -27,10 +27,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Rute Latihan
     Route::prefix('latihan')->group(function () {
-        Route::get('/persiapan', [LatihanController::class, 'persiapan'])->name('latihan.persiapan');
+        Route::get('/persiapan', [LatihanSoalController::class, 'index'])->name('latihan.persiapan');
         Route::get('/ujian', [LatihanSoalController::class, 'ujian'])->name('latihan.ujian');
-        Route::post('/ujian/simpan', [LatihanController::class, 'simpanJawaban'])->name('latihan.simpan');
-        Route::get('/hasil', [LatihanController::class, 'hasil'])->name('latihan.hasil');
+        Route::post('/ujian/simpan', [LatihanSoalController::class, 'simpanJawaban'])->name('latihan.simpan');
+        Route::get('/hasil', [LatihanSoalController::class, 'hasil'])->name('latihan.hasil');
     });
 
     // Rute Battle
