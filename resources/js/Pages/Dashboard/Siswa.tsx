@@ -1,15 +1,12 @@
 import { Head, Link, usePage } from '@inertiajs/react';
 
-interface SiswaProps {
-    judul?: string;
-}
-
-export default function Siswa({ judul = 'Dashboard Siswa' }: SiswaProps) {
-    const user = usePage<any>().props.auth.user;
+export default function Siswa() {
+    const { auth } = usePage<any>().props;
+    const user = auth?.user;
 
     return (
         <>
-            <Head title={judul} />
+            <Head title="Dashboard" />
 
             <div className="flex min-h-screen bg-white">
                 {/* Sidebar */}
@@ -26,14 +23,14 @@ export default function Siswa({ judul = 'Dashboard Siswa' }: SiswaProps) {
                     {/* Navigation */}
                     <nav className="space-y-2 px-6 py-8">
                         <Link
-                            href={route('dashboard')}
+                            href="/dashboard"
                             className="block rounded-lg bg-blue-50 px-4 py-3 font-medium text-blue-600"
                         >
                             Beranda
                         </Link>
 
                         <Link
-                            href={route('riwayat.index')}
+                            href="/riwayat"
                             className="block rounded-lg px-4 py-3 font-medium text-gray-600 transition hover:bg-gray-50"
                         >
                             Riwayat
@@ -46,7 +43,7 @@ export default function Siswa({ judul = 'Dashboard Siswa' }: SiswaProps) {
                     {/* Header */}
                     <header className="flex h-20 items-center justify-end border-b border-gray-200 px-10">
                         <Link
-                            href={route('profile.edit')}
+                            href="/profile"
                             className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-300"
                         >
                             <svg
@@ -63,11 +60,11 @@ export default function Siswa({ judul = 'Dashboard Siswa' }: SiswaProps) {
                         </Link>
                     </header>
 
-                    {/* Main Content */}
+                    {/* Content */}
                     <main className="flex-1 px-10 py-10">
                         <div className="max-w-5xl">
                             <h1 className="mb-6 text-3xl font-bold text-gray-900">
-                                Halo, {user.name}!
+                                Halo, {user?.name || 'Siswa'}!
                             </h1>
 
                             {/* Search */}
@@ -94,7 +91,7 @@ export default function Siswa({ judul = 'Dashboard Siswa' }: SiswaProps) {
                             {/* Menu Cards */}
                             <div className="grid grid-cols-3 gap-6">
                                 <Link
-                                    href={route('latihan.persiapan')}
+                                    href="/latihan/persiapan"
                                     className="flex h-52 items-center justify-center rounded-xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-md"
                                 >
                                     <span className="text-lg font-semibold text-gray-800">
@@ -109,7 +106,7 @@ export default function Siswa({ judul = 'Dashboard Siswa' }: SiswaProps) {
                                 </div>
 
                                 <Link
-                                    href={route('battle.matchmaking')}
+                                    href="/battle/matchmaking"
                                     className="flex h-52 items-center justify-center rounded-xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-md"
                                 >
                                     <span className="text-lg font-semibold text-gray-800">
