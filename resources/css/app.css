@@ -1,3 +1,33 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+.hero-overlay-shadow {
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+
+.brand-title {
+    letter-spacing: 0.08em;
+    text-shadow: 0 4px 14px rgba(45, 93, 179, 0.28);
+}
+
+.main-card-shadow {
+    box-shadow: 0 20px 45px -10px rgba(45, 92, 172, 0.22), 0 10px 20px -8px rgba(0, 0, 0, 0.04);
+}
+
+.input-shadow {
+    box-shadow: 0 3px 10px rgba(89, 137, 203, 0.12);
+}
+
+.btn-submit-shadow {
+    box-shadow: 0 8px 20px -3px rgba(78, 126, 219, 0.45);
+}
+
+.bg-gradient-edvora {
+    background: linear-gradient(135deg, #a4cfec 0%, #81b1ea 50%, #5b87dd 100%);
+    min-height: 100vh;
+}
+
+.brand-title-shadow {
+    text-shadow: 0 3px 6px rgba(34, 56, 93, 0.25);
+}
