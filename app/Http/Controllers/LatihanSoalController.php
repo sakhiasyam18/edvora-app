@@ -86,16 +86,22 @@ class LatihanSoalController extends Controller
                 'total_skor' => 0
             ]);
 
+            // Ambil semua kunci jawaban sekali jalan - hindari N+1 query.
+            $kunci = OpsiJawaban::whereIn('id', array_column($jawabanList, 'opsiId'))
+                ->pluck('is_kunci', 'id');
+
+            $jawabanModel = new JawabanPengerjaan;
+            $waktuMenjawab = now()->toDateTimeString();
+            $baris = [];
             $jumlahBenar = 0;
-            $jumlahSalah = 0;
             $totalSkor = 0;
 
             foreach ($jawabanList as $j) {
-                $opsi = OpsiJawaban::find($j['opsiId']);
-                $isCorrect = $opsi ? $opsi->is_kunci : false;
+                $isCorrect = (bool) ($kunci[$j['opsiId']] ?? false);
                 $skor = $isCorrect ? 10 : 0;
 
-                JawabanPengerjaan::create([
+                $baris[] = [
+                    'id' => $jawabanModel->newUniqueId(),
                     'pengerjaan_id' => $p->id,
                     'pengerjaan_subtes_id' => null,
                     'soal_id' => $j['soalId'],
@@ -103,23 +109,27 @@ class LatihanSoalController extends Controller
                     'jawaban_isian' => null,
                     'is_correct' => $isCorrect,
                     'skor' => $skor,
-                    'waktu_menjawab' => now(),
-                ]);
+                    'waktu_menjawab' => $waktuMenjawab,
+                ];
 
                 if ($isCorrect) {
                     $jumlahBenar++;
-                } else {
-                    $jumlahSalah++;
                 }
                 $totalSkor += $skor;
+            }
+
+            if ($baris) {
+                JawabanPengerjaan::insert($baris);
             }
 
             $p->update(['total_skor' => $totalSkor]);
 
             $xpDidapat = ($jumlahBenar * 15) + 10;
-            
-            Siswa::where('user_id', Auth::id())->increment('xp', $xpDidapat);
-            Siswa::where('user_id', Auth::id())->increment('point', $totalSkor);
+
+            Siswa::where('user_id', Auth::id())->update([
+                'xp' => DB::raw('xp + ' . (int) $xpDidapat),
+                'point' => DB::raw('point + ' . (int) $totalSkor),
+            ]);
 
             return $p;
         });
