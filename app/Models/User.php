@@ -28,7 +28,7 @@ class User extends Authenticatable
         'password',
         'role',
         'is_active',
-    ];
+        ];
 
     public function siswa()
     {

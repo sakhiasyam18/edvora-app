@@ -2,176 +2,130 @@
 
 namespace App\Console\Commands;
 
+use App\Services\ImportSoalExcel;
 use Illuminate\Console\Command;
-use App\Models\Subtes;
-use App\Models\Soal;
-use App\Models\OpsiJawaban;
-use Illuminate\Support\Facades\DB;
+use Throwable;
 
 class ImportSoal extends Command
 {
-    protected $signature = 'edvora:import-soal';
-    protected $description = 'Import soal from CSV files into Supabase database';
+    protected $signature = 'edvora:import-soal
+        {file : Path file Excel (.xlsx) berisi soal}
+        {--dry-run : Hanya memeriksa file, tidak menyimpan apa pun ke database}';
 
-    public function handle()
+    protected $description = 'Import soal dari file Excel (upsert berdasarkan Kode Soal)';
+
+    public function handle(ImportSoalExcel $importer): int
     {
-        $this->info('Starting Soal Import...');
+        $path = $this->argument('file');
 
-        // 1. Ensure Subtes exist
-        $subtesPK = Subtes::firstOrCreate(
-            ['nama_subtes' => 'Penalaran Kuantitatif'],
-            ['kode_subtes' => 'PK', 'urutan' => 1, 'waktu_default_menit' => 20]
-        );
+        if (! is_file($path)) {
+            $this->error("File tidak ditemukan: {$path}");
 
-        $subtesPM = Subtes::firstOrCreate(
-            ['nama_subtes' => 'Penalaran Matematika'],
-            ['kode_subtes' => 'PM', 'urutan' => 2, 'waktu_default_menit' => 25]
-        );
-
-        $files = [
-            [
-                'path' => database_path('soal/Penalaran Kuantitatif(Penalaran Kuantitatif).csv'),
-                'subtes_id' => $subtesPK->id
-            ],
-            [
-                'path' => database_path('soal/Penalaran Matematika(PM).csv'),
-                'subtes_id' => $subtesPM->id
-            ]
-        ];
-
-        $totalImported = 0;
-        $seenKode = []; // to handle unique kode_soal
-
-        // Pre-load existing kode_soal to avoid collisions with DB
-        $existingKodes = Soal::pluck('kode_soal')->toArray();
-        foreach($existingKodes as $k) {
-            $seenKode[$k] = 1;
+            return self::FAILURE;
         }
 
-        foreach ($files as $file) {
-            if (!file_exists($file['path'])) {
-                $this->error("File not found: {$file['path']}");
-                continue;
-            }
+        try {
+            $hasil = $importer->periksa($path);
+        } catch (Throwable $e) {
+            $this->error("File tidak bisa dibaca sebagai .xlsx: {$e->getMessage()}");
 
-            $this->info("Processing: {$file['path']}");
-            
-            if (($handle = fopen($file['path'], 'r')) !== false) {
-                $header = fgetcsv($handle, 1000, ';'); // Skip header
-                
-                DB::beginTransaction();
-                try {
-                    $rowCount = 0;
-                    while (($data = fgetcsv($handle, 10000, ';')) !== false) {
-                        $rowCount++;
+            return self::FAILURE;
+        }
 
-                        // Handle empty row padding and character encoding
-                        $data = array_pad($data, 19, '');
-                        foreach ($data as $k => $v) {
-                            $data[$k] = mb_convert_encoding($v, 'UTF-8', 'Windows-1252');
-                        }
+        foreach ($hasil['peringatan'] as $peringatan) {
+            $this->warn($peringatan);
+        }
 
-                        $teksSoal = trim($data[3]);
-                        if (empty($teksSoal)) {
-                            continue; // Skip empty rows
-                        }
+        $jumlahSoal = count($hasil['soal']);
+        $barisError = collect($hasil['error'])->pluck('baris')->filter()->unique()->count();
+        $this->line("Sheet: {$hasil['sheet']} | baris soal: ".($jumlahSoal + $barisError)." | baris kosong dilewati: {$hasil['dilewati']}");
 
-                        // Handle Kode Soal duplicates
-                        $kodeSoal = trim($data[1]);
-                        if (empty($kodeSoal)) {
-                            $kodeSoal = 'SOAL-' . uniqid();
-                        }
-                        
-                        if (isset($seenKode[$kodeSoal])) {
-                            $seenKode[$kodeSoal]++;
-                            $kodeSoal = $kodeSoal . '-' . $seenKode[$kodeSoal];
-                        } else {
-                            $seenKode[$kodeSoal] = 1;
-                        }
+        if ($hasil['error']) {
+            $this->tampilkanError($hasil['error']);
+            $this->error(count($hasil['error'])." masalah di {$barisError} baris. Tidak ada soal yang disimpan.");
 
-                        // Map Enums
-                        $tipeCsv = strtolower(trim($data[2]));
-                        $tipe = 'pilihan_ganda'; // default
-                        if (str_contains($tipeCsv, 'pilihan ganda')) {
-                            $tipe = 'pilihan_ganda';
-                        } elseif (str_contains($tipeCsv, 'isian')) {
-                            $tipe = 'isian_singkat';
-                        } elseif (str_contains($tipeCsv, 'esai')) {
-                            $tipe = 'esai';
-                        }
+            return self::FAILURE;
+        }
 
-                        $kesulitanCsv = strtolower(trim($data[18]));
-                        $kesulitan = in_array($kesulitanCsv, ['mudah', 'sedang', 'sulit']) ? $kesulitanCsv : 'sedang';
+        if ($jumlahSoal === 0) {
+            $this->warn('Tidak ada soal di file ini.');
 
-                        $kunci = trim($data[15]);
-                        
-                        $pembahasan = trim($data[17]);
-                        if (empty($pembahasan)) {
-                            $pembahasan = '-';
-                        }
+            return self::SUCCESS;
+        }
 
-                        // Create Soal
-                        $gambarSoal = trim($data[4]) ?: null;
-                        if ($gambarSoal && strlen($gambarSoal) > 255) {
-                            $gambarSoal = substr($gambarSoal, 0, 255);
-                        }
+        $this->tampilkanRingkasan($hasil['soal']);
 
-                        $soal = Soal::create([
-                            'kode_soal' => $kodeSoal,
-                            'subtes_id' => $file['subtes_id'],
-                            'editor_id' => null, // STRICT RULE: MUST BE NULL
-                            'tipe' => $tipe,
-                            'teks_soal' => $teksSoal,
-                            'gambar_soal' => $gambarSoal,
-                            'kunci_jawaban' => $kunci,
-                            'hint' => trim($data[16]) ?: null,
-                            'pembahasan' => $pembahasan,
-                            'tingkat_kesulitan' => $kesulitan,
-                            'status' => 'draft',
-                        ]);
+        if ($this->option('dry-run')) {
+            $this->info("Dry-run: {$jumlahSoal} soal valid. Tidak ada yang disimpan.");
 
-                        // Opsi Jawaban mapping
-                        $opsiMap = [
-                            'A' => ['teks' => trim($data[5]), 'gambar' => trim($data[6]), 'urutan' => 1],
-                            'B' => ['teks' => trim($data[7]), 'gambar' => trim($data[8]), 'urutan' => 2],
-                            'C' => ['teks' => trim($data[9]), 'gambar' => trim($data[10]), 'urutan' => 3],
-                            'D' => ['teks' => trim($data[11]), 'gambar' => trim($data[12]), 'urutan' => 4],
-                            'E' => ['teks' => trim($data[13]), 'gambar' => trim($data[14]), 'urutan' => 5],
-                        ];
+            return self::SUCCESS;
+        }
 
-                        foreach ($opsiMap as $label => $opsi) {
-                            if ($opsi['teks'] === '' && $opsi['gambar'] === '') {
-                                continue; // Skip if completely empty
-                            }
+        try {
+            $jumlah = $importer->simpan($hasil['soal']);
+        } catch (Throwable $e) {
+            $this->error("Gagal menyimpan, semua perubahan dibatalkan: {$e->getMessage()}");
 
-                            $gambarOpsi = $opsi['gambar'] ?: null;
-                            if ($gambarOpsi && strlen($gambarOpsi) > 255) {
-                                $gambarOpsi = substr($gambarOpsi, 0, 255);
-                            }
+            return self::FAILURE;
+        }
 
-                            OpsiJawaban::create([
-                                'soal_id' => $soal->id,
-                                'label' => $label,
-                                'teks_opsi' => $opsi['teks'],
-                                'gambar_opsi' => $gambarOpsi,
-                                'is_kunci' => ($label === $kunci),
-                                'urutan' => $opsi['urutan']
-                            ]);
-                        }
+        $this->info("Tersimpan: {$jumlah['baru']} soal baru, {$jumlah['diperbarui']} soal diperbarui.");
 
-                        $totalImported++;
-                    }
-                    DB::commit();
-                    $this->info("Imported $rowCount rows successfully from this file.");
-                } catch (\Exception $e) {
-                    DB::rollBack();
-                    $this->error("Error importing row $rowCount: " . $e->getMessage());
-                }
-                
-                fclose($handle);
+        return self::SUCCESS;
+    }
+
+    // Kelompokkan error yang sama agar laporan tetap ringkas, mis. "Wajib diisi" di baris 3–40.
+    private function tampilkanError(array $error): void
+    {
+        $baris = collect($error)
+            ->groupBy(fn ($e) => $e['kolom']."\0".$e['pesan'])
+            ->map(fn ($grup) => [
+                'kolom' => $grup[0]['kolom'] ?? '-',
+                'pesan' => $grup[0]['pesan'],
+                'baris' => $this->rentangBaris($grup->pluck('baris')->filter()->all()),
+                'urut' => $grup->min('baris') ?? 0,
+            ])
+            ->sortBy('urut')
+            ->map(fn ($e) => [$e['baris'] ?: '-', $e['kolom'], $e['pesan']])
+            ->values()
+            ->all();
+
+        $this->table(['Baris', 'Kolom', 'Masalah'], $baris);
+    }
+
+    private function tampilkanRingkasan(array $soalList): void
+    {
+        $baris = collect($soalList)
+            ->groupBy(fn ($s) => $s['kode_subtes'].'|'.$s['tipe'])
+            ->map(fn ($grup) => [
+                $grup[0]['kode_subtes'],
+                $grup[0]['tipe'],
+                $grup->where('sudah_ada', false)->count(),
+                $grup->where('sudah_ada', true)->count(),
+            ])
+            ->sortKeys()
+            ->values()
+            ->all();
+
+        $this->table(['Subtes', 'Tipe', 'Baru', 'Diperbarui'], $baris);
+    }
+
+    // [3, 4, 5, 9] => "3–5, 9"
+    private function rentangBaris(array $baris): string
+    {
+        sort($baris);
+        $rentang = [];
+
+        foreach ($baris as $b) {
+            $akhir = array_key_last($rentang);
+
+            if ($akhir !== null && $rentang[$akhir][1] === $b - 1) {
+                $rentang[$akhir][1] = $b;
+            } elseif ($akhir === null || $rentang[$akhir][1] !== $b) {
+                $rentang[] = [$b, $b];
             }
         }
 
-        $this->info("Import completed! Total Soal inserted: $totalImported");
+        return implode(', ', array_map(fn ($r) => $r[0] === $r[1] ? $r[0] : "{$r[0]}–{$r[1]}", $rentang));
     }
 }

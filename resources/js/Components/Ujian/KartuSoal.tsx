@@ -19,8 +19,10 @@ export function TeksMatematika({ teks }: { teks: string }) {
     );
 }
 
-interface KartuSoalProps extends Pick<Soal, 'teksSoal' | 'gambarUrl'> {
+interface KartuSoalProps {
     nomor: number;
+    teksSoal: Soal['teks_soal'];
+    gambarUrl?: Soal['gambar_soal'] | null;
 }
 
 export default function KartuSoal({ nomor, teksSoal, gambarUrl }: KartuSoalProps) {
