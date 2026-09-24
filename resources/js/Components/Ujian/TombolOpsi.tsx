@@ -13,12 +13,12 @@ interface TombolOpsiProps {
 const gayaStatus: Record<StatusOpsi, string> = {
     default: 'bg-white text-[#1F2D5C] border-gray-200 group-hover:border-[#5B86DB]',
     selected: 'bg-[#2E3F85] text-white border-[#2E3F85]',
-    benar: 'bg-[#C5EBA8] text-[#1F2D5C] border-[#A9DC85]',
-    salah: 'bg-[#F07B7B] text-[#1F2D5C] border-[#E86565]',
+    benar: 'bg-[#34C759] text-[#26355D] border-[#2AA94B]',
+    salah: 'bg-[#F07676] text-[#26355D] border-[#E05B5B]',
 };
 
 // Opsi yang tidak dipilih setelah jawaban dikunci tampil redup.
-const gayaRedup = 'bg-gray-200 text-gray-400 border-gray-300';
+const gayaRedup = 'bg-[#A5ABB0] text-[#9A9FA2] border-[#9A9FA2]';
 
 export default function TombolOpsi({ opsi, status = 'default', disabled = false, onPilih }: TombolOpsiProps) {
     const gaya = disabled && status === 'default' ? gayaRedup : gayaStatus[status];
@@ -39,12 +39,12 @@ export default function TombolOpsi({ opsi, status = 'default', disabled = false,
                     <TeksMatematika teks={opsi.teks_opsi} />
                 </span>
                 {status === 'benar' && (
-                    <svg className="h-5 w-5 shrink-0 text-[#4C9A2A]" viewBox="0 0 24 24" fill="currentColor" aria-label="Jawaban benar">
+                    <svg className="h-5 w-5 shrink-0 text-[#26355D]" viewBox="0 0 24 24" fill="currentColor" aria-label="Jawaban benar">
                         <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm-1.5 14.5l-4-4 1.4-1.4 2.6 2.6 5.6-5.6 1.4 1.4-7 7z" />
                     </svg>
                 )}
                 {status === 'salah' && (
-                    <svg className="h-5 w-5 shrink-0 text-[#9B1C1C]" viewBox="0 0 24 24" fill="currentColor" aria-label="Jawaban salah">
+                    <svg className="h-5 w-5 shrink-0 text-[#26355D]" viewBox="0 0 24 24" fill="currentColor" aria-label="Jawaban salah">
                         <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm4.3 12.9l-1.4 1.4-2.9-2.9-2.9 2.9-1.4-1.4 2.9-2.9-2.9-2.9 1.4-1.4 2.9 2.9 2.9-2.9 1.4 1.4-2.9 2.9 2.9 2.9z" />
                     </svg>
                 )}

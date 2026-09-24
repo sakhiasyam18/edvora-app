@@ -2,7 +2,7 @@ import { Head, router, useForm } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 import LatihanLayout from '@/Components/Layouts/LatihanLayout';
 import Modal from '@/Components/Modal';
-import ArenaPengerjaan, { NavigasiSoal } from '@/Components/Ujian/ArenaPengerjaan';
+import ArenaPengerjaan, { NavigasiSoal, StatusJawabanSoal } from '@/Components/Ujian/ArenaPengerjaan';
 import KartuSoal, { TeksMatematika } from '@/Components/Ujian/KartuSoal';
 import TimerMundur from '@/Components/Ujian/TimerMundur';
 import TombolOpsi, { StatusOpsi } from '@/Components/Ujian/TombolOpsi';
@@ -42,6 +42,17 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
         else setPilihanSementara((p) => ({ ...p, [soal.id]: opsi.id }));
     };
 
+    // Mode fleksibel: jawaban yang sudah dikunci boleh ketahuan benar/salahnya di navigasi.
+    // Mode simulasi tidak memakai ini, supaya hasil belum terlihat sebelum latihan selesai.
+    const statusJawabanSoal = (indeks: number): StatusJawabanSoal => {
+        const soalKe = soalList[indeks];
+        const opsiId = jawabanTersimpan(soalKe.id);
+        if (opsiId === undefined) return null;
+
+        const opsi = soalKe.opsi_jawaban.find((o: any) => o.id === opsiId);
+        return opsi?.is_kunci ? 'benar' : 'salah';
+    };
+
     const statusOpsi = (opsi: OpsiJawaban): StatusOpsi => {
         if (terkunci) {
             if (opsi.is_kunci) return 'benar'; // asumsikan is_kunci boolean datang dari db
@@ -74,6 +85,7 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
                     jumlahSoal={soalList.length}
                     indeksAktif={indeksAktif}
                     sudahDijawab={(i) => jawabanTersimpan(soalList[i].id) !== undefined}
+                    statusJawaban={simulasi ? undefined : statusJawabanSoal}
                     onPilih={setIndeksAktif}
                     aksiBawah={
                         !simulasi && (

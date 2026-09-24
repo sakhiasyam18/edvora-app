@@ -17,8 +17,8 @@ const daftarSubtes = [
 ];
 
 const JUMLAH_SOAL_FLEKSIBEL_AWAL = 10;
-const JUMLAH_SOAL_MIN = 1;
-const JUMLAH_SOAL_MAKS = 20;
+const JUMLAH_SOAL_MIN = 5;
+const JUMLAH_SOAL_MAKS = 25;
 const JUMLAH_SOAL_SIMULASI = dummyKonfigurasiSesi.jumlahSoal;
 const WAKTU_SIMULASI_MENIT = dummyKonfigurasiSesi.waktuPengerjaanMenit ?? 20;
 
@@ -42,11 +42,11 @@ function IkonPanah() {
 const warnaBawaan = [
     'bg-[#DFDFF3]', // PK
     'bg-[#D9EFE0]', // PM
-    'bg-[#DCE7F0]', 
-    'bg-[#F3D6D6]', 
-    'bg-[#EDF0D8]', 
-    'bg-[#F2D6EC]', 
-    'bg-[#F2EED8]', 
+    'bg-[#DCE7F0]',
+    'bg-[#F3D6D6]',
+    'bg-[#EDF0D8]',
+    'bg-[#F2D6EC]',
+    'bg-[#F2EED8]',
 ];
 
 export default function Persiapan({ subtes = [] }: { subtes?: any[] }) {
@@ -95,7 +95,6 @@ export default function Persiapan({ subtes = [] }: { subtes?: any[] }) {
                             <span className="mt-4 font-semibold leading-snug text-[#1F2D5C]">
                                 {item.nama_subtes} ({item.kode_subtes})
                             </span>
-                            <span className="mt-1 text-xs font-semibold text-green-600">Tersedia {item.soal_count} Soal</span>
                             <span className="mt-1 text-xs text-gray-600">{item.deskripsi || 'Selesaikan tantangan di subtes ini!'}</span>
                             <span className="mt-auto flex justify-end pt-3">
                                 <IkonPanah />
@@ -117,9 +116,8 @@ export default function Persiapan({ subtes = [] }: { subtes?: any[] }) {
                                     key={mode}
                                     type="button"
                                     onClick={() => gantiMode(mode)}
-                                    className={`rounded-md py-2.5 font-medium transition ${
-                                        konfigurasi.mode === mode ? 'bg-[#5B86DB] text-white shadow' : 'text-[#1F2D5C] hover:bg-white/60'
-                                    }`}
+                                    className={`rounded-md py-2.5 font-medium transition ${konfigurasi.mode === mode ? 'bg-[#5B86DB] text-white shadow' : 'text-[#1F2D5C] hover:bg-white/60'
+                                        }`}
                                 >
                                     Mode {mode === 'fleksibel' ? 'Fleksibel' : 'Simulasi'}
                                 </button>
@@ -163,9 +161,8 @@ export default function Persiapan({ subtes = [] }: { subtes?: any[] }) {
                                     className="flex w-full items-center gap-4 text-left"
                                 >
                                     <span
-                                        className={`flex h-12 w-12 items-center justify-center rounded-lg border transition ${
-                                            konfigurasi.iceBreakingAktif ? 'border-[#5B86DB] bg-[#5B86DB]' : 'border-gray-300 bg-[#EAF2FC]'
-                                        }`}
+                                        className={`flex h-12 w-12 items-center justify-center rounded-lg border transition ${konfigurasi.iceBreakingAktif ? 'border-[#5B86DB] bg-[#5B86DB]' : 'border-gray-300 bg-[#EAF2FC]'
+                                            }`}
                                     >
                                         <svg className={`h-7 w-7 ${konfigurasi.iceBreakingAktif ? 'text-white' : 'text-[#2E3F85]'}`} viewBox="0 0 24 24" fill="currentColor">
                                             <path d="M12 2a10 10 0 100 20 10 10 0 000-20zM8.5 8a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm7 0a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM12 18a5.5 5.5 0 01-5-3.2h10A5.5 5.5 0 0112 18z" />

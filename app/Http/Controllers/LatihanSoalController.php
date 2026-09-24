@@ -17,7 +17,7 @@ class LatihanSoalController extends Controller
 {
     public function index()
     {
-        $subtes = Subtes::withCount('soal')->orderBy('urutan')->get();
+        $subtes = Subtes::orderBy('urutan')->get();
         return Inertia::render('Latihan/Persiapan', [
             'subtes' => $subtes
         ]);
