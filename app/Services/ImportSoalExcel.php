@@ -25,9 +25,9 @@ class ImportSoalExcel
 
     // Label di kolom Tipe Soal (sama dengan dropdown di Excel) => nilai enum tipe_soal.
     public const TIPE_SOAL = [
-        'Pilihan Ganda Singkat' => 'pilihan_ganda',
-        'Pilihan Ganda Kompleks' => 'benar_salah',
-        'Isian Singkat' => 'isian_singkat',
+        'pilihan_ganda' => 'pilihan_ganda',
+        'benar_salah' => 'benar_salah',
+        'isian_singkat' => 'isian_singkat',
     ];
 
     public const TINGKAT_KESULITAN = ['mudah', 'sedang', 'sulit'];
@@ -491,7 +491,7 @@ class ImportSoalExcel
 
         if ($tipe === 'isian_singkat') {
             if ($terisi) {
-                $tambahError('opsi_'.strtolower($terisi[0]).'_teks', 'Opsi harus kosong untuk tipe Isian Singkat.');
+                $tambahError('opsi_'.strtolower($terisi[0]).'_teks', 'Opsi harus kosong untuk tipe isian_singkat.');
             }
 
             if ($kunci === null) {
@@ -535,7 +535,7 @@ class ImportSoalExcel
             $huruf = strtoupper($kunci);
 
             if (! in_array($huruf, self::LABEL_OPSI, true)) {
-                $tambahError('kunci', "\"{$kunci}\" tidak valid. Kunci Pilihan Ganda Singkat harus 1 huruf A–E, contoh C.");
+                $tambahError('kunci', "\"{$kunci}\" tidak valid. Kunci pilihan_ganda harus 1 huruf A–E, contoh C.");
             } elseif (! $opsi[$huruf]['terisi']) {
                 $tambahError('kunci', "Kunci {$huruf} menunjuk opsi yang kosong.");
             } else {
@@ -549,7 +549,7 @@ class ImportSoalExcel
         $nilaiKunci = array_map(fn ($k) => strtoupper(trim($k)), explode(',', $kunci));
 
         if (array_diff($nilaiKunci, ['B', 'S'])) {
-            $tambahError('kunci', "\"{$kunci}\" tidak valid. Kunci Pilihan Ganda Kompleks berisi B atau S dipisah koma, contoh B,S,B.");
+            $tambahError('kunci', "\"{$kunci}\" tidak valid. Kunci benar_salah berisi B atau S dipisah koma, contoh B,S,B.");
         } elseif (count($nilaiKunci) !== count($terisi)) {
             $tambahError('kunci', 'Ada '.count($terisi).' pernyataan, tetapi kunci berisi '.count($nilaiKunci)." nilai ({$kunci}).");
         } else {

@@ -16,6 +16,8 @@ type ModalAktif = 'hint' | 'keluar' | 'selesai' | null;
 
 type IdOpsi = string | number;
 
+type Jawaban = { soalId: IdOpsi; opsiIds: IdOpsi[]; jawabanIsian?: string };
+
 // Urutan centang tidak boleh mempengaruhi hasil: {A,D,E} sama dengan {E,A,D}.
 function samaHimpunan(a: IdOpsi[], b: IdOpsi[]) {
     return a.length === b.length && a.every((x) => b.includes(x));
@@ -25,27 +27,37 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
     const simulasi = konfigurasi.mode === 'simulasi';
 
     // Semua tipe berbasis opsi memakai array; pilihan ganda = array beranggota satu.
+    // Soal isian_singkat memakai jawabanIsian dengan opsiIds kosong.
     const form = useForm({
         ...konfigurasi,
-        jawaban: [] as { soalId: IdOpsi; opsiIds: IdOpsi[] }[],
+        jawaban: [] as Jawaban[],
     });
 
     const [indeksAktif, setIndeksAktif] = useState(0);
     // Mode fleksibel: pilihan belum final sampai "Simpan Jawaban" ditekan.
     const [pilihanSementara, setPilihanSementara] = useState<Record<string | number, IdOpsi[]>>({});
+    const [isianSementara, setIsianSementara] = useState<Record<string | number, string>>({});
     const [modal, setModal] = useState<ModalAktif>(null);
 
     const soal = soalList[indeksAktif];
-    const jawabanTersimpan = (soalId: IdOpsi): IdOpsi[] | undefined =>
-        form.data.jawaban.find((j: any) => j.soalId === soalId)?.opsiIds;
-    const opsiTersimpan = jawabanTersimpan(soal.id);
-    const terkunci = !simulasi && opsiTersimpan !== undefined;
-    const opsiTerpilih: IdOpsi[] = (simulasi || terkunci ? opsiTersimpan : pilihanSementara[soal.id]) ?? [];
+    const isian = soal.tipe === 'isian_singkat';
+    const cariJawaban = (soalId: IdOpsi): Jawaban | undefined => form.data.jawaban.find((j: Jawaban) => j.soalId === soalId);
+    const tersimpan = cariJawaban(soal.id);
+    const terkunci = !simulasi && tersimpan !== undefined;
+    const opsiTerpilih: IdOpsi[] = (simulasi || terkunci ? tersimpan?.opsiIds : pilihanSementara[soal.id]) ?? [];
+    const teksIsian: string = (simulasi || terkunci ? tersimpan?.jawabanIsian : isianSementara[soal.id]) ?? '';
+    const belumDiisi = isian ? teksIsian.trim() === '' : opsiTerpilih.length === 0;
 
-    // Array kosong berarti soal kembali belum dijawab.
-    const simpanJawaban = (soalId: IdOpsi, opsiIds: IdOpsi[]) => {
-        const lainnya = form.data.jawaban.filter((j: any) => j.soalId !== soalId);
-        form.setData('jawaban', opsiIds.length > 0 ? [...lainnya, { soalId, opsiIds }] : lainnya);
+    // Jawaban kosong (tanpa opsi dan tanpa teks) berarti soal kembali belum dijawab.
+    const simpanJawaban = (soalId: IdOpsi, opsiIds: IdOpsi[], jawabanIsian = '') => {
+        const lainnya = form.data.jawaban.filter((j: Jawaban) => j.soalId !== soalId);
+        const kosong = opsiIds.length === 0 && jawabanIsian.trim() === '';
+        form.setData('jawaban', kosong ? lainnya : [...lainnya, { soalId, opsiIds, jawabanIsian }]);
+    };
+
+    const ubahIsian = (teks: string) => {
+        if (simulasi) simpanJawaban(soal.id, [], teks);
+        else setIsianSementara((p) => ({ ...p, [soal.id]: teks }));
     };
 
     // Pilihan ganda: ganti dengan satu opsi. Benar/salah: centang atau lepas centang.
@@ -66,7 +78,11 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
     // Aturannya sama dengan backend: semua-atau-nol terhadap himpunan is_kunci.
     const statusJawabanSoal = (indeks: number): StatusJawabanSoal => {
         const soalKe = soalList[indeks];
-        const dipilih = jawabanTersimpan(soalKe.id);
+        // Isian belum dinilai di frontend (aturannya ada di PenilaianIsian backend);
+        // null membuat bulatan tetap biru "sudah dijawab", bukan merah yang menyesatkan.
+        if (soalKe.tipe === 'isian_singkat') return null;
+
+        const dipilih = cariJawaban(soalKe.id)?.opsiIds;
         if (dipilih === undefined) return null;
 
         const kunci = soalKe.opsi_jawaban.filter((o: any) => o.is_kunci).map((o: any) => o.id);
@@ -105,7 +121,7 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
                 <NavigasiSoal
                     jumlahSoal={soalList.length}
                     indeksAktif={indeksAktif}
-                    sudahDijawab={(i) => jawabanTersimpan(soalList[i].id) !== undefined}
+                    sudahDijawab={(i) => cariJawaban(soalList[i].id) !== undefined}
                     statusJawaban={simulasi ? undefined : statusJawabanSoal}
                     onPilih={setIndeksAktif}
                     aksiBawah={
@@ -143,8 +159,8 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
                         !terkunci ? (
                             <button
                                 type="button"
-                                onClick={() => opsiTerpilih.length > 0 && simpanJawaban(soal.id, opsiTerpilih)}
-                                disabled={opsiTerpilih.length === 0}
+                                onClick={() => !belumDiisi && simpanJawaban(soal.id, opsiTerpilih, teksIsian)}
+                                disabled={belumDiisi}
                                 className={`${tombolKecil} bg-[#C5EBA8] text-[#2F5E1A] hover:bg-[#B5E194]`}
                             >
                                 Simpan Jawaban
@@ -179,6 +195,20 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
                         <TombolOpsi key={opsi.id} opsi={opsi} status={statusOpsi(opsi)} disabled={terkunci} onPilih={pilihOpsi} />
                     ))}
                 </div>
+
+                {/* Field dasar isian_singkat, belum didesain. Batas 100 karakter mengikuti validasi backend. */}
+                {isian && (
+                    <input
+                        type="text"
+                        value={teksIsian}
+                        onChange={(e) => ubahIsian(e.target.value)}
+                        disabled={terkunci}
+                        maxLength={100}
+                        placeholder="Tulis jawaban"
+                        aria-label="Jawaban isian singkat"
+                        className="mt-4 w-full max-w-md rounded border border-gray-300 px-3 py-2"
+                    />
+                )}
 
                 {terkunci && (
                     <div className="relative mt-8">

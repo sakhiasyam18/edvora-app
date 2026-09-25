@@ -7,6 +7,7 @@ use App\Models\Soal;
 use App\Models\Pengerjaan;
 use App\Models\JawabanPengerjaan;
 use App\Models\Siswa;
+use App\Services\PenilaianIsian;
 use Inertia\Inertia;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -74,7 +75,14 @@ class LatihanSoalController extends Controller
             return redirect()->route('dashboard');
         }
 
-        $jawabanList = $request->get('jawaban', []); // Array of { soalId, opsiIds: [] }
+        // Jawaban isian dibatasi satu kata atau bilangan bulat; 100 karakter sudah sangat longgar.
+        $request->validate([
+            'jawaban' => ['array'],
+            'jawaban.*.jawabanIsian' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        // Array of { soalId, opsiIds: [], jawabanIsian: string|null }
+        $jawabanList = $request->get('jawaban', []);
         $subtesId = $request->get('subtesId');
         $iceBreakingAktif = $request->boolean('iceBreakingAktif');
 
@@ -94,7 +102,7 @@ class LatihanSoalController extends Controller
             // Ambil semua soal beserta opsinya sekali jalan - hindari N+1 query.
             $soalMap = Soal::with('opsiJawaban:id,soal_id,is_kunci')
                 ->whereIn('id', array_column($jawabanList, 'soalId'))
-                ->get(['id', 'tipe'])
+                ->get(['id', 'tipe', 'kunci_jawaban'])
                 ->keyBy('id');
 
             $jawabanModel = new JawabanPengerjaan;
@@ -109,18 +117,34 @@ class LatihanSoalController extends Controller
                     continue;
                 }
 
-                // Sementara: terima bentuk lama { opsiId } sampai semua klien memakai opsiIds.
-                $dikirim = $j['opsiIds'] ?? (isset($j['opsiId']) ? [$j['opsiId']] : []);
+                $dipilih = [];
+                $teksIsian = null;
 
-                // Kolom array tidak punya FK, jadi hanya terima opsi yang memang milik soal ini.
-                $dipilih = array_values(array_intersect($dikirim, $soal->opsiJawaban->pluck('id')->all()));
-                $kunci = $soal->opsiJawaban->where('is_kunci', true)->pluck('id')->all();
-                sort($dipilih);
-                sort($kunci);
+                if ($soal->tipe === 'isian_singkat') {
+                    // Pangkas tepi termasuk non-breaking space; huruf besar-kecil disimpan apa adanya.
+                    $teksIsian = preg_replace('/^[\p{Z}\s]+|[\p{Z}\s]+$/u', '', (string) ($j['jawabanIsian'] ?? ''));
 
-                // Semua-atau-nol; pilihan ganda = himpunan beranggota satu.
-                // isian_singkat belum dinilai di sini: tanpa opsi, [] === [] akan terbaca benar.
-                $isCorrect = $soal->tipe !== 'isian_singkat' && $kunci !== [] && $dipilih === $kunci;
+                    // Jawaban kosong tidak dicatat, sama seperti soal ber-opsi yang dilewati.
+                    if (PenilaianIsian::normalisasi($teksIsian) === '') {
+                        continue;
+                    }
+
+                    $isCorrect = PenilaianIsian::cocok($teksIsian, $soal->kunci_jawaban ?? '');
+                } else {
+                    // Sementara: terima bentuk lama { opsiId } sampai semua klien memakai opsiIds.
+                    $dikirim = $j['opsiIds'] ?? (isset($j['opsiId']) ? [$j['opsiId']] : []);
+
+                    // Kolom array tidak punya FK, jadi hanya terima opsi yang memang milik soal ini.
+                    $dipilih = array_values(array_intersect($dikirim, $soal->opsiJawaban->pluck('id')->all()));
+                    $kunci = $soal->opsiJawaban->where('is_kunci', true)->pluck('id')->all();
+                    sort($dipilih);
+                    sort($kunci);
+
+                    // Semua-atau-nol; pilihan ganda = himpunan beranggota satu.
+                    // $kunci !== [] mencegah soal tanpa kunci terbaca benar lewat [] === [].
+                    $isCorrect = $kunci !== [] && $dipilih === $kunci;
+                }
+
                 $skor = $isCorrect ? 10 : 0;
 
                 $baris[] = [
@@ -131,7 +155,7 @@ class LatihanSoalController extends Controller
                     // Bulk insert melewati mutator Eloquent, jadi format array Postgres ditulis manual.
                     'opsi_dipilih_id' => $soal->tipe === 'pilihan_ganda' ? ($dipilih[0] ?? null) : null,
                     'opsi_dipilih_ids' => $soal->tipe === 'benar_salah' ? '{'.implode(',', $dipilih).'}' : null,
-                    'jawaban_isian' => null,
+                    'jawaban_isian' => $teksIsian,
                     'is_correct' => $isCorrect,
                     'skor' => $skor,
                     'waktu_menjawab' => $waktuMenjawab,
