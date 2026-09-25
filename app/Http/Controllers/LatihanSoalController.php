@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Subtes;
 use App\Models\Soal;
-use App\Models\OpsiJawaban;
 use App\Models\Pengerjaan;
 use App\Models\JawabanPengerjaan;
 use App\Models\Siswa;
@@ -17,7 +16,8 @@ class LatihanSoalController extends Controller
 {
     public function index()
     {
-        $subtes = Subtes::orderBy('urutan')->get();
+        // soal_exists (boolean) hanya untuk menonaktifkan kartu; jumlah soal sengaja tidak dikirim.
+        $subtes = Subtes::withExists('soal')->orderBy('urutan')->get();
         return Inertia::render('Latihan/Persiapan', [
             'subtes' => $subtes
         ]);
@@ -40,6 +40,11 @@ class LatihanSoalController extends Controller
             ->inRandomOrder()
             ->take($jumlahSoal)
             ->get();
+
+        // Jaring pengaman bila URL dibuka langsung untuk subtes tanpa soal.
+        if ($soalList->isEmpty()) {
+            return redirect()->route('latihan.index');
+        }
 
         $mode = $request->get('mode') === 'simulasi' ? 'simulasi' : 'fleksibel';
         
@@ -69,7 +74,7 @@ class LatihanSoalController extends Controller
             return redirect()->route('dashboard');
         }
 
-        $jawabanList = $request->get('jawaban', []); // Array of { soalId, opsiId }
+        $jawabanList = $request->get('jawaban', []); // Array of { soalId, opsiIds: [] }
         $subtesId = $request->get('subtesId');
         $iceBreakingAktif = $request->boolean('iceBreakingAktif');
 
@@ -86,9 +91,11 @@ class LatihanSoalController extends Controller
                 'total_skor' => 0
             ]);
 
-            // Ambil semua kunci jawaban sekali jalan - hindari N+1 query.
-            $kunci = OpsiJawaban::whereIn('id', array_column($jawabanList, 'opsiId'))
-                ->pluck('is_kunci', 'id');
+            // Ambil semua soal beserta opsinya sekali jalan - hindari N+1 query.
+            $soalMap = Soal::with('opsiJawaban:id,soal_id,is_kunci')
+                ->whereIn('id', array_column($jawabanList, 'soalId'))
+                ->get(['id', 'tipe'])
+                ->keyBy('id');
 
             $jawabanModel = new JawabanPengerjaan;
             $waktuMenjawab = now()->toDateTimeString();
@@ -97,7 +104,23 @@ class LatihanSoalController extends Controller
             $totalSkor = 0;
 
             foreach ($jawabanList as $j) {
-                $isCorrect = (bool) ($kunci[$j['opsiId']] ?? false);
+                $soal = $soalMap[$j['soalId']] ?? null;
+                if (! $soal) {
+                    continue;
+                }
+
+                // Sementara: terima bentuk lama { opsiId } sampai semua klien memakai opsiIds.
+                $dikirim = $j['opsiIds'] ?? (isset($j['opsiId']) ? [$j['opsiId']] : []);
+
+                // Kolom array tidak punya FK, jadi hanya terima opsi yang memang milik soal ini.
+                $dipilih = array_values(array_intersect($dikirim, $soal->opsiJawaban->pluck('id')->all()));
+                $kunci = $soal->opsiJawaban->where('is_kunci', true)->pluck('id')->all();
+                sort($dipilih);
+                sort($kunci);
+
+                // Semua-atau-nol; pilihan ganda = himpunan beranggota satu.
+                // isian_singkat belum dinilai di sini: tanpa opsi, [] === [] akan terbaca benar.
+                $isCorrect = $soal->tipe !== 'isian_singkat' && $kunci !== [] && $dipilih === $kunci;
                 $skor = $isCorrect ? 10 : 0;
 
                 $baris[] = [
@@ -105,7 +128,9 @@ class LatihanSoalController extends Controller
                     'pengerjaan_id' => $p->id,
                     'pengerjaan_subtes_id' => null,
                     'soal_id' => $j['soalId'],
-                    'opsi_dipilih_id' => $j['opsiId'],
+                    // Bulk insert melewati mutator Eloquent, jadi format array Postgres ditulis manual.
+                    'opsi_dipilih_id' => $soal->tipe === 'pilihan_ganda' ? ($dipilih[0] ?? null) : null,
+                    'opsi_dipilih_ids' => $soal->tipe === 'benar_salah' ? '{'.implode(',', $dipilih).'}' : null,
                     'jawaban_isian' => null,
                     'is_correct' => $isCorrect,
                     'skor' => $skor,

@@ -5,17 +5,6 @@ import Modal from '@/Components/Modal';
 import { KonfigurasiSesiLatihan, ModeLatihan } from '@/types/latihan';
 import { dummyKonfigurasiSesi } from '@/data/dummyLatihan';
 
-// Sementara: daftar subtes belum dikirim backend.
-const daftarSubtes = [
-    { id: 1, nama: 'Penalaran Umum', singkatan: 'PU', warna: 'bg-[#DCE7F0]', deskripsi: 'Menguji kemampuan berpikir logis melalui bagian Induktif, Deduktif, dan Kuantitatif.' },
-    { id: 2, nama: 'Pengetahuan dan Pemahaman Umum', singkatan: 'PPU', warna: 'bg-[#F3D6D6]', deskripsi: 'Mengukur pemahaman bahasa, leksikal, dan wawasan sosial budaya.' },
-    { id: 3, nama: 'Pemahaman Baca dan Menulis', singkatan: 'PBM', warna: 'bg-[#EDF0D8]', deskripsi: 'Menilai pemahaman wacana dan kemampuan menulis akademik, mencakup ejaan serta ide pokok.' },
-    { id: 4, nama: 'Pengetahuan Kuantitatif', singkatan: 'PK', warna: 'bg-[#DFDFF3]', deskripsi: 'Menguji konsep dasar matematika seperti aljabar dan geometri.' },
-    { id: 5, nama: 'Literasi dalam Bahasa Indonesia', singkatan: 'LBI', warna: 'bg-[#F2D6EC]', deskripsi: 'Mengevaluasi pemahaman teks ilmiah yang kompleks.' },
-    { id: 6, nama: 'Literasi dalam Bahasa Inggris', singkatan: 'LBE', warna: 'bg-[#F2EED8]', deskripsi: 'Menguji strategi kognitif pembaca menggunakan bacaan berbahasa Inggris.' },
-    { id: 7, nama: 'Penalaran Matematika', singkatan: 'PM', warna: 'bg-[#D9EFE0]', deskripsi: 'Menerapkan konsep matematika untuk menyelesaikan masalah nyata dalam bentuk grafik atau soal cerita.' },
-];
-
 const JUMLAH_SOAL_FLEKSIBEL_AWAL = 10;
 const JUMLAH_SOAL_MIN = 5;
 const JUMLAH_SOAL_MAKS = 25;
@@ -39,15 +28,17 @@ function IkonPanah() {
     );
 }
 
-const warnaBawaan = [
-    'bg-[#DFDFF3]', // PK
-    'bg-[#D9EFE0]', // PM
-    'bg-[#DCE7F0]',
-    'bg-[#F3D6D6]',
-    'bg-[#EDF0D8]',
-    'bg-[#F2D6EC]',
-    'bg-[#F2EED8]',
-];
+// Warna per kode subtes, bukan per posisi kartu, supaya tetap benar saat urutan berubah.
+const warnaSubtes: Record<string, string> = {
+    PU: 'bg-[#DCE7F0]',
+    PPU: 'bg-[#F3D6D6]',
+    PBM: 'bg-[#EDF0D8]',
+    PK: 'bg-[#DFDFF3]',
+    LBI: 'bg-[#F2D6EC]',
+    LBE: 'bg-[#F2EED8]',
+    PM: 'bg-[#D9EFE0]',
+};
+const WARNA_CADANGAN = 'bg-[#DCE7F0]';
 
 export default function Persiapan({ subtes = [] }: { subtes?: any[] }) {
     const [tampilModal, setTampilModal] = useState(false);
@@ -84,23 +75,33 @@ export default function Persiapan({ subtes = [] }: { subtes?: any[] }) {
                 <p className="mt-1 text-sm font-medium text-gray-600">Pilih subtest UTBK yang ingin kamu kerjakan hari ini!</p>
 
                 <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                    {subtes.map((item, index) => (
-                        <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => bukaModal(item)}
-                            className="flex min-h-[190px] flex-col rounded-xl bg-white p-4 text-left shadow-md transition hover:-translate-y-0.5 hover:shadow-lg"
-                        >
-                            <span className={`h-12 w-12 rounded-full ${warnaBawaan[index % warnaBawaan.length]}`} />
-                            <span className="mt-4 font-semibold leading-snug text-[#1F2D5C]">
-                                {item.nama_subtes} ({item.kode_subtes})
-                            </span>
-                            <span className="mt-1 text-xs text-gray-600">{item.deskripsi || 'Selesaikan tantangan di subtes ini!'}</span>
-                            <span className="mt-auto flex justify-end pt-3">
-                                <IkonPanah />
-                            </span>
-                        </button>
-                    ))}
+                    {subtes.map((item) => {
+                        // Subtes tanpa soal belum bisa dikerjakan; tanpa ini halaman Ujian crash di soalList[0].
+                        const tersedia = Boolean(item.soal_exists);
+                        return (
+                            <button
+                                key={item.id}
+                                type="button"
+                                onClick={() => tersedia && bukaModal(item)}
+                                disabled={!tersedia}
+                                aria-disabled={!tersedia}
+                                className="flex min-h-[190px] flex-col rounded-xl bg-white p-4 text-left shadow-md transition enabled:hover:-translate-y-0.5 enabled:hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                <span className={`h-12 w-12 rounded-full ${warnaSubtes[item.kode_subtes] ?? WARNA_CADANGAN}`} />
+                                <span className="mt-4 font-semibold leading-snug text-[#1F2D5C]">
+                                    {item.nama_subtes} ({item.kode_subtes})
+                                </span>
+                                <span className="mt-1 text-xs text-gray-600">{item.deskripsi || 'Selesaikan tantangan di subtes ini!'}</span>
+                                <span className="mt-auto flex justify-end pt-3">
+                                    {tersedia ? (
+                                        <IkonPanah />
+                                    ) : (
+                                        <span className="rounded-full bg-gray-200 px-3 py-1 text-xs font-medium text-gray-600">Segera hadir</span>
+                                    )}
+                                </span>
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
 

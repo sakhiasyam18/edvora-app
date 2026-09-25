@@ -23,6 +23,11 @@ class Subtes extends Model
         'kode_subtes',
     ];
 
+    // Kolom numeric(4,1) dibaca PDO Postgres sebagai string ("42.5"); ubah ke angka.
+    protected $casts = [
+        'waktu_default_menit' => 'float',
+    ];
+
     public function soal()
     {
         return $this->hasMany(Soal::class, 'subtes_id', 'id');

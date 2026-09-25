@@ -14,52 +14,73 @@ const HINT_SEMENTARA = 'Hint untuk soal ini belum tersedia.';
 
 type ModalAktif = 'hint' | 'keluar' | 'selesai' | null;
 
+type IdOpsi = string | number;
+
+// Urutan centang tidak boleh mempengaruhi hasil: {A,D,E} sama dengan {E,A,D}.
+function samaHimpunan(a: IdOpsi[], b: IdOpsi[]) {
+    return a.length === b.length && a.every((x) => b.includes(x));
+}
+
 export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; soalList: any[]; konfigurasi: any }) {
     const simulasi = konfigurasi.mode === 'simulasi';
 
+    // Semua tipe berbasis opsi memakai array; pilihan ganda = array beranggota satu.
     const form = useForm({
         ...konfigurasi,
-        jawaban: [] as { soalId: string | number; opsiId: string | number }[],
+        jawaban: [] as { soalId: IdOpsi; opsiIds: IdOpsi[] }[],
     });
 
     const [indeksAktif, setIndeksAktif] = useState(0);
     // Mode fleksibel: pilihan belum final sampai "Simpan Jawaban" ditekan.
-    const [pilihanSementara, setPilihanSementara] = useState<Record<string | number, string | number>>({});
+    const [pilihanSementara, setPilihanSementara] = useState<Record<string | number, IdOpsi[]>>({});
     const [modal, setModal] = useState<ModalAktif>(null);
 
     const soal = soalList[indeksAktif];
-    const jawabanTersimpan = (soalId: string | number) => form.data.jawaban.find((j: any) => j.soalId === soalId)?.opsiId;
+    const jawabanTersimpan = (soalId: IdOpsi): IdOpsi[] | undefined =>
+        form.data.jawaban.find((j: any) => j.soalId === soalId)?.opsiIds;
     const opsiTersimpan = jawabanTersimpan(soal.id);
     const terkunci = !simulasi && opsiTersimpan !== undefined;
-    const opsiTerpilih = simulasi || terkunci ? opsiTersimpan : pilihanSementara[soal.id];
+    const opsiTerpilih: IdOpsi[] = (simulasi || terkunci ? opsiTersimpan : pilihanSementara[soal.id]) ?? [];
 
-    const simpanJawaban = (soalId: string | number, opsiId: string | number) => {
-        form.setData('jawaban', [...form.data.jawaban.filter((j: any) => j.soalId !== soalId), { soalId, opsiId }]);
+    // Array kosong berarti soal kembali belum dijawab.
+    const simpanJawaban = (soalId: IdOpsi, opsiIds: IdOpsi[]) => {
+        const lainnya = form.data.jawaban.filter((j: any) => j.soalId !== soalId);
+        form.setData('jawaban', opsiIds.length > 0 ? [...lainnya, { soalId, opsiIds }] : lainnya);
     };
 
+    // Pilihan ganda: ganti dengan satu opsi. Benar/salah: centang atau lepas centang.
     const pilihOpsi = (opsi: OpsiJawaban) => {
-        if (simulasi) simpanJawaban(soal.id, opsi.id);
-        else setPilihanSementara((p) => ({ ...p, [soal.id]: opsi.id }));
+        const baru =
+            soal.tipe === 'benar_salah'
+                ? opsiTerpilih.includes(opsi.id)
+                    ? opsiTerpilih.filter((id) => id !== opsi.id)
+                    : [...opsiTerpilih, opsi.id]
+                : [opsi.id];
+
+        if (simulasi) simpanJawaban(soal.id, baru);
+        else setPilihanSementara((p) => ({ ...p, [soal.id]: baru }));
     };
 
     // Mode fleksibel: jawaban yang sudah dikunci boleh ketahuan benar/salahnya di navigasi.
     // Mode simulasi tidak memakai ini, supaya hasil belum terlihat sebelum latihan selesai.
+    // Aturannya sama dengan backend: semua-atau-nol terhadap himpunan is_kunci.
     const statusJawabanSoal = (indeks: number): StatusJawabanSoal => {
         const soalKe = soalList[indeks];
-        const opsiId = jawabanTersimpan(soalKe.id);
-        if (opsiId === undefined) return null;
+        const dipilih = jawabanTersimpan(soalKe.id);
+        if (dipilih === undefined) return null;
 
-        const opsi = soalKe.opsi_jawaban.find((o: any) => o.id === opsiId);
-        return opsi?.is_kunci ? 'benar' : 'salah';
+        const kunci = soalKe.opsi_jawaban.filter((o: any) => o.is_kunci).map((o: any) => o.id);
+        return kunci.length > 0 && samaHimpunan(dipilih, kunci) ? 'benar' : 'salah';
     };
 
     const statusOpsi = (opsi: OpsiJawaban): StatusOpsi => {
+        const dipilih = opsiTerpilih.includes(opsi.id);
         if (terkunci) {
-            if (opsi.is_kunci) return 'benar'; // asumsikan is_kunci boolean datang dari db
-            if (opsi.id === opsiTerpilih) return 'salah';
+            if (opsi.is_kunci) return 'benar';
+            if (dipilih) return 'salah';
             return 'default';
         }
-        return opsi.id === opsiTerpilih ? 'selected' : 'default';
+        return dipilih ? 'selected' : 'default';
     };
 
     const kirimJawaban = (tujuan: string) => {
@@ -122,8 +143,8 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
                         !terkunci ? (
                             <button
                                 type="button"
-                                onClick={() => opsiTerpilih !== undefined && simpanJawaban(soal.id, opsiTerpilih)}
-                                disabled={opsiTerpilih === undefined}
+                                onClick={() => opsiTerpilih.length > 0 && simpanJawaban(soal.id, opsiTerpilih)}
+                                disabled={opsiTerpilih.length === 0}
                                 className={`${tombolKecil} bg-[#C5EBA8] text-[#2F5E1A] hover:bg-[#B5E194]`}
                             >
                                 Simpan Jawaban

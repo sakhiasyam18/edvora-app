@@ -1,7 +1,7 @@
 // resources/js/types/latihan.ts
 
 export type ModeLatihan = 'fleksibel' | 'simulasi';
-export type TipeSoal = 'pilihan_ganda' | 'isian_singkat';
+export type TipeSoal = 'pilihan_ganda' | 'isian_singkat' | 'benar_salah';
 
 export interface OpsiJawaban {
   id: string | number;
