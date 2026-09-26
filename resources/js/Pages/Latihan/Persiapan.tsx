@@ -1,30 +1,25 @@
-import { Head, router } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import LatihanLayout from '@/Components/Layouts/LatihanLayout';
 import Modal from '@/Components/Modal';
 import { KonfigurasiSesiLatihan, ModeLatihan } from '@/types/latihan';
-import { dummyKonfigurasiSesi } from '@/data/dummyLatihan';
-
-// Sementara: daftar subtes belum dikirim backend.
-const daftarSubtes = [
-    { id: 1, nama: 'Penalaran Umum', singkatan: 'PU', warna: 'bg-[#DCE7F0]', deskripsi: 'Menguji kemampuan berpikir logis melalui bagian Induktif, Deduktif, dan Kuantitatif.' },
-    { id: 2, nama: 'Pengetahuan dan Pemahaman Umum', singkatan: 'PPU', warna: 'bg-[#F3D6D6]', deskripsi: 'Mengukur pemahaman bahasa, leksikal, dan wawasan sosial budaya.' },
-    { id: 3, nama: 'Pemahaman Baca dan Menulis', singkatan: 'PBM', warna: 'bg-[#EDF0D8]', deskripsi: 'Menilai pemahaman wacana dan kemampuan menulis akademik, mencakup ejaan serta ide pokok.' },
-    { id: 4, nama: 'Pengetahuan Kuantitatif', singkatan: 'PK', warna: 'bg-[#DFDFF3]', deskripsi: 'Menguji konsep dasar matematika seperti aljabar dan geometri.' },
-    { id: 5, nama: 'Literasi dalam Bahasa Indonesia', singkatan: 'LBI', warna: 'bg-[#F2D6EC]', deskripsi: 'Mengevaluasi pemahaman teks ilmiah yang kompleks.' },
-    { id: 6, nama: 'Literasi dalam Bahasa Inggris', singkatan: 'LBE', warna: 'bg-[#F2EED8]', deskripsi: 'Menguji strategi kognitif pembaca menggunakan bacaan berbahasa Inggris.' },
-    { id: 7, nama: 'Penalaran Matematika', singkatan: 'PM', warna: 'bg-[#D9EFE0]', deskripsi: 'Menerapkan konsep matematika untuk menyelesaikan masalah nyata dalam bentuk grafik atau soal cerita.' },
-];
 
 const JUMLAH_SOAL_FLEKSIBEL_AWAL = 10;
-const JUMLAH_SOAL_MIN = 1;
-const JUMLAH_SOAL_MAKS = 20;
-const JUMLAH_SOAL_SIMULASI = dummyKonfigurasiSesi.jumlahSoal;
-const WAKTU_SIMULASI_MENIT = dummyKonfigurasiSesi.waktuPengerjaanMenit ?? 20;
+const JUMLAH_SOAL_MIN = 5;
+const JUMLAH_SOAL_MAKS = 25;
 
-function konfigurasiUntukMode(subtesId: number, namaSubtes: string, mode: ModeLatihan): KonfigurasiSesiLatihan {
+interface SubtesLatihan {
+    id: string;
+    nama_subtes: string;
+    jumlah_soal: number;
+    waktu_default_menit: number;
+}
+
+function konfigurasiUntukMode(item: SubtesLatihan, mode: ModeLatihan): KonfigurasiSesiLatihan {
+    const subtesId = item.id;
+    const namaSubtes = item.nama_subtes;
     if (mode === 'simulasi') {
-        return { subtesId, namaSubtes, mode, jumlahSoal: JUMLAH_SOAL_SIMULASI, waktuPengerjaanMenit: WAKTU_SIMULASI_MENIT };
+        return { subtesId, namaSubtes, mode, jumlahSoal: item.jumlah_soal, waktuPengerjaanMenit: item.waktu_default_menit };
     }
     return { subtesId, namaSubtes, mode, jumlahSoal: JUMLAH_SOAL_FLEKSIBEL_AWAL, iceBreakingAktif: false };
 }
@@ -39,18 +34,34 @@ function IkonPanah() {
     );
 }
 
-export default function Persiapan() {
+// Warna per kode subtes, bukan per posisi kartu, supaya tetap benar saat urutan berubah.
+const warnaSubtes: Record<string, string> = {
+    PU: 'bg-[#DCE7F0]',
+    PPU: 'bg-[#F3D6D6]',
+    PBM: 'bg-[#EDF0D8]',
+    PK: 'bg-[#DFDFF3]',
+    LBI: 'bg-[#F2D6EC]',
+    LBE: 'bg-[#F2EED8]',
+    PM: 'bg-[#D9EFE0]',
+};
+const WARNA_CADANGAN = 'bg-[#DCE7F0]';
+
+export default function Persiapan({ subtes = [] }: { subtes?: any[] }) {
     const [tampilModal, setTampilModal] = useState(false);
     const [konfigurasi, setKonfigurasi] = useState<KonfigurasiSesiLatihan | null>(null);
+    // Pesan sekali tampil dari backend (Inertia::flash), mis. sesi latihan sudah selesai atau kedaluwarsa.
+    const { flash } = usePage();
+    const pesanError = typeof flash.error === 'string' ? flash.error : null;
 
-    const bukaModal = (subtes: (typeof daftarSubtes)[number]) => {
-        setKonfigurasi(konfigurasiUntukMode(subtes.id, subtes.nama, 'fleksibel'));
+    const bukaModal = (item: any) => {
+        setKonfigurasi(konfigurasiUntukMode(item, 'fleksibel'));
         setTampilModal(true);
     };
 
     const gantiMode = (mode: ModeLatihan) => {
         if (!konfigurasi || konfigurasi.mode === mode) return;
-        setKonfigurasi(konfigurasiUntukMode(konfigurasi.subtesId, konfigurasi.namaSubtes, mode));
+        const item = subtes.find((s) => s.id === konfigurasi.subtesId);
+        if (item) setKonfigurasi(konfigurasiUntukMode(item, mode));
     };
 
     const ubahJumlahSoal = (delta: number) => {
@@ -73,24 +84,41 @@ export default function Persiapan() {
                 <h1 className="text-5xl font-bold text-[#1F2D5C]">Pilih Subtest</h1>
                 <p className="mt-1 text-sm font-medium text-gray-600">Pilih subtest UTBK yang ingin kamu kerjakan hari ini!</p>
 
+                {/* Banner dasar, belum didesain. */}
+                {pesanError && (
+                    <div role="alert" className="mt-4 rounded-lg border border-[#E86565] bg-[#FDECEC] px-4 py-3 text-sm font-medium text-[#8A2B2B]">
+                        {pesanError}
+                    </div>
+                )}
+
                 <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                    {daftarSubtes.map((subtes) => (
-                        <button
-                            key={subtes.id}
-                            type="button"
-                            onClick={() => bukaModal(subtes)}
-                            className="flex min-h-[190px] flex-col rounded-xl bg-white p-4 text-left shadow-md transition hover:-translate-y-0.5 hover:shadow-lg"
-                        >
-                            <span className={`h-12 w-12 rounded-full ${subtes.warna}`} />
-                            <span className="mt-4 font-semibold leading-snug text-[#1F2D5C]">
-                                {subtes.nama} ({subtes.singkatan})
-                            </span>
-                            <span className="mt-1 text-xs text-gray-600">{subtes.deskripsi}</span>
-                            <span className="mt-auto flex justify-end pt-3">
-                                <IkonPanah />
-                            </span>
-                        </button>
-                    ))}
+                    {subtes.map((item) => {
+                        // Subtes tanpa soal belum bisa dikerjakan; tanpa ini halaman Ujian crash di soalList[0].
+                        const tersedia = Boolean(item.soal_exists);
+                        return (
+                            <button
+                                key={item.id}
+                                type="button"
+                                onClick={() => tersedia && bukaModal(item)}
+                                disabled={!tersedia}
+                                aria-disabled={!tersedia}
+                                className="flex min-h-[190px] flex-col rounded-xl bg-white p-4 text-left shadow-md transition enabled:hover:-translate-y-0.5 enabled:hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                <span className={`h-12 w-12 rounded-full ${warnaSubtes[item.kode_subtes] ?? WARNA_CADANGAN}`} />
+                                <span className="mt-4 font-semibold leading-snug text-[#1F2D5C]">
+                                    {item.nama_subtes} ({item.kode_subtes})
+                                </span>
+                                <span className="mt-1 text-xs text-gray-600">{item.deskripsi || 'Selesaikan tantangan di subtes ini!'}</span>
+                                <span className="mt-auto flex justify-end pt-3">
+                                    {tersedia ? (
+                                        <IkonPanah />
+                                    ) : (
+                                        <span className="rounded-full bg-gray-200 px-3 py-1 text-xs font-medium text-gray-600">Segera hadir</span>
+                                    )}
+                                </span>
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
 
@@ -106,9 +134,8 @@ export default function Persiapan() {
                                     key={mode}
                                     type="button"
                                     onClick={() => gantiMode(mode)}
-                                    className={`rounded-md py-2.5 font-medium transition ${
-                                        konfigurasi.mode === mode ? 'bg-[#5B86DB] text-white shadow' : 'text-[#1F2D5C] hover:bg-white/60'
-                                    }`}
+                                    className={`rounded-md py-2.5 font-medium transition ${konfigurasi.mode === mode ? 'bg-[#5B86DB] text-white shadow' : 'text-[#1F2D5C] hover:bg-white/60'
+                                        }`}
                                 >
                                     Mode {mode === 'fleksibel' ? 'Fleksibel' : 'Simulasi'}
                                 </button>
@@ -145,26 +172,34 @@ export default function Persiapan() {
                                     </div>
                                 </div>
 
-                                <button
-                                    type="button"
-                                    aria-pressed={!!konfigurasi.iceBreakingAktif}
-                                    onClick={() => setKonfigurasi({ ...konfigurasi, iceBreakingAktif: !konfigurasi.iceBreakingAktif })}
-                                    className="flex w-full items-center gap-4 text-left"
-                                >
-                                    <span
-                                        className={`flex h-12 w-12 items-center justify-center rounded-lg border transition ${
-                                            konfigurasi.iceBreakingAktif ? 'border-[#5B86DB] bg-[#5B86DB]' : 'border-gray-300 bg-[#EAF2FC]'
-                                        }`}
+                                <div className="flex items-center justify-between gap-4 rounded-lg border border-[#C9DBF2] bg-[#EAF2FC] p-4">
+                                    <div className="flex items-center gap-4">
+                                        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-[#2E3F85] text-white">
+                                            <svg className="h-7 w-7" viewBox="0 0 24 24" fill="currentColor">
+                                                <path d="M12 2a10 10 0 100 20 10 10 0 000-20zM8.5 8a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm7 0a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM12 18a5.5 5.5 0 01-5-3.2h10A5.5 5.5 0 0112 18z" />
+                                            </svg>
+                                        </span>
+                                        <div>
+                                            <p className="text-lg font-medium">Ice Breaking</p>
+                                            <p className="text-sm text-gray-600">Aktifkan untuk suasana yang lebih santai</p>
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        role="switch"
+                                        aria-checked={!!konfigurasi.iceBreakingAktif}
+                                        aria-label="Ice Breaking"
+                                        onClick={() => setKonfigurasi({ ...konfigurasi, iceBreakingAktif: !konfigurasi.iceBreakingAktif })}
+                                        className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#5B86DB] focus-visible:ring-offset-2 ${konfigurasi.iceBreakingAktif ? 'bg-[#5B86DB]' : 'bg-gray-300'
+                                            }`}
                                     >
-                                        <svg className={`h-7 w-7 ${konfigurasi.iceBreakingAktif ? 'text-white' : 'text-[#2E3F85]'}`} viewBox="0 0 24 24" fill="currentColor">
-                                            <path d="M12 2a10 10 0 100 20 10 10 0 000-20zM8.5 8a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm7 0a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM12 18a5.5 5.5 0 01-5-3.2h10A5.5 5.5 0 0112 18z" />
-                                        </svg>
-                                    </span>
-                                    <span>
-                                        <span className="block text-lg font-medium">Ice Breaking</span>
-                                        <span className="block text-sm text-gray-600">Aktifkan untuk suasana yang lebih santai</span>
-                                    </span>
-                                </button>
+                                        <span
+                                            className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${konfigurasi.iceBreakingAktif ? 'translate-x-6' : 'translate-x-1'
+                                                }`}
+                                        />
+                                    </button>
+                                </div>
                             </div>
                         ) : (
                             <div className="mt-4 space-y-4">
@@ -194,7 +229,7 @@ export default function Persiapan() {
                                         <p className="text-sm text-gray-600">Durasi waktu untuk menyelesaikan soal</p>
                                     </div>
                                     <span className="rounded-md border border-[#C9DBF2] bg-[#EAF2FC] px-4 py-1.5 text-sm font-medium">
-                                        {konfigurasi.waktuPengerjaanMenit} Menit
+                                        {konfigurasi.waktuPengerjaanMenit?.toLocaleString('id-ID')} Menit
                                     </span>
                                 </div>
                             </div>

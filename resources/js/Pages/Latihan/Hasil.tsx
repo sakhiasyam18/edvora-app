@@ -7,6 +7,7 @@ import { dummyHasilLatihan } from '@/data/dummyLatihan';
 interface HasilProps {
     // Sementara controller belum kirim props, jadi fallback ke dummy.
     hasil?: HasilLatihan;
+    pengerjaan?: { id: string };
 }
 
 function KartuStat({ ikon, label, nilai }: { ikon: ReactNode; label: string; nilai: string | number }) {
@@ -19,7 +20,7 @@ function KartuStat({ ikon, label, nilai }: { ikon: ReactNode; label: string; nil
     );
 }
 
-export default function Hasil({ hasil = dummyHasilLatihan }: HasilProps) {
+export default function Hasil({ hasil = dummyHasilLatihan, pengerjaan }: HasilProps) {
     // Konfigurasi sesi dibawa Ujian lewat query param, untuk tombol Ulangi Latihan.
     const querySesi = window.location.search;
 
@@ -31,7 +32,7 @@ export default function Hasil({ hasil = dummyHasilLatihan }: HasilProps) {
                 <Trofi />
 
                 <h1 className="mt-4 text-center text-4xl font-bold text-[#1F2D5C]">Hasil Pengerjaan Soal</h1>
-                <p className="mt-1 text-center text-sm font-medium text-white">
+                <p className="mt-1 text-center text-sm font-medium text-[#445984]">
                     Kerja Bagus! Terus tingkatkan kemampuanmu dan berkembang setiap harinya!
                 </p>
 
@@ -83,10 +84,16 @@ export default function Hasil({ hasil = dummyHasilLatihan }: HasilProps) {
                 <div className="mt-6 flex w-full max-w-md flex-col gap-3">
                     <button
                         type="button"
-                        onClick={() => router.visit(route('latihan.persiapan'))}
+                        onClick={() =>
+                            router.visit(
+                                pengerjaan
+                                    ? route('riwayat.pembahasan', { id: pengerjaan.id })
+                                    : route('riwayat.pembahasan'),
+                            )
+                        }
                         className="w-full rounded-lg bg-[#2E3F85] py-3 font-medium text-white shadow-md transition hover:bg-[#263573]"
                     >
-                        Mulai Mengerjakan
+                        Lihat Pembahasan
                     </button>
                     <div className="grid grid-cols-2 gap-3">
                         <button

@@ -32,16 +32,34 @@ class RegisteredUserController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $request->validate([
-            'name' => 'required|string|max:255',
+            'name' => 'nullable|string|max:255',
             'email' => 'required|string|lowercase|email|max:255|unique:'.User::class,
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
+            'jenis_kelamin' => 'nullable|in:laki-laki,perempuan',
         ]);
 
-        $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-        ]);
+        $user = \Illuminate\Support\Facades\DB::transaction(function () use ($request) {
+            $name = $request->name ?: explode('@', $request->email)[0];
+
+            $user = User::create([
+                'name' => $name,
+                'email' => $request->email,
+                'password' => Hash::make($request->password),
+                'role' => 'siswa',
+                'is_active' => true,
+            ]);
+
+            \App\Models\Siswa::create([
+                'user_id' => $user->id,
+                'nama_lengkap' => $name,
+                'jenis_kelamin' => $request->jenis_kelamin,
+                'xp' => 0,
+                'point' => 0,
+                'streak_saat_ini' => 0,
+            ]);
+
+            return $user;
+        });
 
         event(new Registered($user));
 

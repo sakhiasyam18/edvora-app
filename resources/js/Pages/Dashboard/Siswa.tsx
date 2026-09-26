@@ -87,7 +87,7 @@ export default function Siswa({ judul = 'Dashboard Siswa' }: SiswaProps) {
                     </header>
 
                     {/* Dashboard Content */}
-                    <main className="flex flex-1 bg-gradient-to-r from-[#B8E1F3] to-[#6695E4] px-6 py-10 md:px-12 md:py-11">
+                    <main className="flex flex-1 bg-[#E6F2FF] px-6 py-10 md:px-12 md:py-11">
                         <div className="w-full">
                             {/* Greeting */}
                             <div className="mb-7">
@@ -104,7 +104,7 @@ export default function Siswa({ judul = 'Dashboard Siswa' }: SiswaProps) {
                             <div className="grid max-w-[900px] grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
                                 {/* Latihan Soal */}
                                 <Link
-                                    href={route('latihan.persiapan')}
+                                    href={route('latihan.index')}
                                     className="group relative flex min-h-[220px] flex-col rounded-xl bg-white px-5 py-5 shadow-md transition duration-200 hover:-translate-y-1 hover:shadow-xl"
                                 >
                                     <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#C7E9FA]">

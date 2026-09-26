@@ -52,7 +52,7 @@ export default function LatihanLayout({ breadcrumb, sidebar, children }: Latihan
                         {sidebar}
                     </aside>
                 )}
-                <main className="flex-1 overflow-y-auto bg-gradient-to-br from-[#C3E1F6] via-[#8DB5E8] to-[#5B86DB]">
+                <main className="flex-1 overflow-y-auto bg-[#E6F2FF]">
                     {children}
                 </main>
             </div>
