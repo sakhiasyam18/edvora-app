@@ -21,6 +21,7 @@ class Subtes extends Model
         'urutan',
         'waktu_default_menit',
         'kode_subtes',
+        'jumlah_soal',
     ];
 
     // Kolom numeric(4,1) dibaca PDO Postgres sebagai string ("42.5"); ubah ke angka.

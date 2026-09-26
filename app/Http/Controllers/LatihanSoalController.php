@@ -40,7 +40,12 @@ class LatihanSoalController extends Controller
 
         $subtes = Subtes::findOrFail($subtesId);
 
-        $jumlahSoal = (int) $request->get('jumlahSoal', 10);
+        $mode = $request->get('mode') === 'simulasi' ? 'simulasi' : 'fleksibel';
+
+        // Simulasi mengikuti format UTBK per subtes; nilai dari URL diabaikan agar tidak bisa diakali.
+        $jumlahSoal = $mode === 'simulasi'
+            ? $subtes->jumlah_soal
+            : (int) $request->get('jumlahSoal', 10);
 
         $soalList = Soal::with(['opsiJawaban' => fn ($q) => $q->orderBy('urutan')])
             ->where('subtes_id', $subtesId)
@@ -52,8 +57,6 @@ class LatihanSoalController extends Controller
         if ($soalList->isEmpty()) {
             return redirect()->route('latihan.index');
         }
-
-        $mode = $request->get('mode') === 'simulasi' ? 'simulasi' : 'fleksibel';
 
         // Kunci isian dinilai di server (cekJawaban / simpanJawaban), jadi tidak perlu ikut ke browser.
         $soalList->makeHidden('kunci_jawaban');
@@ -67,7 +70,7 @@ class LatihanSoalController extends Controller
         ];
 
         if ($mode === 'simulasi') {
-            $konfigurasi['waktuPengerjaanMenit'] = (int) $request->get('waktuPengerjaanMenit', 20);
+            $konfigurasi['waktuPengerjaanMenit'] = $subtes->waktu_default_menit;
         } else {
             $konfigurasi['iceBreakingAktif'] = $request->get('iceBreakingAktif') === 'true';
         }

@@ -3,17 +3,23 @@ import { useState } from 'react';
 import LatihanLayout from '@/Components/Layouts/LatihanLayout';
 import Modal from '@/Components/Modal';
 import { KonfigurasiSesiLatihan, ModeLatihan } from '@/types/latihan';
-import { dummyKonfigurasiSesi } from '@/data/dummyLatihan';
 
 const JUMLAH_SOAL_FLEKSIBEL_AWAL = 10;
 const JUMLAH_SOAL_MIN = 5;
 const JUMLAH_SOAL_MAKS = 25;
-const JUMLAH_SOAL_SIMULASI = dummyKonfigurasiSesi.jumlahSoal;
-const WAKTU_SIMULASI_MENIT = dummyKonfigurasiSesi.waktuPengerjaanMenit ?? 20;
 
-function konfigurasiUntukMode(subtesId: string | number, namaSubtes: string, mode: ModeLatihan): KonfigurasiSesiLatihan {
+interface SubtesLatihan {
+    id: string;
+    nama_subtes: string;
+    jumlah_soal: number;
+    waktu_default_menit: number;
+}
+
+function konfigurasiUntukMode(item: SubtesLatihan, mode: ModeLatihan): KonfigurasiSesiLatihan {
+    const subtesId = item.id;
+    const namaSubtes = item.nama_subtes;
     if (mode === 'simulasi') {
-        return { subtesId, namaSubtes, mode, jumlahSoal: JUMLAH_SOAL_SIMULASI, waktuPengerjaanMenit: WAKTU_SIMULASI_MENIT };
+        return { subtesId, namaSubtes, mode, jumlahSoal: item.jumlah_soal, waktuPengerjaanMenit: item.waktu_default_menit };
     }
     return { subtesId, namaSubtes, mode, jumlahSoal: JUMLAH_SOAL_FLEKSIBEL_AWAL, iceBreakingAktif: false };
 }
@@ -48,13 +54,14 @@ export default function Persiapan({ subtes = [] }: { subtes?: any[] }) {
     const pesanError = typeof flash.error === 'string' ? flash.error : null;
 
     const bukaModal = (item: any) => {
-        setKonfigurasi(konfigurasiUntukMode(item.id, item.nama_subtes, 'fleksibel'));
+        setKonfigurasi(konfigurasiUntukMode(item, 'fleksibel'));
         setTampilModal(true);
     };
 
     const gantiMode = (mode: ModeLatihan) => {
         if (!konfigurasi || konfigurasi.mode === mode) return;
-        setKonfigurasi(konfigurasiUntukMode(konfigurasi.subtesId, konfigurasi.namaSubtes, mode));
+        const item = subtes.find((s) => s.id === konfigurasi.subtesId);
+        if (item) setKonfigurasi(konfigurasiUntukMode(item, mode));
     };
 
     const ubahJumlahSoal = (delta: number) => {
@@ -222,7 +229,7 @@ export default function Persiapan({ subtes = [] }: { subtes?: any[] }) {
                                         <p className="text-sm text-gray-600">Durasi waktu untuk menyelesaikan soal</p>
                                     </div>
                                     <span className="rounded-md border border-[#C9DBF2] bg-[#EAF2FC] px-4 py-1.5 text-sm font-medium">
-                                        {konfigurasi.waktuPengerjaanMenit} Menit
+                                        {konfigurasi.waktuPengerjaanMenit?.toLocaleString('id-ID')} Menit
                                     </span>
                                 </div>
                             </div>
