@@ -7,15 +7,18 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 
 class User extends Authenticatable
 {
+
     use HasFactory, Notifiable, HasUuids;
 
     protected $table = 'users';
 
     public $incrementing = false;
     protected $keyType = 'string';
+
 
     /**
      * The attributes that are mass assignable.
@@ -34,6 +37,7 @@ class User extends Authenticatable
     {
         return $this->hasOne(Siswa::class, 'user_id', 'id');
     }
+
 
     /**
      * The attributes that should be hidden for serialization.
