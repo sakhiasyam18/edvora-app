@@ -1,4 +1,4 @@
-import { Head, router } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import LatihanLayout from '@/Components/Layouts/LatihanLayout';
 import Modal from '@/Components/Modal';
@@ -43,6 +43,9 @@ const WARNA_CADANGAN = 'bg-[#DCE7F0]';
 export default function Persiapan({ subtes = [] }: { subtes?: any[] }) {
     const [tampilModal, setTampilModal] = useState(false);
     const [konfigurasi, setKonfigurasi] = useState<KonfigurasiSesiLatihan | null>(null);
+    // Pesan sekali tampil dari backend (Inertia::flash), mis. sesi latihan sudah selesai atau kedaluwarsa.
+    const { flash } = usePage();
+    const pesanError = typeof flash.error === 'string' ? flash.error : null;
 
     const bukaModal = (item: any) => {
         setKonfigurasi(konfigurasiUntukMode(item.id, item.nama_subtes, 'fleksibel'));
@@ -73,6 +76,13 @@ export default function Persiapan({ subtes = [] }: { subtes?: any[] }) {
             <div className="px-10 py-10">
                 <h1 className="text-5xl font-bold text-[#1F2D5C]">Pilih Subtest</h1>
                 <p className="mt-1 text-sm font-medium text-gray-600">Pilih subtest UTBK yang ingin kamu kerjakan hari ini!</p>
+
+                {/* Banner dasar, belum didesain. */}
+                {pesanError && (
+                    <div role="alert" className="mt-4 rounded-lg border border-[#E86565] bg-[#FDECEC] px-4 py-3 text-sm font-medium text-[#8A2B2B]">
+                        {pesanError}
+                    </div>
+                )}
 
                 <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
                     {subtes.map((item) => {

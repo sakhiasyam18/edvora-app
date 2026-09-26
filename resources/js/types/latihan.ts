@@ -21,6 +21,7 @@ export interface Soal {
 }
 
 export interface KonfigurasiSesiLatihan {
+  sesiId?: string;                // dibuat server di ujian(); dipakai latihan.cek dan latihan.simpan
   subtesId: string | number;
   namaSubtes: string;
   mode: ModeLatihan;

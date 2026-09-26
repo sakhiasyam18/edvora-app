@@ -1,4 +1,5 @@
 import { Head, router, useForm } from '@inertiajs/react';
+import axios from 'axios';
 import { useMemo, useState } from 'react';
 import LatihanLayout from '@/Components/Layouts/LatihanLayout';
 import Modal from '@/Components/Modal';
@@ -23,6 +24,18 @@ function samaHimpunan(a: IdOpsi[], b: IdOpsi[]) {
     return a.length === b.length && a.every((x) => b.includes(x));
 }
 
+// Terjemahkan respons gagal dari latihan.cek menjadi pesan untuk siswa.
+function pesanGagalCek(e: unknown): string {
+    if (!axios.isAxiosError(e) || !e.response) return 'Gagal terhubung ke server. Periksa koneksi lalu coba lagi.';
+
+    const { status, data } = e.response;
+    if (status === 422) return (Object.values(data?.errors ?? {}) as string[][]).flat()[0] ?? data?.message ?? 'Jawaban tidak valid.';
+    if (status === 410) return 'Sesi latihan sudah berakhir. Silakan mulai ulang latihan.';
+    if (status === 429) return 'Terlalu sering memeriksa jawaban. Tunggu sebentar lalu coba lagi.';
+    if (status === 419) return 'Sesi login kedaluwarsa. Muat ulang halaman.';
+    return data?.message ?? 'Gagal memeriksa jawaban. Coba lagi.';
+}
+
 export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; soalList: any[]; konfigurasi: any }) {
     const simulasi = konfigurasi.mode === 'simulasi';
 
@@ -37,6 +50,10 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
     // Mode fleksibel: pilihan belum final sampai "Simpan Jawaban" ditekan.
     const [pilihanSementara, setPilihanSementara] = useState<Record<string | number, IdOpsi[]>>({});
     const [isianSementara, setIsianSementara] = useState<Record<string | number, string>>({});
+    // Hasil penilaian isian dari server (latihan.cek), per soal. Hanya dipakai di mode fleksibel.
+    const [hasilIsian, setHasilIsian] = useState<Record<string | number, boolean>>({});
+    const [mengecek, setMengecek] = useState(false);
+    const [pesanCek, setPesanCek] = useState<{ soalId: IdOpsi; pesan: string } | null>(null);
     const [modal, setModal] = useState<ModalAktif>(null);
 
     const soal = soalList[indeksAktif];
@@ -60,6 +77,23 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
         else setIsianSementara((p) => ({ ...p, [soal.id]: teks }));
     };
 
+    // Mode fleksibel: isian dinilai di server. Soal baru dikunci setelah server menjawab,
+    // jadi kalau gagal (mis. koneksi putus) siswa masih bisa mencoba lagi.
+    const cekIsian = async () => {
+        const soalId = soal.id;
+        setMengecek(true);
+        setPesanCek(null);
+        try {
+            const { data } = await axios.post(route('latihan.cek'), { sesiId: konfigurasi.sesiId, soalId, jawabanIsian: teksIsian });
+            setHasilIsian((p) => ({ ...p, [soalId]: data.benar }));
+            simpanJawaban(soalId, [], teksIsian);
+        } catch (e) {
+            setPesanCek({ soalId, pesan: pesanGagalCek(e) });
+        } finally {
+            setMengecek(false);
+        }
+    };
+
     // Pilihan ganda: ganti dengan satu opsi. Benar/salah: centang atau lepas centang.
     const pilihOpsi = (opsi: OpsiJawaban) => {
         const baru =
@@ -78,9 +112,12 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
     // Aturannya sama dengan backend: semua-atau-nol terhadap himpunan is_kunci.
     const statusJawabanSoal = (indeks: number): StatusJawabanSoal => {
         const soalKe = soalList[indeks];
-        // Isian belum dinilai di frontend (aturannya ada di PenilaianIsian backend);
-        // null membuat bulatan tetap biru "sudah dijawab", bukan merah yang menyesatkan.
-        if (soalKe.tipe === 'isian_singkat') return null;
+        // Isian dinilai di server (latihan.cek); frontend hanya menampilkan hasilnya.
+        // Belum dicek = null, jadi bulatan tetap biru "sudah dijawab".
+        if (soalKe.tipe === 'isian_singkat') {
+            const benar = hasilIsian[soalKe.id];
+            return benar === undefined ? null : benar ? 'benar' : 'salah';
+        }
 
         const dipilih = cariJawaban(soalKe.id)?.opsiIds;
         if (dipilih === undefined) return null;
@@ -159,11 +196,15 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
                         !terkunci ? (
                             <button
                                 type="button"
-                                onClick={() => !belumDiisi && simpanJawaban(soal.id, opsiTerpilih, teksIsian)}
-                                disabled={belumDiisi}
+                                onClick={() => {
+                                    if (belumDiisi || mengecek) return;
+                                    if (isian) cekIsian();
+                                    else simpanJawaban(soal.id, opsiTerpilih, teksIsian);
+                                }}
+                                disabled={belumDiisi || mengecek}
                                 className={`${tombolKecil} bg-[#C5EBA8] text-[#2F5E1A] hover:bg-[#B5E194]`}
                             >
-                                Simpan Jawaban
+                                {mengecek ? 'Memeriksa…' : 'Simpan Jawaban'}
                             </button>
                         ) : (
                             <div className="flex gap-2">
@@ -202,12 +243,30 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
                         type="text"
                         value={teksIsian}
                         onChange={(e) => ubahIsian(e.target.value)}
-                        disabled={terkunci}
+                        disabled={terkunci || mengecek}
                         maxLength={100}
                         placeholder="Tulis jawaban"
                         aria-label="Jawaban isian singkat"
                         className="mt-4 w-full max-w-md rounded border border-gray-300 px-3 py-2"
                     />
+                )}
+
+                {/* Hasil dan pesan dari latihan.cek; tampilan dasar, belum didesain. */}
+                {isian && terkunci && hasilIsian[soal.id] !== undefined && (
+                    <div className="mt-2">
+                        <span
+                            className={`inline-block rounded-md border px-3 py-1 text-sm font-medium text-[#1F2D5C] ${
+                                hasilIsian[soal.id] ? 'border-[#A9DC85] bg-[#C5EBA8]' : 'border-[#E86565] bg-[#F07B7B]'
+                            }`}
+                        >
+                            {hasilIsian[soal.id] ? 'Jawaban benar' : 'Jawaban salah'}
+                        </span>
+                    </div>
+                )}
+                {isian && pesanCek && pesanCek.soalId === soal.id && (
+                    <p role="alert" className="mt-2 text-sm text-[#B94040]">
+                        {pesanCek.pesan}
+                    </p>
                 )}
 
                 {terkunci && (
