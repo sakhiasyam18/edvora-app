@@ -87,7 +87,7 @@ export default function Siswa({ judul = 'Dashboard Siswa' }: SiswaProps) {
                     </header>
 
                     {/* Dashboard Content */}
-                    <main className="flex flex-1 bg-gradient-to-r from-[#B8E1F3] to-[#6695E4] px-6 py-10 md:px-12 md:py-11">
+                    <main className="flex flex-1 bg-[#E6F2FF] px-6 py-10 md:px-12 md:py-11">
                         <div className="w-full">
                             {/* Greeting */}
                             <div className="mb-7">

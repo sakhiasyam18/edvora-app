@@ -17,10 +17,31 @@ const gayaBulatan: Record<'benar' | 'salah', string> = {
     salah: 'border-white bg-[#F07676] text-[#26355D]',
 };
 
+interface TombolNavigasiSoalProps {
+    jumlahSoal: number;
+    indeksAktif: number;
+    onPilih: (indeks: number) => void;
+}
+
+// Pindah antar soal; dirender di footer kanan ArenaPengerjaan, bukan di sidebar.
+export function TombolNavigasiSoal({ jumlahSoal, indeksAktif, onPilih }: TombolNavigasiSoalProps) {
+    const gaya =
+        'rounded-md border border-gray-300 bg-white px-4 py-1.5 text-xs font-medium text-[#1F2D5C] shadow transition hover:bg-gray-50 disabled:opacity-50 disabled:hover:bg-white';
+
+    return (
+        <>
+            <button type="button" className={gaya} disabled={indeksAktif === 0} onClick={() => onPilih(indeksAktif - 1)}>
+                ← Kembali
+            </button>
+            <button type="button" className={gaya} disabled={indeksAktif === jumlahSoal - 1} onClick={() => onPilih(indeksAktif + 1)}>
+                Lanjut →
+            </button>
+        </>
+    );
+}
+
 // Isi sidebar "Nomor Soal"; dirender di slot sidebar LatihanLayout.
 export function NavigasiSoal({ jumlahSoal, indeksAktif, sudahDijawab, onPilih, aksiBawah, statusJawaban }: NavigasiSoalProps) {
-    const gayaTombolKecil = 'rounded bg-white px-2 py-1 text-[10px] font-medium text-[#1F2D5C] shadow disabled:opacity-50';
-
     return (
         <div className="flex h-full flex-col">
             <h3 className="text-lg font-medium">Nomor Soal</h3>
@@ -51,15 +72,6 @@ export function NavigasiSoal({ jumlahSoal, indeksAktif, sudahDijawab, onPilih, a
                         </button>
                     );
                 })}
-            </div>
-
-            <div className="mt-4 flex gap-2">
-                <button type="button" className={gayaTombolKecil} disabled={indeksAktif === 0} onClick={() => onPilih(indeksAktif - 1)}>
-                    ← Kembali
-                </button>
-                <button type="button" className={gayaTombolKecil} disabled={indeksAktif === jumlahSoal - 1} onClick={() => onPilih(indeksAktif + 1)}>
-                    Lanjut →
-                </button>
             </div>
 
             {aksiBawah && <div className="mt-auto pt-6">{aksiBawah}</div>}

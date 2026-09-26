@@ -32,7 +32,7 @@ export default function Hasil({ hasil = dummyHasilLatihan, pengerjaan }: HasilPr
                 <Trofi />
 
                 <h1 className="mt-4 text-center text-4xl font-bold text-[#1F2D5C]">Hasil Pengerjaan Soal</h1>
-                <p className="mt-1 text-center text-sm font-medium text-white">
+                <p className="mt-1 text-center text-sm font-medium text-[#445984]">
                     Kerja Bagus! Terus tingkatkan kemampuanmu dan berkembang setiap harinya!
                 </p>
 

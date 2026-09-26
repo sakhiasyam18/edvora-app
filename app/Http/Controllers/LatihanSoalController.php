@@ -108,15 +108,15 @@ class LatihanSoalController extends Controller
             throw ValidationException::withMessages(['soalId' => 'Soal ini bukan bagian dari sesi latihan.']);
         }
 
-        // Sudah pernah dicek: kembalikan hasil yang terkunci tanpa menilai ulang, supaya kunci tidak bisa ditebak berulang.
-        if ($terkunci = $sesi['terkunci'][$data['soalId']] ?? null) {
-            return response()->json(['benar' => $terkunci['benar'], 'sudahDikunci' => true]);
-        }
-
         $soal = Soal::find($data['soalId'], ['id', 'tipe', 'kunci_jawaban']);
 
         if (! $soal || $soal->tipe !== 'isian_singkat') {
             throw ValidationException::withMessages(['soalId' => 'Pengecekan per soal hanya untuk soal isian singkat.']);
+        }
+
+        // Sudah pernah dicek: kembalikan hasil yang terkunci tanpa menilai ulang, supaya kunci tidak bisa ditebak berulang.
+        if ($terkunci = $sesi['terkunci'][$data['soalId']] ?? null) {
+            return $this->hasilCek($terkunci['benar'], $soal->kunci_jawaban, true);
         }
 
         $teksIsian = $this->rapikanIsian($data['jawabanIsian']);
@@ -133,7 +133,40 @@ class LatihanSoalController extends Controller
             'waktu' => now()->toDateTimeString(),
         ]);
 
-        return response()->json(['benar' => $benar]);
+        return $this->hasilCek($benar, $soal->kunci_jawaban);
+    }
+
+    /**
+     * Bentuk respons cekJawaban. Kunci hanya ikut saat jawaban salah, dan hanya setelah jawaban
+     * terkunci di session, jadi nilainya sudah final dan kunci tidak bisa dipakai menebak.
+     */
+    private function hasilCek(bool $benar, ?string $kunci, bool $sudahDikunci = false): \Illuminate\Http\JsonResponse
+    {
+        $data = ['benar' => $benar];
+
+        if ($sudahDikunci) {
+            $data['sudahDikunci'] = true;
+        }
+
+        if (! $benar) {
+            $data['kunciJawaban'] = $this->kunciTampil($kunci);
+        }
+
+        return response()->json($data);
+    }
+
+    // Kunci boleh punya alternatif dipisah "|" (mis. "delapan|8"); siswa cukup dilihatkan yang pertama.
+    private function kunciTampil(?string $kunci): string
+    {
+        foreach (explode('|', (string) $kunci) as $alternatif) {
+            $alternatif = $this->rapikanIsian($alternatif);
+
+            if ($alternatif !== '') {
+                return $alternatif;
+            }
+        }
+
+        return '';
     }
 
     public function simpanJawaban(Request $request)

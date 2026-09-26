@@ -165,25 +165,34 @@ export default function Persiapan({ subtes = [] }: { subtes?: any[] }) {
                                     </div>
                                 </div>
 
-                                <button
-                                    type="button"
-                                    aria-pressed={!!konfigurasi.iceBreakingAktif}
-                                    onClick={() => setKonfigurasi({ ...konfigurasi, iceBreakingAktif: !konfigurasi.iceBreakingAktif })}
-                                    className="flex w-full items-center gap-4 text-left"
-                                >
-                                    <span
-                                        className={`flex h-12 w-12 items-center justify-center rounded-lg border transition ${konfigurasi.iceBreakingAktif ? 'border-[#5B86DB] bg-[#5B86DB]' : 'border-gray-300 bg-[#EAF2FC]'
+                                <div className="flex items-center justify-between gap-4 rounded-lg border border-[#C9DBF2] bg-[#EAF2FC] p-4">
+                                    <div className="flex items-center gap-4">
+                                        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-[#2E3F85] text-white">
+                                            <svg className="h-7 w-7" viewBox="0 0 24 24" fill="currentColor">
+                                                <path d="M12 2a10 10 0 100 20 10 10 0 000-20zM8.5 8a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm7 0a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM12 18a5.5 5.5 0 01-5-3.2h10A5.5 5.5 0 0112 18z" />
+                                            </svg>
+                                        </span>
+                                        <div>
+                                            <p className="text-lg font-medium">Ice Breaking</p>
+                                            <p className="text-sm text-gray-600">Aktifkan untuk suasana yang lebih santai</p>
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        role="switch"
+                                        aria-checked={!!konfigurasi.iceBreakingAktif}
+                                        aria-label="Ice Breaking"
+                                        onClick={() => setKonfigurasi({ ...konfigurasi, iceBreakingAktif: !konfigurasi.iceBreakingAktif })}
+                                        className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#5B86DB] focus-visible:ring-offset-2 ${konfigurasi.iceBreakingAktif ? 'bg-[#5B86DB]' : 'bg-gray-300'
                                             }`}
                                     >
-                                        <svg className={`h-7 w-7 ${konfigurasi.iceBreakingAktif ? 'text-white' : 'text-[#2E3F85]'}`} viewBox="0 0 24 24" fill="currentColor">
-                                            <path d="M12 2a10 10 0 100 20 10 10 0 000-20zM8.5 8a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm7 0a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM12 18a5.5 5.5 0 01-5-3.2h10A5.5 5.5 0 0112 18z" />
-                                        </svg>
-                                    </span>
-                                    <span>
-                                        <span className="block text-lg font-medium">Ice Breaking</span>
-                                        <span className="block text-sm text-gray-600">Aktifkan untuk suasana yang lebih santai</span>
-                                    </span>
-                                </button>
+                                        <span
+                                            className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${konfigurasi.iceBreakingAktif ? 'translate-x-6' : 'translate-x-1'
+                                                }`}
+                                        />
+                                    </button>
+                                </div>
                             </div>
                         ) : (
                             <div className="mt-4 space-y-4">
