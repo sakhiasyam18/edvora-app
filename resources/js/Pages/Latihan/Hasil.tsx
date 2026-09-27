@@ -1,13 +1,14 @@
 import { Head, router } from '@inertiajs/react';
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import LatihanLayout from '@/Components/Layouts/LatihanLayout';
+import Modal from '@/Components/Modal';
 import { HasilLatihan } from '@/types/latihan';
 import { dummyHasilLatihan } from '@/data/dummyLatihan';
 
 interface HasilProps {
     // Sementara controller belum kirim props, jadi fallback ke dummy.
     hasil?: HasilLatihan;
-    pengerjaan?: { id: string };
+    pengerjaan?: { id: string; subtes_id: string; jumlah_soal_dipilih: number; tipe: string };
 }
 
 function KartuStat({ ikon, label, nilai }: { ikon: ReactNode; label: string; nilai: string | number }) {
@@ -21,8 +22,7 @@ function KartuStat({ ikon, label, nilai }: { ikon: ReactNode; label: string; nil
 }
 
 export default function Hasil({ hasil = dummyHasilLatihan, pengerjaan }: HasilProps) {
-    // Konfigurasi sesi dibawa Ujian lewat query param, untuk tombol Ulangi Latihan.
-    const querySesi = window.location.search;
+    const [modalUlangi, setModalUlangi] = useState(false);
 
     return (
         <LatihanLayout breadcrumb={['Latihan Soal', 'Hasil Pengerjaan']}>
@@ -98,7 +98,7 @@ export default function Hasil({ hasil = dummyHasilLatihan, pengerjaan }: HasilPr
                     <div className="grid grid-cols-2 gap-3">
                         <button
                             type="button"
-                            onClick={() => router.visit(querySesi ? route('latihan.ujian') + querySesi : route('latihan.persiapan'))}
+                            onClick={() => setModalUlangi(true)}
                             className="rounded-lg bg-white py-2.5 font-medium text-[#1F2D5C] shadow-md transition hover:bg-gray-50"
                         >
                             Ulangi Latihan
@@ -113,6 +113,40 @@ export default function Hasil({ hasil = dummyHasilLatihan, pengerjaan }: HasilPr
                     </div>
                 </div>
             </div>
+
+            <Modal show={modalUlangi} maxWidth="md" onClose={() => setModalUlangi(false)}>
+                <div className="p-5 font-['Poppins',sans-serif] text-[#1F2D5C]">
+                    <h3 className="text-lg font-semibold">Ulangi Latihan</h3>
+                    <p className="mt-1 text-sm text-gray-700">Anda yakin ingin mengulangi latihan ini dengan soal yang sama persis (loop soal)?</p>
+                    <div className="mt-6 flex justify-end gap-2">
+                        <button type="button" onClick={() => setModalUlangi(false)} className="rounded-md px-4 py-1.5 text-xs font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition">
+                            Batal
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setModalUlangi(false);
+                                if (pengerjaan && pengerjaan.subtes_id) {
+                                    router.visit(route('latihan.ujian'), {
+                                        data: {
+                                            subtesId: pengerjaan.subtes_id,
+                                            jumlahSoal: pengerjaan.jumlah_soal_dipilih,
+                                            mode: pengerjaan.tipe === 'simulasi' ? 'simulasi' : 'fleksibel',
+                                            pengerjaanId: pengerjaan.id,
+                                            t: Date.now()
+                                        }
+                                    });
+                                } else {
+                                    router.visit(route('latihan.persiapan'));
+                                }
+                            }}
+                            className="rounded-md px-4 py-1.5 text-xs font-medium bg-[#5B86DB] text-white hover:bg-[#4673CD] transition"
+                        >
+                            Ya, Ulangi
+                        </button>
+                    </div>
+                </div>
+            </Modal>
         </LatihanLayout>
     );
 }

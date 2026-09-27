@@ -47,11 +47,28 @@ class LatihanSoalController extends Controller
             ? $subtes->jumlah_soal
             : (int) $request->get('jumlahSoal', 10);
 
-        $soalList = Soal::with(['opsiJawaban' => fn ($q) => $q->orderBy('urutan')])
-            ->where('subtes_id', $subtesId)
-            ->inRandomOrder()
-            ->take($jumlahSoal)
-            ->get();
+        $pengerjaanId = $request->get('pengerjaanId');
+        $soalList = null;
+
+        if ($pengerjaanId) {
+            $pengerjaanLama = \App\Models\Pengerjaan::with('jawabanPengerjaan')->find($pengerjaanId);
+            if ($pengerjaanLama) {
+                $soalIds = $pengerjaanLama->jawabanPengerjaan->pluck('soal_id')->all();
+                $soalList = Soal::with(['opsiJawaban' => fn ($q) => $q->orderBy('urutan')])
+                    ->whereIn('id', $soalIds)
+                    ->get()
+                    ->sortBy(fn($s) => array_search($s->id, $soalIds))
+                    ->values();
+            }
+        }
+
+        if (!$soalList || $soalList->isEmpty()) {
+            $soalList = Soal::with(['opsiJawaban' => fn ($q) => $q->orderBy('urutan')])
+                ->where('subtes_id', $subtesId)
+                ->inRandomOrder()
+                ->take($jumlahSoal)
+                ->get();
+        }
 
         // Jaring pengaman bila URL dibuka langsung untuk subtes tanpa soal.
         if ($soalList->isEmpty()) {
