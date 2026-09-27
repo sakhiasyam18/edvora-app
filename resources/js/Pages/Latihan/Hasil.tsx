@@ -126,14 +126,15 @@ export default function Hasil({ hasil = dummyHasilLatihan, pengerjaan }: HasilPr
                             type="button"
                             onClick={() => {
                                 setModalUlangi(false);
-                                if (pengerjaan && pengerjaan.subtes_id) {
+                                if (pengerjaan && pengerjaan.id) {
+                                    // Mengirimkan pengerjaanId ke Laravel untuk memanggil soal yang SAMA PERSIS (ngeloop)
                                     router.visit(route('latihan.ujian'), {
                                         data: {
+                                            pengerjaanId: pengerjaan.id,
                                             subtesId: pengerjaan.subtes_id,
                                             jumlahSoal: pengerjaan.jumlah_soal_dipilih,
                                             mode: pengerjaan.tipe === 'simulasi' ? 'simulasi' : 'fleksibel',
-                                            pengerjaanId: pengerjaan.id,
-                                            t: Date.now()
+                                            _t: Date.now() // Cache buster tetap dipakai agar request tembus ke server
                                         }
                                     });
                                 } else {
