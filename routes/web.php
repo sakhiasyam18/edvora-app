@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AdminSoalController;
 use App\Http\Controllers\BattleController;
+use App\Http\Controllers\BiodataController;
 use App\Http\Controllers\JadwalController;
 use App\Http\Controllers\LatihanSoalController;
 use App\Http\Controllers\ProfileController;
@@ -61,9 +62,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 });
 
 Route::middleware('auth')->group(function () {
-    Route::get('/biodata', function () {
-        return Inertia::render('Auth/Biodata');
-    })->name('biodata');
+    // Di luar grup yang dijaga biodata.lengkap, agar tidak terjadi redirect loop.
+    Route::get('/biodata', [BiodataController::class, 'index'])->name('biodata');
+    Route::post('/biodata', [BiodataController::class, 'simpan'])->name('biodata.simpan');
 
     Route::get('/akun/profil', function () {
         return Inertia::render('Akun/Profil');
