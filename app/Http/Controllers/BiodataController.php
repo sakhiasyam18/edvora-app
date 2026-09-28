@@ -52,11 +52,11 @@ class BiodataController extends Controller
                 'prodi_tujuan_id' => $data['prodiTujuanId'],
             ];
 
-            // Langsung update tanpa find() lebih dulu: satu query lebih sedikit ke Supabase.
-            $diubah = Siswa::whereKey($user->id)->update($kolom);
-
-            // Akun lama yang dibuat sebelum pendaftaran ikut membuat baris siswa: buat barisnya sekarang.
-            if ($diubah === 0) {
+            $siswa = Siswa::find($user->id);
+            
+            if ($siswa) {
+                $siswa->update($kolom);
+            } else {
                 Siswa::create($kolom + ['user_id' => $user->id, 'xp' => 0, 'point' => 0, 'streak_saat_ini' => 0]);
             }
 
