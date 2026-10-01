@@ -134,8 +134,8 @@ export default function Hasil({ hasil = dummyHasilLatihan, pengerjaan, ringkasan
                         onClick={() =>
                             router.visit(
                                 pengerjaan
-                                    ? route('riwayat.pembahasan', { id: pengerjaan.id })
-                                    : route('riwayat.pembahasan'),
+                                    ? route('riwayat.detail', { pengerjaanId: pengerjaan.id })
+                                    : route('riwayat.index'),
                             )
                         }
                         className="w-full rounded-lg bg-[#2E3F85] py-3 font-medium text-white shadow-md transition hover:bg-[#263573]"

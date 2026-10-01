@@ -50,7 +50,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Rute Riwayat
     Route::prefix('riwayat')->group(function () {
         Route::get('/', [RiwayatController::class, 'index'])->name('riwayat.index');
-        Route::get('/pembahasan', [RiwayatController::class, 'pembahasan'])->name('riwayat.pembahasan');
+        Route::get('/{pengerjaanId}/info', [RiwayatController::class, 'getModalInfo'])->name('riwayat.info');
+        Route::get('/{pengerjaanId}/pembahasan', [RiwayatController::class, 'pembahasan'])->name('riwayat.detail');
     });
 
     // Rute Jadwal
