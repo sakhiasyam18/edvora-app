@@ -157,35 +157,37 @@ export default function Siswa({ judul = 'Dashboard Siswa' }: SiswaProps) {
                                 </Link>
 
                                 {/* Try Out */}
-                                <div className="group relative flex min-h-[220px] flex-col rounded-xl bg-white px-5 py-5 shadow-md transition duration-200 hover:-translate-y-1 hover:shadow-xl">
-                                    <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#CDF3B9]">
-                                        <svg
-                                            xmlns="http://www.w3.org/2000/svg"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="#70A95B"
-                                            strokeWidth="2"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            className="h-7 w-7"
-                                        >
-                                            <path d="M6 2h8l4 4v16H6Z" />
-                                            <path d="M14 2v5h5" />
-                                            <path d="M9 12h6" />
-                                            <path d="M9 16h6" />
-                                        </svg>
+                                <Link
+                                    href="/tryout"
+                                    className="group relative flex min-h-[220px] flex-col justify-between rounded-xl bg-white p-6 shadow-sm transition hover:shadow-md"
+                                >
+                                    <div>
+                                        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#EBF3FC]">
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="#70A95B"
+                                                strokeWidth="2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                className="h-7 w-7"
+                                            >
+                                                <path d="M6 2h8l4 4v16H6Z" />
+                                                <path d="M14 2v5h5" />
+                                                <path d="M9 12h6" />
+                                                <path d="M9 16h6" />
+                                            </svg>
+                                        </div>
+
+                                        <h2 className="text-xl font-bold text-[#203766]">Try Out</h2>
+
+                                        <p className="mt-1 max-w-[190px] text-sm leading-snug text-[#536078]">
+                                            Latih kemampuan kamu dan dapatkan pengalaman ujian sesungguhnya dengan timer!
+                                        </p>
                                     </div>
 
-                                    <h2 className="text-xl font-bold text-[#203766]">
-                                        Try Out
-                                    </h2>
-
-                                    <p className="mt-1 max-w-[190px] text-sm leading-snug text-[#536078]">
-                                        Latih kemampuan kamu dan dapatkan pengalaman
-                                        ujian sesungguhnya dengan timer!
-                                    </p>
-
-                                    <div className="absolute bottom-4 right-4 flex h-8 w-8 items-center justify-center rounded-full bg-[#568DD0] text-white">
+                                    <div className="absolute bottom-4 right-4 flex h-8 w-8 items-center justify-center rounded-full bg-[#5C82E6] text-white">
                                         <svg
                                             xmlns="http://www.w3.org/2000/svg"
                                             viewBox="0 0 24 24"
@@ -200,7 +202,7 @@ export default function Siswa({ judul = 'Dashboard Siswa' }: SiswaProps) {
                                             <path d="m13 6 6 6-6 6" />
                                         </svg>
                                     </div>
-                                </div>
+                                </Link>
 
                                 {/* Battle Soal */}
                                 <Link

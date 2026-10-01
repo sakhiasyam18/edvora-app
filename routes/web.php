@@ -33,6 +33,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('latihan.cek');
         Route::post('/ujian/simpan', [LatihanSoalController::class, 'simpanJawaban'])->block(10, 10)->name('latihan.simpan');
         Route::get('/hasil', [LatihanSoalController::class, 'hasil'])->name('latihan.hasil');
+        Route::get('/pembahasan', [LatihanSoalController::class, 'pembahasan'])->name('latihan.pembahasan');
     });
 
     // Rute Battle
@@ -59,6 +60,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/kelola-soal', [AdminSoalController::class, 'index'])->name('admin.soal.index');
         Route::post('/kelola-soal', [AdminSoalController::class, 'simpan'])->name('admin.soal.simpan');
     });
+
+    // Route Try Out (Tambahkan di sini)
+    Route::prefix('tryout')->group(function () {
+        Route::get('/', function () {
+            return Inertia::render('TryOut/Index');
+        })->name('tryout.index');
+
+        Route::get('/{id}/kerjakan', function ($id) {
+            return Inertia::render('TryOut/Kerjakan', ['id' => $id]);
+        })->name('tryout.kerjakan');
+    });
 });
 
 Route::middleware('auth')->group(function () {
@@ -75,4 +87,4 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
-require __DIR__.'/auth.php';
+require __DIR__ . '/auth.php';

@@ -1,170 +1,233 @@
-import { Head, router } from '@inertiajs/react';
-import { ReactNode, useState } from 'react';
-import LatihanLayout from '@/Components/Layouts/LatihanLayout';
-import Modal from '@/Components/Modal';
-import { HasilLatihan } from '@/types/latihan';
-import { dummyHasilLatihan } from '@/data/dummyLatihan';
+import React from 'react';
+import { Head, Link } from '@inertiajs/react';
 
-interface HasilProps {
-    // Sementara controller belum kirim props, jadi fallback ke dummy.
-    hasil?: HasilLatihan;
-    pengerjaan?: { id: string; subtes_id: string; jumlah_soal_dipilih: number; tipe: string };
+interface JawabanPengerjaan {
+    id: string;
+    is_correct: boolean;
+    skor: number;
 }
 
-function KartuStat({ ikon, label, nilai }: { ikon: ReactNode; label: string; nilai: string | number }) {
-    return (
-        <div className="flex flex-col items-center rounded-xl bg-white px-4 py-5 text-center shadow-md">
-            {ikon}
-            <p className="mt-3 text-xs font-medium text-gray-600">{label}</p>
-            <p className="mt-1 text-3xl font-bold text-[#1F2D5C]">{nilai}</p>
-        </div>
-    );
+interface Subtes {
+    id: string;
+    nama_subtes: string;
 }
 
-export default function Hasil({ hasil = dummyHasilLatihan, pengerjaan }: HasilProps) {
-    const [modalUlangi, setModalUlangi] = useState(false);
+interface Pengerjaan {
+    id: string;
+    subtes_id: string;
+    jumlah_soal_dipilih: number;
+    total_skor: number;
+    started_at: string;
+    finished_at: string;
+    subtes?: Subtes;
+    jawaban_pengerjaan?: JawabanPengerjaan[];
+}
+
+interface HasilData {
+    jumlahBenar: number;
+    jumlahSalah: number;
+    poin: number;
+    xpDidapat: number;
+}
+
+interface Props {
+    hasil: HasilData;
+    pengerjaan: Pengerjaan;
+}
+
+export default function Hasil({ hasil, pengerjaan }: Props) {
+    // 1. Ambil Nama Subtes
+    const subtesNama = pengerjaan?.subtes?.nama_subtes || 'Penalaran Umum';
+
+    // 2. Hitung statistik
+    const totalSoal = pengerjaan?.jumlah_soal_dipilih || 0;
+    const jawabanBenar = hasil?.jumlahBenar ?? 0;
+    const jawabanSalah = hasil?.jumlahSalah ?? 0;
+
+    // Jawaban kosong dihitung dari sisa total soal yang tidak dijawab/dicatat
+    const totalDijawab = jawabanBenar + jawabanSalah;
+    const jawabanKosong = Math.max(0, totalSoal - totalDijawab);
+
+    // 3. Format Durasi Waktu Pengerjaan
+    const formatWaktu = (start?: string, end?: string) => {
+        if (!start || !end) return '-';
+        const startTime = new Date(start).getTime();
+        const endTime = new Date(end).getTime();
+        const diffSeconds = Math.max(0, Math.floor((endTime - startTime) / 1000));
+
+        const menit = Math.floor(diffSeconds / 60);
+        const detik = diffSeconds % 60;
+
+        if (menit > 0) {
+            return `${menit}m ${detik}s`;
+        }
+        return `${detik}s`;
+    };
+
+    const waktuPengerjaan = formatWaktu(pengerjaan?.started_at, pengerjaan?.finished_at);
+
+    // 4. Deteksi Mode berdasarkan Jumlah Soal (Jika totalSoal 30/UTBK = Simulasi)
+    // Atau Kamu bisa sesuaikan teks ini sesuai preferensi
+    const modeText = totalSoal >= 20 ? 'Mode Simulasi' : 'Mode Fleksibel';
 
     return (
-        <LatihanLayout breadcrumb={['Latihan Soal', 'Hasil Pengerjaan']}>
-            <Head title="Hasil Pengerjaan Soal" />
-
-            <div className="mx-auto flex max-w-4xl flex-col items-center px-8 py-8">
-                <Trofi />
-
-                <h1 className="mt-4 text-center text-4xl font-bold text-[#1F2D5C]">Hasil Pengerjaan Soal</h1>
-                <p className="mt-1 text-center text-sm font-medium text-[#445984]">
-                    Kerja Bagus! Terus tingkatkan kemampuanmu dan berkembang setiap harinya!
-                </p>
-
-                <div className="mt-6 grid w-full grid-cols-2 gap-4 md:grid-cols-4">
-                    <KartuStat
-                        label="Jawaban Benar"
-                        nilai={hasil.jumlahBenar}
-                        ikon={
-                            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#6BAF4E] text-white">
-                                <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3}>
-                                    <path d="M5 12.5l4.5 4.5L19 7.5" />
-                                </svg>
-                            </span>
-                        }
-                    />
-                    <KartuStat
-                        label="Jawaban Salah"
-                        nilai={hasil.jumlahSalah}
-                        ikon={
-                            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#B94040] text-white">
-                                <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3}>
-                                    <path d="M6 6l12 12M18 6L6 18" />
-                                </svg>
-                            </span>
-                        }
-                    />
-                    <KartuStat
-                        label="Poin"
-                        nilai={hasil.poin}
-                        ikon={
-                            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#DDE9F7] text-[#3F6FB5]">
-                                <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
-                                    <path d="M7 2h10l-2 6H9L7 2zm5 7a6.5 6.5 0 110 13 6.5 6.5 0 010-13zm0 2.8l1.2 2.4 2.6.4-1.9 1.8.5 2.6-2.4-1.3-2.4 1.3.5-2.6-1.9-1.8 2.6-.4 1.2-2.4z" />
-                                </svg>
-                            </span>
-                        }
-                    />
-                    <KartuStat
-                        label="XP diperoleh"
-                        nilai={`+${hasil.xpDidapat} XP`}
-                        ikon={
-                            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#DCDDF7] text-sm font-bold text-[#2E3F85]">
-                                XP
-                            </span>
-                        }
-                    />
-                </div>
-
-                <div className="mt-6 flex w-full max-w-md flex-col gap-3">
-                    <button
-                        type="button"
-                        onClick={() =>
-                            router.visit(
-                                pengerjaan
-                                    ? route('riwayat.pembahasan', { id: pengerjaan.id })
-                                    : route('riwayat.pembahasan'),
-                            )
-                        }
-                        className="w-full rounded-lg bg-[#2E3F85] py-3 font-medium text-white shadow-md transition hover:bg-[#263573]"
-                    >
-                        Lihat Pembahasan
-                    </button>
-                    <div className="grid grid-cols-2 gap-3">
-                        <button
-                            type="button"
-                            onClick={() => setModalUlangi(true)}
-                            className="rounded-lg bg-white py-2.5 font-medium text-[#1F2D5C] shadow-md transition hover:bg-gray-50"
-                        >
-                            Ulangi Latihan
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => router.visit(route('dashboard'))}
-                            className="rounded-lg bg-[#2E3F85] py-2.5 font-medium text-white shadow-md transition hover:bg-[#263573]"
-                        >
-                            Kembali ke Beranda
-                        </button>
+        <>
+            <Head title={`Hasil Pengerjaan - ${subtesNama}`} />
+            <div className="flex min-h-screen flex-col bg-[#EBF3FC] font-['Plus_Jakarta_Sans',sans-serif] text-[#1E293B]">
+                {/* HEADER / NAVIGASI BAR */}
+                <header className="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-8">
+                    <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#2B4184] text-lg font-black text-white">
+                            E
+                        </div>
                     </div>
-                </div>
+
+                    {/* BREADCRUMB NAVIGASI DINAMIS */}
+                    <div className="flex items-center gap-2 text-sm font-semibold text-gray-500">
+                        <Link href="/dashboard" className="text-gray-400 transition hover:text-gray-600">
+                            <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l1.293 1.293a1 1 0 001.414-1.414l-7-7z" />
+                            </svg>
+                        </Link>
+                        <span>&gt;</span>
+                        <Link href="/latihan" className="transition hover:text-gray-700">
+                            Latihan Soal
+                        </Link>
+                        <span>&gt;</span>
+                        <span className="font-bold text-gray-700">
+                            {subtesNama} ({modeText})
+                        </span>
+                    </div>
+
+                    <div className="flex cursor-pointer items-center gap-1">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#5C82E6] text-sm font-bold text-white shadow-sm">
+                            A
+                        </div>
+                    </div>
+                </header>
+
+                {/* KONTEN UTAMA HASIL */}
+                <main className="flex flex-1 items-center justify-center p-6">
+                    <div className="w-full max-w-4xl overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-xl">
+                        {/* BANNER BIRU KARTU */}
+                        <div className="relative flex h-28 justify-center bg-gradient-to-r from-[#698CDD] to-[#476BB8]">
+                            <div className="absolute -bottom-8 flex h-20 w-20 items-center justify-center rounded-2xl bg-white p-2 shadow-md">
+                                <div className="flex h-full w-full items-center justify-center rounded-xl bg-amber-50 text-3xl">
+                                    🏆
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* RINGKASAN HASIL */}
+                        <div className="px-8 pb-8 pt-12 text-center">
+                            <h1 className="text-2xl font-black text-[#1E293B] sm:text-3xl">
+                                {subtesNama}
+                            </h1>
+                            <p className="mt-2 text-xs font-semibold text-gray-500 sm:text-sm">
+                                Kerja Bagus! Terus tingkatkan kemampuanmu dan berkembang setiap harinya!
+                            </p>
+
+                            {/* STATISTIK 6 KARTU */}
+                            <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                                {/* JAWABAN BENAR */}
+                                <div className="flex flex-col items-center justify-center rounded-2xl border border-gray-200 bg-white p-4 transition hover:border-green-300">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-xs font-extrabold text-white">
+                                        ✓
+                                    </div>
+                                    <span className="mt-3 text-2xl font-black text-[#1E293B]">
+                                        {jawabanBenar}
+                                    </span>
+                                    <span className="mt-1 text-[11px] font-bold text-gray-400">
+                                        Jawaban Benar
+                                    </span>
+                                </div>
+
+                                {/* JAWABAN SALAH */}
+                                <div className="flex flex-col items-center justify-center rounded-2xl border border-gray-200 bg-white p-4 transition hover:border-red-300">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-500 text-xs font-extrabold text-white">
+                                        ✕
+                                    </div>
+                                    <span className="mt-3 text-2xl font-black text-[#1E293B]">
+                                        {jawabanSalah}
+                                    </span>
+                                    <span className="mt-1 text-[11px] font-bold text-gray-400">
+                                        Jawaban Salah
+                                    </span>
+                                </div>
+
+                                {/* JAWABAN KOSONG */}
+                                <div className="flex flex-col items-center justify-center rounded-2xl border border-gray-200 bg-white p-4 transition hover:border-gray-400">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-400 text-sm font-extrabold text-white">
+                                        −
+                                    </div>
+                                    <span className="mt-3 text-2xl font-black text-[#1E293B]">
+                                        {jawabanKosong}
+                                    </span>
+                                    <span className="mt-1 text-[11px] font-bold text-gray-400">
+                                        Jawaban Kosong
+                                    </span>
+                                </div>
+
+                                {/* WAKTU PENGERJAAN */}
+                                <div className="flex flex-col items-center justify-center rounded-2xl border border-gray-200 bg-white p-4 transition hover:border-blue-300">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#5C82E6] text-white">
+                                        🕒
+                                    </div>
+                                    <span className="mt-3 text-xl font-black text-[#1E293B]">
+                                        {waktuPengerjaan}
+                                    </span>
+                                    <span className="mt-1 text-[11px] font-bold text-gray-400">
+                                        Waktu Pengerjaan
+                                    </span>
+                                </div>
+
+                                {/* POIN */}
+                                <div className="flex flex-col items-center justify-center rounded-2xl border border-gray-200 bg-white p-4 transition hover:border-blue-300">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#82B1FF] text-white">
+                                        ⭐
+                                    </div>
+                                    <span className="mt-3 text-2xl font-black text-[#1E293B]">
+                                        {hasil?.poin ?? 0}
+                                    </span>
+                                    <span className="mt-1 text-[11px] font-bold text-gray-400">
+                                        Poin
+                                    </span>
+                                </div>
+
+                                {/* XP DIPEROLEH */}
+                                <div className="flex flex-col items-center justify-center rounded-2xl border border-gray-200 bg-white p-4 transition hover:border-indigo-300">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#B4C6FF] text-[10px] font-black text-[#3b5998]">
+                                        XP
+                                    </div>
+                                    <span className="mt-3 text-xl font-black text-[#1E293B]">
+                                        +{hasil?.xpDidapat ?? 0} XP
+                                    </span>
+                                    <span className="mt-1 text-[11px] font-bold text-gray-400">
+                                        XP Diperoleh
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* TOMBOL AKSI */}
+                            <div className="mt-10 flex flex-col items-center justify-between gap-4 sm:flex-row">
+                                <Link
+                                    href="/latihan"
+                                    className="w-full rounded-2xl border border-gray-300 bg-[#D9E2EC] px-6 py-3 text-xs font-bold text-[#334155] transition hover:bg-[#cbd5e1] sm:w-auto"
+                                >
+                                    ← Kembali ke Menu Latihan Soal
+                                </Link>
+
+                                <Link
+                                    href={`/latihan/pembahasan?id=${pengerjaan?.id}`}
+                                    className="w-full rounded-2xl bg-[#5C82E6] px-6 py-3 text-xs font-bold text-white shadow-md transition hover:bg-[#486ed6] sm:w-auto"
+                                >
+                                    Lihat Pembahasan Soal →
+                                </Link>
+                            </div>
+                        </div>
+                    </div>
+                </main>
             </div>
-
-            <Modal show={modalUlangi} maxWidth="md" onClose={() => setModalUlangi(false)}>
-                <div className="p-5 font-['Poppins',sans-serif] text-[#1F2D5C]">
-                    <h3 className="text-lg font-semibold">Ulangi Latihan</h3>
-                    <p className="mt-1 text-sm text-gray-700">Anda yakin ingin mengulangi latihan ini dengan soal yang sama persis (loop soal)?</p>
-                    <div className="mt-6 flex justify-end gap-2">
-                        <button type="button" onClick={() => setModalUlangi(false)} className="rounded-md px-4 py-1.5 text-xs font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition">
-                            Batal
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setModalUlangi(false);
-                                if (pengerjaan && pengerjaan.id) {
-                                    // Mengirimkan pengerjaanId ke Laravel untuk memanggil soal yang SAMA PERSIS (ngeloop)
-                                    router.visit(route('latihan.ujian'), {
-                                        data: {
-                                            pengerjaanId: pengerjaan.id,
-                                            subtesId: pengerjaan.subtes_id,
-                                            jumlahSoal: pengerjaan.jumlah_soal_dipilih,
-                                            mode: pengerjaan.tipe === 'simulasi' ? 'simulasi' : 'fleksibel',
-                                            _t: Date.now() // Cache buster tetap dipakai agar request tembus ke server
-                                        }
-                                    });
-                                } else {
-                                    router.visit(route('latihan.persiapan'));
-                                }
-                            }}
-                            className="rounded-md px-4 py-1.5 text-xs font-medium bg-[#5B86DB] text-white hover:bg-[#4673CD] transition"
-                        >
-                            Ya, Ulangi
-                        </button>
-                    </div>
-                </div>
-            </Modal>
-        </LatihanLayout>
-    );
-}
-
-function Trofi() {
-    return (
-        <svg className="h-36 w-36" viewBox="0 0 120 120" aria-hidden="true">
-            <ellipse cx="60" cy="112" rx="30" ry="5" fill="#1F2D5C" opacity="0.2" />
-            <path d="M30 22c-14 0-18 8-16 17 2 10 12 16 22 17" fill="none" stroke="#F2B233" strokeWidth="7" strokeLinecap="round" />
-            <path d="M90 22c14 0 18 8 16 17-2 10-12 16-22 17" fill="none" stroke="#F2B233" strokeWidth="7" strokeLinecap="round" />
-            <path d="M28 14h64v22c0 20-14 36-32 36S28 56 28 36V14z" fill="#F7C548" />
-            <path d="M60 14h32v22c0 20-14 36-32 36V14z" fill="#F2B233" />
-            <rect x="53" y="70" width="14" height="16" fill="#E0A020" />
-            <path d="M40 86h40l4 14H36l4-14z" fill="#F2B233" />
-            <rect x="32" y="98" width="56" height="9" rx="2" fill="#E0A020" />
-            <circle cx="60" cy="38" r="13" fill="#FFE08A" stroke="#E0A020" strokeWidth="2" />
-            <text x="60" y="44" textAnchor="middle" fontSize="16" fontWeight="700" fill="#C98A10" fontFamily="Poppins, sans-serif">1</text>
-        </svg>
+        </>
     );
 }
