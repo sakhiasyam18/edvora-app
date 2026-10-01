@@ -78,7 +78,7 @@ export default function Siswa({ judul = 'Dashboard Siswa' }: SiswaProps) {
                     {/* Header */}
                     <header className="flex h-24 shrink-0 items-center justify-end bg-white px-8 md:px-10">
                         <Link
-                            href={route('profile.edit')}
+                            href={route('akun.profil.utama')}
                             className="flex h-12 w-12 items-center justify-center rounded-full bg-[#5E8CDF] text-xl font-medium text-white transition hover:bg-[#4E7FD5]"
                             aria-label="Profil"
                         >
