@@ -96,10 +96,10 @@ export default function Siswa({ judul = 'Beranda', level, poin, rekomendasi, pen
                         </p>
                     </Link>
 
-                    {/* Try Out: halamannya belum ada, jadi belum bisa dipencet. */}
-                    <div
-                        aria-disabled="true"
-                        className="relative flex min-h-[180px] cursor-not-allowed flex-col rounded-xl bg-white px-5 py-5 opacity-60 shadow-md"
+                    {/* Try Out: ada atau tidaknya event try out ditentukan di halaman Try Out, bukan di kartu ini. */}
+                    <Link
+                        href={route('tryout.index')}
+                        className="group relative flex min-h-[180px] flex-col rounded-xl bg-white px-5 py-5 shadow-md transition duration-200 hover:-translate-y-1 hover:shadow-xl"
                     >
                         <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#CDF3B9]">
                             <svg
@@ -127,7 +127,7 @@ export default function Siswa({ judul = 'Beranda', level, poin, rekomendasi, pen
                             Latih kemampuan kamu dan dapatkan pengalaman
                             ujian sesungguhnya dengan timer!
                         </p>
-                    </div>
+                    </Link>
 
                     {/* Direkomendasikan: 3 topik yang paling perlu dilatih dari semua subtes. */}
                     <section className="rounded-xl bg-white px-5 py-5 shadow-md">

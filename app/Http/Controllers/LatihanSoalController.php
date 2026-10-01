@@ -535,4 +535,23 @@ class LatihanSoalController extends Controller
     {
         return preg_replace('/^[\p{Z}\s]+|[\p{Z}\s]+$/u', '', (string) $teks);
     }
+    
+    public function pembahasan(Request $request)
+    {
+        $id = $request->get('id');
+
+        // Ambil data pengerjaan beserta relasi soal, opsi jawaban, dan pembahasan
+        $pengerjaan = Pengerjaan::with([
+            'subtes',
+            'jawabanPengerjaan.soal.opsiJawaban' => function ($q) {
+                $q->orderBy('urutan');
+            }
+        ])
+        ->where('user_id', Auth::id())
+        ->findOrFail($id);
+
+        return Inertia::render('Latihan/Pembahasan', [
+            'pengerjaan' => $pengerjaan,
+        ]);
+    }
 }

@@ -8,7 +8,15 @@ import { dummyHasilLatihan } from '@/data/dummyLatihan';
 interface HasilProps {
     // Sementara controller belum kirim props, jadi fallback ke dummy.
     hasil?: HasilLatihan;
-    pengerjaan?: { id: string; subtes_id: string; jumlah_soal_dipilih: number; tipe: string; mode_latihan: ModeLatihan | null };
+    pengerjaan?: {
+        id: string;
+        subtes_id: string;
+        jumlah_soal_dipilih: number;
+        tipe: string;
+        mode_latihan: ModeLatihan | null;
+        started_at: string | null;
+        finished_at: string | null;
+    };
     // Satu per topik yang dikerjakan di sesi fleksibel; kosong untuk simulasi.
     ringkasanTopik?: RingkasanTopikHasil[];
     // Maks 3 topik subtes ini yang disarankan dilatih berikutnya (UCS1).
@@ -48,7 +56,25 @@ function KartuStat({ ikon, label, nilai }: { ikon: ReactNode; label: string; nil
     );
 }
 
+// Selisih mulai–selesai dalam format "3m 20s"; "-" bila salah satunya belum tercatat.
+function formatDurasi(mulai?: string | null, selesai?: string | null): string {
+    if (!mulai || !selesai) {
+        return '-';
+    }
+
+    const detikTotal = Math.max(0, Math.floor((new Date(selesai).getTime() - new Date(mulai).getTime()) / 1000));
+    const menit = Math.floor(detikTotal / 60);
+    const detik = detikTotal % 60;
+
+    return menit > 0 ? `${menit}m ${detik}s` : `${detik}s`;
+}
+
 export default function Hasil({ hasil = dummyHasilLatihan, pengerjaan, ringkasanTopik = [], rekomendasiTopik = [] }: HasilProps) {
+    // Soal yang dilewati tidak dicatat di jawaban_pengerjaan, jadi sisanya dihitung kosong.
+    const jumlahKosong = pengerjaan
+        ? Math.max(0, pengerjaan.jumlah_soal_dipilih - hasil.jumlahBenar - hasil.jumlahSalah)
+        : 0;
+
     return (
         <LatihanLayout breadcrumb={['Latihan Soal', 'Hasil Pengerjaan']}>
             <Head title="Hasil Pengerjaan Soal" />
@@ -61,7 +87,7 @@ export default function Hasil({ hasil = dummyHasilLatihan, pengerjaan, ringkasan
                     Kerja Bagus! Terus tingkatkan kemampuanmu dan berkembang setiap harinya!
                 </p>
 
-                <div className="mt-6 grid w-full grid-cols-2 gap-4 md:grid-cols-4">
+                <div className="mt-6 grid w-full grid-cols-2 gap-4 md:grid-cols-3">
                     <KartuStat
                         label="Jawaban Benar"
                         nilai={hasil.jumlahBenar}
@@ -80,6 +106,29 @@ export default function Hasil({ hasil = dummyHasilLatihan, pengerjaan, ringkasan
                             <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#B94040] text-white">
                                 <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3}>
                                     <path d="M6 6l12 12M18 6L6 18" />
+                                </svg>
+                            </span>
+                        }
+                    />
+                    <KartuStat
+                        label="Jawaban Kosong"
+                        nilai={jumlahKosong}
+                        ikon={
+                            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-gray-400 text-white">
+                                <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3}>
+                                    <path d="M6 12h12" />
+                                </svg>
+                            </span>
+                        }
+                    />
+                    <KartuStat
+                        label="Waktu Pengerjaan"
+                        nilai={formatDurasi(pengerjaan?.started_at, pengerjaan?.finished_at)}
+                        ikon={
+                            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#C7E9FA] text-[#548CC8]">
+                                <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
+                                    <circle cx="12" cy="12" r="9" />
+                                    <path d="M12 7v5l3 2" />
                                 </svg>
                             </span>
                         }
