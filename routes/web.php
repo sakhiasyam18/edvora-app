@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AdminSoalController;
 use App\Http\Controllers\BattleController;
+use App\Http\Controllers\BerandaController;
 use App\Http\Controllers\BiodataController;
 use App\Http\Controllers\JadwalController;
 use App\Http\Controllers\LatihanSoalController;
@@ -13,9 +14,7 @@ use Inertia\Inertia;
 
 Route::get('/', [WelcomeController::class, 'index'])->name('welcome');
 
-Route::get('/dashboard', function () {
-    return Inertia::render('Dashboard/Siswa');
-})->middleware(['auth', 'verified'])->name('dashboard');
+Route::get('/dashboard', [BerandaController::class, 'index'])->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware(['auth', 'verified'])->group(function () {
 
@@ -25,6 +24,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Rute Latihan
     Route::prefix('latihan')->group(function () {
         Route::get('/persiapan', [LatihanSoalController::class, 'index'])->name('latihan.persiapan');
+        // Segmen subtes/ mencegah bentrok dengan /latihan/ujian dan /latihan/hasil; kode tak dikenal → 404.
+        Route::get('/subtes/{subtes:kode_subtes}', [LatihanSoalController::class, 'pilihMode'])->name('latihan.mode');
         Route::get('/ujian', [LatihanSoalController::class, 'ujian'])->name('latihan.ujian');
         // block(): request dengan session yang sama diproses bergantian, jadi klik ganda tidak saling timpa.
         Route::post('/ujian/cek-jawaban', [LatihanSoalController::class, 'cekJawaban'])

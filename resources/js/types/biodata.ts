@@ -13,7 +13,6 @@ export interface ProdiPilihan {
 export interface UniversitasPilihan {
     id: string;
     nama: string;
-    singkatan: string;
     prodi: ProdiPilihan[]; // hanya prodi aktif, urut jenjang lalu nama
 }
 

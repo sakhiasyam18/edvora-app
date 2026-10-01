@@ -126,6 +126,21 @@ class Penguasaan
     }
 
     /**
+     * Persen penguasaan 0–100 untuk ringkasan lintas topik (Beranda): setiap tahap mengisi sepertiga,
+     * dan isi lingkaran tahap itu mengisi bagiannya. Belum cukup data dihitung 0.
+     */
+    public static function persen(int $tahap, ?float $skor): float
+    {
+        if ($skor === null) {
+            return 0.0;
+        }
+
+        $jumlahTahap = self::TAHAP_AKHIR - self::TAHAP_AWAL + 1;
+
+        return round(100 * ($tahap - self::TAHAP_AWAL + self::isiLingkaran($skor)) / $jumlahTahap, 1);
+    }
+
+    /**
      * Label dibaca dari tahap, karena skor 80 di tahap 1 (soal mudah) tidak setara dengan skor 80 di tahap 3.
      */
     public static function label(int $tahap, ?float $skor): string
@@ -185,7 +200,6 @@ class Penguasaan
 
     /**
      * Jumlah soal per tingkat untuk satu sesi, sesuai porsi tahap.
-     * Sisa pembulatan diberikan ke tingkat dengan pecahan terbesar; bila sama, ke tingkat yang lebih sulit.
      *
      * @return array<string, int> tingkat => jumlah soal, urut mudah ke sulit
      */
@@ -193,6 +207,18 @@ class Penguasaan
     {
         $porsi = self::PORSI_PER_TAHAP[$tahap] ?? throw new InvalidArgumentException("Tahap {$tahap} tidak dikenal.");
 
+        return self::bagiPorsi($porsi, $jumlahSoal);
+    }
+
+    /**
+     * Bagi jumlah soal menurut porsi persen per tingkat. Dipakai juga untuk komposisi mode simulasi.
+     * Sisa pembulatan diberikan ke tingkat dengan pecahan terbesar; bila sama, ke tingkat yang lebih sulit.
+     *
+     * @param  array<string, int>  $porsi  tingkat => persen, urut mudah ke sulit
+     * @return array<string, int> tingkat => jumlah soal
+     */
+    public static function bagiPorsi(array $porsi, int $jumlahSoal): array
+    {
         $jatah = [];
         $pecahan = [];
         foreach ($porsi as $tingkat => $persen) {

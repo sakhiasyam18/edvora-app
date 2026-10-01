@@ -7,45 +7,186 @@ use Random\Engine\Mt19937;
 use Random\Randomizer;
 
 /**
- * Memilih soal latihan fleksibel dari satu topik, sesuai tahap siswa dan porsi tingkat soalnya.
+ * Memilih soal latihan fleksibel (satu atau beberapa topik, sesuai tahap siswa) dan simulasi.
+ *
+ * Hanya soal yang belum pernah dijawab siswa yang boleh muncul: soal yang dijawab benar tidak muncul lagi,
+ * dan soal yang dijawab salah hanya dikerjakan ulang lewat remedial (RANCANGAN-dashboard-topik-remedial.md, K4).
  */
 class PemilihSoal
 {
+    // Komposisi soal mode simulasi dalam persen (UCS1).
+    public const PORSI_SIMULASI = ['mudah' => 30, 'sedang' => 40, 'sulit' => 30];
+
     /**
-     * @return array{tahap: int, soal_ids: string[]} soal_ids dalam urutan tampil (acak)
+     * Fleksibel. Jumlah soal dibagi rata ke topik yang dipilih, lalu soal tiap topik dibagi per tingkat
+     * menurut tahap siswa di topik itu. Stok satu topik yang kurang diisi dari topik lain, dengan tingkat
+     * yang boleh di tahap topik pemberinya.
+     *
+     * @param  string[]  $topikIds
+     * @return string[] id soal dalam urutan tampil (acak, topik bercampur)
      */
-    public function pilih(string $userId, string $topikId, int $jumlahSoal): array
+    public function pilih(string $userId, array $topikIds, int $jumlahSoal, ?int $seed = null): array
     {
-        // Satu query: semua soal topik, jawaban terakhir siswa untuk tiap soal (mode apa pun), dan tahap siswa di topik ini.
-        $baris = DB::select(<<<'SQL'
-            select q.id, q.kode_soal, q.tingkat_kesulitan::text as tingkat,
-                   terakhir.is_correct as benar, terakhir.finished_at as waktu,
-                   (select pt.tahap from penguasaan_topik pt where pt.user_id = ? and pt.topik_id = q.topik_id) as tahap
+        $tanda = implode(', ', array_fill(0, count($topikIds), '?'));
+        $baris = $topikIds === [] ? [] : $this->kandidat($userId, "q.topik_id in ({$tanda})", $topikIds);
+
+        $perTopik = [];
+        foreach ($baris as $b) {
+            $perTopik[$b->topik_id]['tahap'] = (int) ($b->tahap ?? Penguasaan::TAHAP_AWAL);
+            $perTopik[$b->topik_id]['kandidat'][] = [
+                'id' => $b->id,
+                'kode' => $b->kode_soal,
+                'tingkat' => $b->tingkat,
+                'benar' => null,
+                'waktu' => null,
+            ];
+        }
+
+        $acak = new Randomizer($seed === null ? null : new Mt19937($seed));
+        $terpilih = [];
+        $kurang = 0;
+
+        foreach (self::bagiRata($topikIds, $jumlahSoal, $seed) as $topikId => $jumlah) {
+            $topik = $perTopik[$topikId] ?? null;
+            $ambil = $topik ? self::susun($topik['kandidat'], Penguasaan::jatahSoal($topik['tahap'], $jumlah), $seed) : [];
+
+            array_push($terpilih, ...$ambil);
+            $kurang += $jumlah - count($ambil);
+        }
+
+        if ($kurang > 0) {
+            $sudah = array_flip($terpilih);
+            $cadangan = [];
+            foreach ($perTopik as $topik) {
+                $boleh = Penguasaan::PORSI_PER_TAHAP[$topik['tahap']];
+                foreach ($topik['kandidat'] as $k) {
+                    if (isset($boleh[$k['tingkat']]) && ! isset($sudah[$k['id']])) {
+                        $cadangan[] = $k['id'];
+                    }
+                }
+            }
+
+            array_push($terpilih, ...array_slice($cadangan ? $acak->shuffleArray($cadangan) : [], 0, $kurang));
+        }
+
+        return $terpilih ? $acak->shuffleArray($terpilih) : [];
+    }
+
+    /**
+     * Simulasi: semua topik subtes, komposisi 30% mudah, 40% sedang, 30% sulit, tanpa tahap.
+     * Tiap tingkat disebar bergiliran ke semua topik. Giliran berlanjut antar tingkat, jadi total per topik
+     * berselisih paling banyak 1. Stok satu tingkat yang kurang diisi dari sisa tingkat lain.
+     *
+     * @return string[] id soal dalam urutan tampil (acak)
+     */
+    public function pilihSimulasi(string $userId, string $subtesId, int $jumlahSoal, ?int $seed = null): array
+    {
+        $acak = new Randomizer($seed === null ? null : new Mt19937($seed));
+        $baris = $this->kandidat($userId, 'q.subtes_id = ?', [$subtesId]);
+
+        // tingkat => topik_id => id soal (acak)
+        $stok = [];
+        foreach ($baris as $b) {
+            $stok[$b->tingkat][$b->topik_id][] = $b->id;
+        }
+        foreach ($stok as $tingkat => $perTopik) {
+            foreach ($perTopik as $topikId => $soal) {
+                $stok[$tingkat][$topikId] = $acak->shuffleArray($soal);
+            }
+        }
+
+        $topikIds = array_values(array_unique(array_column($baris, 'topik_id')));
+        if ($topikIds === []) {
+            return [];
+        }
+        $topikIds = $acak->shuffleArray($topikIds);
+
+        $terpilih = [];
+        $kurang = 0;
+        $giliran = 0;
+
+        foreach (Penguasaan::bagiPorsi(self::PORSI_SIMULASI, $jumlahSoal) as $tingkat => $jumlah) {
+            $diambil = 0;
+            $gagal = 0;
+
+            // Berhenti bila semua topik sudah dicoba berturut-turut tanpa stok di tingkat ini.
+            while ($diambil < $jumlah && $gagal < count($topikIds)) {
+                $topikId = $topikIds[$giliran % count($topikIds)];
+                $giliran++;
+
+                if (empty($stok[$tingkat][$topikId])) {
+                    $gagal++;
+
+                    continue;
+                }
+
+                $terpilih[] = array_shift($stok[$tingkat][$topikId]);
+                $diambil++;
+                $gagal = 0;
+            }
+
+            $kurang += $jumlah - $diambil;
+        }
+
+        if ($kurang > 0) {
+            $sisa = [];
+            foreach ($stok as $perTopik) {
+                foreach ($perTopik as $soal) {
+                    array_push($sisa, ...$soal);
+                }
+            }
+
+            array_push($terpilih, ...array_slice($sisa ? $acak->shuffleArray($sisa) : [], 0, $kurang));
+        }
+
+        return $terpilih ? $acak->shuffleArray($terpilih) : [];
+    }
+
+    /**
+     * Bagi jumlah soal rata ke topik: masing-masing floor(n / k), sisanya +1 ke topik yang dipilih acak.
+     * Hanya bilangan bulat, jadi totalnya selalu tepat $jumlahSoal.
+     *
+     * @param  string[]  $topikIds
+     * @return array<string, int> topik_id => jumlah soal
+     */
+    public static function bagiRata(array $topikIds, int $jumlahSoal, ?int $seed = null): array
+    {
+        $topikIds = array_values(array_unique($topikIds));
+
+        if ($topikIds === []) {
+            return [];
+        }
+
+        $acak = new Randomizer($seed === null ? null : new Mt19937($seed));
+        $kuota = array_fill_keys($topikIds, intdiv($jumlahSoal, count($topikIds)));
+
+        foreach (array_slice($acak->shuffleArray($topikIds), 0, $jumlahSoal % count($topikIds)) as $topikId) {
+            $kuota[$topikId]++;
+        }
+
+        return $kuota;
+    }
+
+    /**
+     * Soal yang belum pernah dijawab siswa (pengerjaan selesai, mode apa pun), beserta tahap siswa di topiknya.
+     * $syarat hanya diisi dari dalam kelas ini, bukan dari input pengguna.
+     *
+     * @return array<int, object{id: string, topik_id: string, kode_soal: string, tingkat: string, tahap: ?int}>
+     */
+    private function kandidat(string $userId, string $syarat, array $nilai): array
+    {
+        return DB::select(<<<SQL
+            select q.id, q.topik_id, q.kode_soal, q.tingkat_kesulitan::text as tingkat, pt.tahap
             from soal q
-            left join lateral (
-                select j.is_correct, p.finished_at
-                from jawaban_pengerjaan j
-                join pengerjaan p on p.id = j.pengerjaan_id
-                where j.soal_id = q.id and p.user_id = ? and p.status = 'selesai'
-                order by p.finished_at desc, j.id desc
-                limit 1
-            ) terakhir on true
-            where q.topik_id = ?
-            SQL, [$userId, $userId, $topikId]);
-
-        $tahap = (int) ($baris[0]->tahap ?? Penguasaan::TAHAP_AWAL);
-        $kandidat = array_map(fn ($b) => [
-            'id' => $b->id,
-            'kode' => $b->kode_soal,
-            'tingkat' => $b->tingkat,
-            'benar' => $b->benar,
-            'waktu' => $b->waktu,
-        ], $baris);
-
-        return [
-            'tahap' => $tahap,
-            'soal_ids' => self::susun($kandidat, Penguasaan::jatahSoal($tahap, $jumlahSoal)),
-        ];
+            left join penguasaan_topik pt on pt.topik_id = q.topik_id and pt.user_id = ?
+            where {$syarat}
+              and not exists (
+                  select 1
+                  from jawaban_pengerjaan j
+                  join pengerjaan p on p.id = j.pengerjaan_id
+                  where j.soal_id = q.id and p.user_id = ? and p.status = 'selesai'
+              )
+            SQL, [$userId, ...$nilai, $userId]);
     }
 
     /**
@@ -55,6 +196,7 @@ class PemilihSoal
      * masing-masing yang terlama dulu. Bila stok satu tingkat kurang dari jatahnya, sisanya diambil dari
      * tingkat lain yang boleh di tahap itu: yang terdekat dulu, dan bila sama jauh, yang lebih sulit.
      * Stok yang tetap kurang membuat sesi lebih pendek. Hasilnya diacak untuk urutan tampil.
+     * pilih() hanya mengirim soal yang belum pernah dijawab (K4), jadi kelompok "pernah salah/benar" kosong.
      *
      * @param  array<int, array{id: string, kode: string, tingkat: string, benar: ?bool, waktu: ?string}>  $kandidat
      * @param  array<string, int>  $jatah  tingkat => jumlah soal, dari Penguasaan::jatahSoal()

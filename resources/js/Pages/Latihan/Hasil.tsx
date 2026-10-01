@@ -10,8 +10,8 @@ interface HasilProps {
     // Sementara controller belum kirim props, jadi fallback ke dummy.
     hasil?: HasilLatihan;
     pengerjaan?: { id: string; subtes_id: string; jumlah_soal_dipilih: number; tipe: string; mode_latihan: ModeLatihan | null };
-    // Hanya untuk sesi fleksibel yang dihitung; null untuk simulasi dan Ulangi Latihan.
-    ringkasanTopik?: RingkasanTopikHasil | null;
+    // Satu per topik yang dijawab di sesi fleksibel; kosong untuk simulasi dan Ulangi Latihan.
+    ringkasanTopik?: RingkasanTopikHasil[];
 }
 
 // Keadaan topik setelah sesi ini. Belum didesain.
@@ -47,7 +47,7 @@ function KartuStat({ ikon, label, nilai }: { ikon: ReactNode; label: string; nil
     );
 }
 
-export default function Hasil({ hasil = dummyHasilLatihan, pengerjaan, ringkasanTopik = null }: HasilProps) {
+export default function Hasil({ hasil = dummyHasilLatihan, pengerjaan, ringkasanTopik = [] }: HasilProps) {
     const [modalUlangi, setModalUlangi] = useState(false);
 
     return (
@@ -107,7 +107,9 @@ export default function Hasil({ hasil = dummyHasilLatihan, pengerjaan, ringkasan
                     />
                 </div>
 
-                {ringkasanTopik && <KartuTopik topik={ringkasanTopik} />}
+                {ringkasanTopik.map((topik) => (
+                    <KartuTopik key={topik.id} topik={topik} />
+                ))}
 
                 <div className="mt-6 flex w-full max-w-md flex-col gap-3">
                     <button

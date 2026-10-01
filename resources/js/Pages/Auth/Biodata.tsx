@@ -184,7 +184,7 @@ export default function Biodata({ universitasList, pilihanKelas, biodata }: Biod
                                             </option>
                                             {universitasList.map((u) => (
                                                 <option key={u.id} value={u.id}>
-                                                    {u.nama} ({u.singkatan})
+                                                    {u.nama}
                                                 </option>
                                             ))}
                                         </select>

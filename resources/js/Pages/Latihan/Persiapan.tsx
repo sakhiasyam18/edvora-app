@@ -1,39 +1,17 @@
-import { Head, router, usePage } from '@inertiajs/react';
-import { useState } from 'react';
-import LingkaranTahap, { keteranganSkor, TEKS_LABEL } from '@/Components/Gamifikasi/LingkaranTahap';
-import LatihanLayout from '@/Components/Layouts/LatihanLayout';
-import Modal from '@/Components/Modal';
-import { KonfigurasiSesiLatihan, ModeLatihan, TopikPenguasaan } from '@/types/latihan';
+import { Head, Link, usePage } from '@inertiajs/react';
+import { ReactNode } from 'react';
+import SiswaLayout from '@/Components/Layouts/SiswaLayout';
 
-// Batas sama dengan LatihanSoalController::JUMLAH_SOAL_MIN dan JUMLAH_SOAL_MAKS.
-const JUMLAH_SOAL_FLEKSIBEL_AWAL = 10;
-const JUMLAH_SOAL_MIN = 10;
-const JUMLAH_SOAL_MAKS = 25;
-
-interface SubtesLatihan {
+interface SubtesRingkas {
     id: string;
-    nama_subtes: string;
-    jumlah_soal: number;
-    waktu_default_menit: number;
+    kode: string | null;
+    nama: string;
+    deskripsi: string | null;
+    jumlahTopik: number; // topik yang punya soal; 0 = belum bisa dikerjakan
 }
 
-function konfigurasiUntukMode(item: SubtesLatihan, mode: ModeLatihan): KonfigurasiSesiLatihan {
-    const subtesId = item.id;
-    const namaSubtes = item.nama_subtes;
-    if (mode === 'simulasi') {
-        return { subtesId, namaSubtes, mode, jumlahSoal: item.jumlah_soal, waktuPengerjaanMenit: item.waktu_default_menit };
-    }
-    return { subtesId, namaSubtes, mode, jumlahSoal: JUMLAH_SOAL_FLEKSIBEL_AWAL, iceBreakingAktif: false };
-}
-
-function IkonPanah() {
-    return (
-        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#3F6FB5] text-white">
-            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-                <path d="M5 12h14M13 6l6 6-6 6" />
-            </svg>
-        </span>
-    );
+interface PersiapanProps {
+    subtesList: SubtesRingkas[];
 }
 
 // Warna per kode subtes, bukan per posisi kartu, supaya tetap benar saat urutan berubah.
@@ -48,263 +26,73 @@ const warnaSubtes: Record<string, string> = {
 };
 const WARNA_CADANGAN = 'bg-[#DCE7F0]';
 
-// Satu baris topik di modal mode fleksibel. Belum didesain.
-function PilihanTopik({ topik, dipilih, onPilih }: { topik: TopikPenguasaan; dipilih: boolean; onPilih: () => void }) {
+// Isi card subtes; sama untuk card yang bisa dan belum bisa dipencet.
+function IsiCard({ subtes }: { subtes: SubtesRingkas }) {
     return (
-        <button
-            type="button"
-            role="radio"
-            aria-checked={dipilih}
-            onClick={onPilih}
-            disabled={!topik.adaSoal}
-            className={`flex w-full items-center gap-3 rounded-lg border bg-white px-3 py-2 text-left transition disabled:cursor-not-allowed disabled:opacity-60 ${dipilih ? 'border-[#5B86DB] ring-2 ring-[#5B86DB]' : 'border-gray-200 enabled:hover:border-[#5B86DB]'
-                }`}
-        >
-            <LingkaranTahap topik={topik} />
-            <span className="min-w-0 flex-1">
-                <span className="flex flex-wrap items-center gap-2 font-medium">
-                    {topik.nama}
-                    {topik.prioritas && (
-                        <span className="rounded-full bg-[#FDECEC] px-2 py-0.5 text-[10px] font-semibold text-[#B94040]">Prioritas</span>
-                    )}
+        <>
+            <div className="flex items-center gap-3">
+                <span
+                    className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-sm font-bold text-[#1F2D5C] ${warnaSubtes[subtes.kode ?? ''] ?? WARNA_CADANGAN}`}
+                >
+                    {subtes.kode}
                 </span>
-                <span className="block text-xs text-gray-600">
-                    {topik.adaSoal ? `Tahap ${topik.tahap} · ${TEKS_LABEL[topik.label]} · ${keteranganSkor(topik)}` : 'Belum ada soal'}
-                </span>
-            </span>
-        </button>
+                <span className="font-semibold leading-snug text-[#1F2D5C]">{subtes.nama}</span>
+            </div>
+
+            <p className="mt-3 text-xs text-gray-600">{subtes.deskripsi}</p>
+
+            <p className="mt-auto pt-3 text-xs text-gray-500">
+                {subtes.jumlahTopik > 0 ? `${subtes.jumlahTopik} Topik` : 'Segera hadir'}
+            </p>
+        </>
     );
 }
 
-interface PersiapanProps {
-    subtes?: any[];
-    // subtes_id => topik, sudah diurutkan backend dari yang paling perlu dilatih (prioritas dulu).
-    topikPerSubtes?: Record<string, TopikPenguasaan[]>;
-}
-
-export default function Persiapan({ subtes = [], topikPerSubtes = {} }: PersiapanProps) {
-    const [tampilModal, setTampilModal] = useState(false);
-    const [konfigurasi, setKonfigurasi] = useState<KonfigurasiSesiLatihan | null>(null);
+// Pilih Subtes. Susunan saja, belum didesain.
+export default function Persiapan({ subtesList }: PersiapanProps) {
     // Pesan sekali tampil dari backend (Inertia::flash), mis. sesi latihan sudah selesai atau kedaluwarsa.
     const { flash } = usePage();
     const pesanError = typeof flash.error === 'string' ? flash.error : null;
 
-    const bukaModal = (item: any) => {
-        setKonfigurasi(konfigurasiUntukMode(item, 'fleksibel'));
-        setTampilModal(true);
-    };
-
-    const gantiMode = (mode: ModeLatihan) => {
-        if (!konfigurasi || konfigurasi.mode === mode) return;
-        const item = subtes.find((s) => s.id === konfigurasi.subtesId);
-        if (item) setKonfigurasi(konfigurasiUntukMode(item, mode));
-    };
-
-    const ubahJumlahSoal = (delta: number) => {
-        if (!konfigurasi) return;
-        const jumlahSoal = Math.min(JUMLAH_SOAL_MAKS, Math.max(JUMLAH_SOAL_MIN, konfigurasi.jumlahSoal + delta));
-        setKonfigurasi({ ...konfigurasi, jumlahSoal });
-    };
-
-    const topikList = konfigurasi ? (topikPerSubtes[konfigurasi.subtesId] ?? []) : [];
-    // Mode fleksibel selalu satu topik; soalnya dipilih backend menurut tahap siswa di topik itu.
-    const bisaMulai = konfigurasi !== null && (konfigurasi.mode === 'simulasi' || Boolean(konfigurasi.topikId));
-
-    const mulaiMengerjakan = () => {
-        if (!konfigurasi || !bisaMulai) return;
-        // Backend belum menerima state ini, jadi konfigurasi dikirim lewat query param.
-        router.get(route('latihan.ujian'), { ...konfigurasi });
-    };
-
     return (
-        <LatihanLayout breadcrumb={['Latihan Soal']}>
-            <Head title="Pilih Subtest" />
+        <>
+            <Head title="Pilih Subtes" />
 
-            <div className="px-10 py-10">
-                <h1 className="text-5xl font-bold text-[#1F2D5C]">Pilih Subtest</h1>
-                <p className="mt-1 text-sm font-medium text-gray-600">Pilih subtest UTBK yang ingin kamu kerjakan hari ini!</p>
+            <h1 className="text-3xl font-bold text-[#1F2D5C]">Pilih Subtes</h1>
+            <p className="mt-1 text-sm font-medium text-gray-600">Pilih subtest UTBK yang ingin kamu kerjakan hari ini!</p>
 
-                {/* Banner dasar, belum didesain. */}
-                {pesanError && (
-                    <div role="alert" className="mt-4 rounded-lg border border-[#E86565] bg-[#FDECEC] px-4 py-3 text-sm font-medium text-[#8A2B2B]">
-                        {pesanError}
-                    </div>
-                )}
-
-                <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                    {subtes.map((item) => {
-                        // Subtes tanpa soal belum bisa dikerjakan; tanpa ini halaman Ujian crash di soalList[0].
-                        const tersedia = Boolean(item.soal_exists);
-                        return (
-                            <button
-                                key={item.id}
-                                type="button"
-                                onClick={() => tersedia && bukaModal(item)}
-                                disabled={!tersedia}
-                                aria-disabled={!tersedia}
-                                className="flex min-h-[190px] flex-col rounded-xl bg-white p-4 text-left shadow-md transition enabled:hover:-translate-y-0.5 enabled:hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                                <span className={`h-12 w-12 rounded-full ${warnaSubtes[item.kode_subtes] ?? WARNA_CADANGAN}`} />
-                                <span className="mt-4 font-semibold leading-snug text-[#1F2D5C]">
-                                    {item.nama_subtes} ({item.kode_subtes})
-                                </span>
-                                <span className="mt-1 text-xs text-gray-600">{item.deskripsi || 'Selesaikan tantangan di subtes ini!'}</span>
-                                <span className="mt-auto flex justify-end pt-3">
-                                    {tersedia ? (
-                                        <IkonPanah />
-                                    ) : (
-                                        <span className="rounded-full bg-gray-200 px-3 py-1 text-xs font-medium text-gray-600">Segera hadir</span>
-                                    )}
-                                </span>
-                            </button>
-                        );
-                    })}
+            {pesanError && (
+                <div role="alert" className="mt-4 rounded-lg border border-[#E86565] bg-[#FDECEC] px-4 py-3 text-sm font-medium text-[#8A2B2B]">
+                    {pesanError}
                 </div>
-            </div>
+            )}
 
-            <Modal show={tampilModal} maxWidth="lg" onClose={() => setTampilModal(false)}>
-                {konfigurasi && (
-                    <div className="p-6 font-['Poppins',sans-serif] text-[#1F2D5C]">
-                        <h2 className="text-2xl font-semibold">{konfigurasi.namaSubtes}</h2>
-                        <p className="text-sm text-gray-600">Pilih mode latihan yang sesuai dengan kebutuhanmu!</p>
-
-                        <div className="mt-4 grid grid-cols-2 gap-1 rounded-lg border border-[#C9DBF2] bg-[#EAF2FC] p-1">
-                            {(['fleksibel', 'simulasi'] as ModeLatihan[]).map((mode) => (
-                                <button
-                                    key={mode}
-                                    type="button"
-                                    onClick={() => gantiMode(mode)}
-                                    className={`rounded-md py-2.5 font-medium transition ${konfigurasi.mode === mode ? 'bg-[#5B86DB] text-white shadow' : 'text-[#1F2D5C] hover:bg-white/60'
-                                        }`}
-                                >
-                                    Mode {mode === 'fleksibel' ? 'Fleksibel' : 'Simulasi'}
-                                </button>
-                            ))}
-                        </div>
-
-                        {konfigurasi.mode === 'fleksibel' ? (
-                            <div className="mt-4 space-y-4">
-                                <div className="rounded-lg border border-[#C9DBF2] bg-[#EAF2FC] p-4">
-                                    <p className="text-lg font-medium">Topik</p>
-                                    <p className="text-sm text-gray-600">Diurutkan dari topik yang paling perlu kamu latih</p>
-                                    {topikList.length > 0 ? (
-                                        <div role="radiogroup" aria-label="Topik" className="mt-3 max-h-64 space-y-2 overflow-y-auto p-0.5">
-                                            {topikList.map((topik) => (
-                                                <PilihanTopik
-                                                    key={topik.id}
-                                                    topik={topik}
-                                                    dipilih={konfigurasi.topikId === topik.id}
-                                                    onPilih={() => setKonfigurasi({ ...konfigurasi, topikId: topik.id })}
-                                                />
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <p className="mt-3 text-sm text-gray-600">Belum ada topik untuk subtes ini.</p>
-                                    )}
-                                </div>
-
-                                <div className="flex items-center justify-between rounded-lg border border-[#C9DBF2] bg-[#EAF2FC] p-4">
-                                    <div>
-                                        <p className="text-lg font-medium">Jumlah Soal</p>
-                                        <p className="text-sm text-gray-600">Pilih jumlah soal yang diinginkan</p>
-                                    </div>
-                                    <div className="flex items-center gap-3 rounded-md border border-gray-300 bg-white px-2 py-1">
-                                        <button
-                                            type="button"
-                                            onClick={() => ubahJumlahSoal(-1)}
-                                            disabled={konfigurasi.jumlahSoal <= JUMLAH_SOAL_MIN}
-                                            className="flex h-6 w-6 items-center justify-center rounded border border-gray-400 text-gray-600 disabled:opacity-40"
-                                            aria-label="Kurangi jumlah soal"
-                                        >
-                                            −
-                                        </button>
-                                        <span className="w-6 text-center font-medium">{konfigurasi.jumlahSoal}</span>
-                                        <button
-                                            type="button"
-                                            onClick={() => ubahJumlahSoal(1)}
-                                            disabled={konfigurasi.jumlahSoal >= JUMLAH_SOAL_MAKS}
-                                            className="flex h-6 w-6 items-center justify-center rounded border border-gray-400 text-gray-600 disabled:opacity-40"
-                                            aria-label="Tambah jumlah soal"
-                                        >
-                                            +
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div className="flex items-center justify-between gap-4 rounded-lg border border-[#C9DBF2] bg-[#EAF2FC] p-4">
-                                    <div className="flex items-center gap-4">
-                                        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-[#2E3F85] text-white">
-                                            <svg className="h-7 w-7" viewBox="0 0 24 24" fill="currentColor">
-                                                <path d="M12 2a10 10 0 100 20 10 10 0 000-20zM8.5 8a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm7 0a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM12 18a5.5 5.5 0 01-5-3.2h10A5.5 5.5 0 0112 18z" />
-                                            </svg>
-                                        </span>
-                                        <div>
-                                            <p className="text-lg font-medium">Ice Breaking</p>
-                                            <p className="text-sm text-gray-600">Aktifkan untuk suasana yang lebih santai</p>
-                                        </div>
-                                    </div>
-
-                                    <button
-                                        type="button"
-                                        role="switch"
-                                        aria-checked={!!konfigurasi.iceBreakingAktif}
-                                        aria-label="Ice Breaking"
-                                        onClick={() => setKonfigurasi({ ...konfigurasi, iceBreakingAktif: !konfigurasi.iceBreakingAktif })}
-                                        className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#5B86DB] focus-visible:ring-offset-2 ${konfigurasi.iceBreakingAktif ? 'bg-[#5B86DB]' : 'bg-gray-300'
-                                            }`}
-                                    >
-                                        <span
-                                            className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${konfigurasi.iceBreakingAktif ? 'translate-x-6' : 'translate-x-1'
-                                                }`}
-                                        />
-                                    </button>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="mt-4 space-y-4">
-                                <div className="flex items-center gap-4">
-                                    <span className="flex h-12 w-12 items-center justify-center rounded-lg border border-gray-300 bg-[#EAF2FC] text-[#2E3F85]">
-                                        <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
-                                            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
-                                        </svg>
-                                    </span>
-                                    <div className="flex-1">
-                                        <p className="text-lg font-medium">Jumlah Soal</p>
-                                        <p className="text-sm text-gray-600">Jumlah soal yang akan dikerjakan</p>
-                                    </div>
-                                    <span className="rounded-md border border-[#C9DBF2] bg-[#EAF2FC] px-4 py-1.5 text-sm font-medium">
-                                        {konfigurasi.jumlahSoal} Soal
-                                    </span>
-                                </div>
-                                <div className="flex items-center gap-4">
-                                    <span className="flex h-12 w-12 items-center justify-center rounded-lg border border-gray-300 bg-[#EAF2FC] text-[#2E3F85]">
-                                        <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2}>
-                                            <circle cx="12" cy="12" r="9" />
-                                            <path d="M12 7v5l3 2" />
-                                        </svg>
-                                    </span>
-                                    <div className="flex-1">
-                                        <p className="text-lg font-medium">Waktu Pengerjaan</p>
-                                        <p className="text-sm text-gray-600">Durasi waktu untuk menyelesaikan soal</p>
-                                    </div>
-                                    <span className="rounded-md border border-[#C9DBF2] bg-[#EAF2FC] px-4 py-1.5 text-sm font-medium">
-                                        {konfigurasi.waktuPengerjaanMenit?.toLocaleString('id-ID')} Menit
-                                    </span>
-                                </div>
-                            </div>
-                        )}
-
-                        <button
-                            type="button"
-                            onClick={mulaiMengerjakan}
-                            disabled={!bisaMulai}
-                            className="mt-5 w-full rounded-lg bg-[#5B86DB] py-3 font-medium text-white shadow transition enabled:hover:bg-[#4A74C8] disabled:cursor-not-allowed disabled:opacity-50"
+            <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                {subtesList.map((subtes) =>
+                    // Subtes tanpa topik bersoal belum bisa dikerjakan.
+                    subtes.jumlahTopik > 0 && subtes.kode ? (
+                        <Link
+                            key={subtes.id}
+                            href={route('latihan.mode', { subtes: subtes.kode })}
+                            prefetch
+                            className="flex min-h-[160px] flex-col rounded-xl bg-white p-4 shadow-md transition hover:-translate-y-0.5 hover:shadow-lg"
                         >
-                            {bisaMulai ? 'Mulai Mengerjakan' : 'Pilih topik dulu'}
-                        </button>
-                    </div>
+                            <IsiCard subtes={subtes} />
+                        </Link>
+                    ) : (
+                        <div
+                            key={subtes.id}
+                            aria-disabled="true"
+                            className="flex min-h-[160px] cursor-not-allowed flex-col rounded-xl bg-white p-4 opacity-60 shadow-md"
+                        >
+                            <IsiCard subtes={subtes} />
+                        </div>
+                    ),
                 )}
-            </Modal>
-        </LatihanLayout>
+            </div>
+        </>
     );
 }
+
+// Persistent layout: sidebar tidak dirender ulang saat pindah dari/ke Beranda.
+Persiapan.layout = (page: ReactNode) => <SiswaLayout>{page}</SiswaLayout>;
