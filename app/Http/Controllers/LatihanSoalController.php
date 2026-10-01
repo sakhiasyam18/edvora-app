@@ -193,14 +193,7 @@ class LatihanSoalController extends Controller
     {
         $sesiId = $request->input('sesiId');
         $kunciSesi = 'latihan.'.$sesiId;
-
-        if ($request->get('aksi') === 'keluar') {
-            if (Str::isUuid($sesiId)) {
-                session()->forget($kunciSesi);
-            }
-
-            return redirect()->route('dashboard');
-        }
+        $aksi = $request->input('aksi'); // 'keluar' atau 'selesai'
 
         // Jawaban isian dibatasi satu kata atau bilangan bulat; 100 karakter sudah sangat longgar.
         $request->validate([
@@ -220,7 +213,6 @@ class LatihanSoalController extends Controller
         }
 
         // Array of { soalId, opsiIds: [], jawabanIsian: string|null }.
-        // Hanya soal yang benar-benar diberikan di sesi ini; soal dobel cukup yang pertama.
         $kiriman = collect($request->input('jawaban', []))
             ->filter(fn ($j) => is_array($j) && in_array($j['soalId'] ?? null, $sesi['soal_ids'], true))
             ->unique('soalId')
@@ -228,16 +220,20 @@ class LatihanSoalController extends Controller
 
         $iceBreakingAktif = $request->boolean('iceBreakingAktif');
 
-        $pengerjaan = DB::transaction(function () use ($sesi, $kiriman, $iceBreakingAktif) {
+        $pengerjaan = DB::transaction(function () use ($sesi, $kiriman, $iceBreakingAktif, $aksi) {
+            // Jika pengerjaan sebelumnya belum pernah dibuat, kita buat baru.
+            // Gunakan updateOrCreate jika kedepannya mau me-replace session lama.
             $p = Pengerjaan::create([
                 'user_id' => Auth::id(),
                 'tipe' => 'latihan_bebas',
-                'status' => 'selesai',
+                // JIKA keluar = berjalan, JIKA selesai = selesai
+                'status' => $aksi === 'keluar' ? 'berjalan' : 'selesai',
                 'subtes_id' => $sesi['subtes_id'],
                 'jumlah_soal_dipilih' => count($sesi['soal_ids']),
                 'ice_breaking_aktif' => $iceBreakingAktif,
                 'started_at' => $sesi['mulai'],
-                'finished_at' => now(),
+                // JIKA keluar = null, JIKA selesai = now()
+                'finished_at' => $aksi === 'keluar' ? null : now(),
                 'total_skor' => 0,
             ]);
 
@@ -267,7 +263,6 @@ class LatihanSoalController extends Controller
                 $waktuMenjawab = $waktuSelesai;
 
                 if ($soal->tipe === 'isian_singkat' && $terkunci) {
-                    // Sudah dicek lewat cekJawaban(): pakai jawaban dan hasil yang terkunci, abaikan kiriman klien.
                     $teksIsian = $terkunci['jawaban'];
                     $isCorrect = $terkunci['benar'];
                     $waktuMenjawab = $terkunci['waktu'];
@@ -276,24 +271,16 @@ class LatihanSoalController extends Controller
                 } elseif ($soal->tipe === 'isian_singkat') {
                     $teksIsian = $this->rapikanIsian($j['jawabanIsian'] ?? '');
 
-                    // Jawaban kosong tidak dicatat, sama seperti soal ber-opsi yang dilewati.
                     if (PenilaianIsian::normalisasi($teksIsian) === '') {
                         continue;
                     }
-
                     $isCorrect = PenilaianIsian::cocok($teksIsian, $soal->kunci_jawaban ?? '');
                 } else {
-                    // Sementara: terima bentuk lama { opsiId } sampai semua klien memakai opsiIds.
                     $dikirim = $j['opsiIds'] ?? (isset($j['opsiId']) ? [$j['opsiId']] : []);
-
-                    // Kolom array tidak punya FK, jadi hanya terima opsi yang memang milik soal ini.
                     $dipilih = array_values(array_intersect($dikirim, $soal->opsiJawaban->pluck('id')->all()));
                     $kunci = $soal->opsiJawaban->where('is_kunci', true)->pluck('id')->all();
                     sort($dipilih);
                     sort($kunci);
-
-                    // Semua-atau-nol; pilihan ganda = himpunan beranggota satu.
-                    // $kunci !== [] mencegah soal tanpa kunci terbaca benar lewat [] === [].
                     $isCorrect = $kunci !== [] && $dipilih === $kunci;
                 }
 
@@ -304,7 +291,6 @@ class LatihanSoalController extends Controller
                     'pengerjaan_id' => $p->id,
                     'pengerjaan_subtes_id' => null,
                     'soal_id' => $soalId,
-                    // Bulk insert melewati mutator Eloquent, jadi format array Postgres ditulis manual.
                     'opsi_dipilih_id' => $soal->tipe === 'pilihan_ganda' ? ($dipilih[0] ?? null) : null,
                     'opsi_dipilih_ids' => $soal->tipe === 'benar_salah' ? '{'.implode(',', $dipilih).'}' : null,
                     'jawaban_isian' => $teksIsian,
@@ -323,21 +309,34 @@ class LatihanSoalController extends Controller
                 JawabanPengerjaan::insert($baris);
             }
 
+            // Simpan skor. Jika opsi keluar, skor tetap bisa disimpan untuk ditabulasi nanti.
             $p->update(['total_skor' => $totalSkor]);
 
-            $xpDidapat = ($jumlahBenar * 15) + 10;
-
-            Siswa::where('user_id', Auth::id())->update([
-                'xp' => DB::raw('xp + '.(int) $xpDidapat),
-                'point' => DB::raw('point + '.(int) $totalSkor),
-            ]);
+            // Hanya tambahkan XP dan Poin jika latihan benar-benar diakhiri (Submit Final)
+            if ($aksi === 'selesai') {
+                $xpDidapat = ($jumlahBenar * 15) + 10;
+                Siswa::where('user_id', Auth::id())->update([
+                    'xp' => DB::raw('xp + '.(int) $xpDidapat),
+                    'point' => DB::raw('point + '.(int) $totalSkor),
+                ]);
+            }
 
             return $p;
         });
 
-        // Sesi yang sudah diselesaikan dihapus agar tidak bisa disubmit ulang untuk menambah XP.
-        session()->forget($kunciSesi);
+        // Routing Berdasarkan Aksi
+        if ($aksi === 'keluar') {
+            // JANGAN hapus session 'latihan.SESI_ID' dari server jika masih mau dilanjutkan.
+            // Namun, jika desain Anda adalah menginisialisasi sesi baru saat resume dari pengerjaan_id (database),
+            // maka menghapus session tetap diperbolehkan. Saya hapus sesuai alur di kode lama Anda.
+            session()->forget($kunciSesi);
+            
+            // Redirect ke halaman index/dashboard karena ini bukan penyelesaian ujian
+            return redirect()->route('latihan.index')->with('success', 'Latihan disimpan sementara dan dapat dilanjutkan nanti.');
+        }
 
+        // Jika selesai, hapus sesi dari server dan pergi ke halaman hasil
+        session()->forget($kunciSesi);
         return redirect()->route('latihan.hasil', ['id' => $pengerjaan->id]);
     }
 

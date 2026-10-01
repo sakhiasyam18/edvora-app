@@ -28,6 +28,11 @@ class Pengerjaan extends Model
         'total_skor'
     ];
 
+    protected $casts = [
+        'started_at' => 'datetime',
+        'finished_at' => 'datetime',
+    ];
+
     public function jawabanPengerjaan()
     {
         return $this->hasMany(JawabanPengerjaan::class, 'pengerjaan_id');
@@ -41,5 +46,10 @@ class Pengerjaan extends Model
     public function user()
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function pengerjaanTryout()
+    {
+        return $this->belongsTo(PengerjaanTryout::class, 'try_out_id');
     }
 }
