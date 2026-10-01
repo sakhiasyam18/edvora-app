@@ -2,17 +2,20 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
 
 class Subtes extends Model
 {
     use HasFactory, HasUuids;
 
     protected $table = 'subtes';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
+
     public $timestamps = false;
 
     protected $fillable = [
@@ -32,5 +35,10 @@ class Subtes extends Model
     public function soal()
     {
         return $this->hasMany(Soal::class, 'subtes_id', 'id');
+    }
+
+    public function topik()
+    {
+        return $this->hasMany(Topik::class, 'subtes_id')->orderBy('urutan');
     }
 }

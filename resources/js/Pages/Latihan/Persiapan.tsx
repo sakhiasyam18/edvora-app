@@ -1,11 +1,13 @@
 import { Head, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
+import LingkaranTahap, { keteranganSkor, TEKS_LABEL } from '@/Components/Gamifikasi/LingkaranTahap';
 import LatihanLayout from '@/Components/Layouts/LatihanLayout';
 import Modal from '@/Components/Modal';
-import { KonfigurasiSesiLatihan, ModeLatihan } from '@/types/latihan';
+import { KonfigurasiSesiLatihan, ModeLatihan, TopikPenguasaan } from '@/types/latihan';
 
+// Batas sama dengan LatihanSoalController::JUMLAH_SOAL_MIN dan JUMLAH_SOAL_MAKS.
 const JUMLAH_SOAL_FLEKSIBEL_AWAL = 10;
-const JUMLAH_SOAL_MIN = 5;
+const JUMLAH_SOAL_MIN = 10;
 const JUMLAH_SOAL_MAKS = 25;
 
 interface SubtesLatihan {
@@ -46,7 +48,41 @@ const warnaSubtes: Record<string, string> = {
 };
 const WARNA_CADANGAN = 'bg-[#DCE7F0]';
 
-export default function Persiapan({ subtes = [] }: { subtes?: any[] }) {
+// Satu baris topik di modal mode fleksibel. Belum didesain.
+function PilihanTopik({ topik, dipilih, onPilih }: { topik: TopikPenguasaan; dipilih: boolean; onPilih: () => void }) {
+    return (
+        <button
+            type="button"
+            role="radio"
+            aria-checked={dipilih}
+            onClick={onPilih}
+            disabled={!topik.adaSoal}
+            className={`flex w-full items-center gap-3 rounded-lg border bg-white px-3 py-2 text-left transition disabled:cursor-not-allowed disabled:opacity-60 ${dipilih ? 'border-[#5B86DB] ring-2 ring-[#5B86DB]' : 'border-gray-200 enabled:hover:border-[#5B86DB]'
+                }`}
+        >
+            <LingkaranTahap topik={topik} />
+            <span className="min-w-0 flex-1">
+                <span className="flex flex-wrap items-center gap-2 font-medium">
+                    {topik.nama}
+                    {topik.prioritas && (
+                        <span className="rounded-full bg-[#FDECEC] px-2 py-0.5 text-[10px] font-semibold text-[#B94040]">Prioritas</span>
+                    )}
+                </span>
+                <span className="block text-xs text-gray-600">
+                    {topik.adaSoal ? `Tahap ${topik.tahap} · ${TEKS_LABEL[topik.label]} · ${keteranganSkor(topik)}` : 'Belum ada soal'}
+                </span>
+            </span>
+        </button>
+    );
+}
+
+interface PersiapanProps {
+    subtes?: any[];
+    // subtes_id => topik, sudah diurutkan backend dari yang paling perlu dilatih (prioritas dulu).
+    topikPerSubtes?: Record<string, TopikPenguasaan[]>;
+}
+
+export default function Persiapan({ subtes = [], topikPerSubtes = {} }: PersiapanProps) {
     const [tampilModal, setTampilModal] = useState(false);
     const [konfigurasi, setKonfigurasi] = useState<KonfigurasiSesiLatihan | null>(null);
     // Pesan sekali tampil dari backend (Inertia::flash), mis. sesi latihan sudah selesai atau kedaluwarsa.
@@ -70,8 +106,12 @@ export default function Persiapan({ subtes = [] }: { subtes?: any[] }) {
         setKonfigurasi({ ...konfigurasi, jumlahSoal });
     };
 
+    const topikList = konfigurasi ? (topikPerSubtes[konfigurasi.subtesId] ?? []) : [];
+    // Mode fleksibel selalu satu topik; soalnya dipilih backend menurut tahap siswa di topik itu.
+    const bisaMulai = konfigurasi !== null && (konfigurasi.mode === 'simulasi' || Boolean(konfigurasi.topikId));
+
     const mulaiMengerjakan = () => {
-        if (!konfigurasi) return;
+        if (!konfigurasi || !bisaMulai) return;
         // Backend belum menerima state ini, jadi konfigurasi dikirim lewat query param.
         router.get(route('latihan.ujian'), { ...konfigurasi });
     };
@@ -144,6 +184,25 @@ export default function Persiapan({ subtes = [] }: { subtes?: any[] }) {
 
                         {konfigurasi.mode === 'fleksibel' ? (
                             <div className="mt-4 space-y-4">
+                                <div className="rounded-lg border border-[#C9DBF2] bg-[#EAF2FC] p-4">
+                                    <p className="text-lg font-medium">Topik</p>
+                                    <p className="text-sm text-gray-600">Diurutkan dari topik yang paling perlu kamu latih</p>
+                                    {topikList.length > 0 ? (
+                                        <div role="radiogroup" aria-label="Topik" className="mt-3 max-h-64 space-y-2 overflow-y-auto p-0.5">
+                                            {topikList.map((topik) => (
+                                                <PilihanTopik
+                                                    key={topik.id}
+                                                    topik={topik}
+                                                    dipilih={konfigurasi.topikId === topik.id}
+                                                    onPilih={() => setKonfigurasi({ ...konfigurasi, topikId: topik.id })}
+                                                />
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="mt-3 text-sm text-gray-600">Belum ada topik untuk subtes ini.</p>
+                                    )}
+                                </div>
+
                                 <div className="flex items-center justify-between rounded-lg border border-[#C9DBF2] bg-[#EAF2FC] p-4">
                                     <div>
                                         <p className="text-lg font-medium">Jumlah Soal</p>
@@ -238,9 +297,10 @@ export default function Persiapan({ subtes = [] }: { subtes?: any[] }) {
                         <button
                             type="button"
                             onClick={mulaiMengerjakan}
-                            className="mt-5 w-full rounded-lg bg-[#5B86DB] py-3 font-medium text-white shadow transition hover:bg-[#4A74C8]"
+                            disabled={!bisaMulai}
+                            className="mt-5 w-full rounded-lg bg-[#5B86DB] py-3 font-medium text-white shadow transition enabled:hover:bg-[#4A74C8] disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                            Mulai Mengerjakan
+                            {bisaMulai ? 'Mulai Mengerjakan' : 'Pilih topik dulu'}
                         </button>
                     </div>
                 )}

@@ -3,17 +3,20 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
 
 class JawabanPengerjaan extends Model
 {
     use HasFactory, HasUuids;
 
     protected $table = 'jawaban_pengerjaan';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
+
     public $timestamps = false;
 
     protected $fillable = [
@@ -25,7 +28,8 @@ class JawabanPengerjaan extends Model
         'jawaban_isian',
         'is_correct',
         'skor',
-        'waktu_menjawab'
+        'waktu_menjawab',
+        'pakai_hint',
     ];
 
     // Postgres mengirim uuid[] sebagai teks "{a,b}"; cast 'array' Laravel mengharapkan JSON.

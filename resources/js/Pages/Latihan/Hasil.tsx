@@ -1,14 +1,40 @@
 import { Head, router } from '@inertiajs/react';
 import { ReactNode, useState } from 'react';
+import LingkaranTahap, { keteranganSkor, TEKS_LABEL } from '@/Components/Gamifikasi/LingkaranTahap';
 import LatihanLayout from '@/Components/Layouts/LatihanLayout';
 import Modal from '@/Components/Modal';
-import { HasilLatihan } from '@/types/latihan';
+import { HasilLatihan, ModeLatihan, RingkasanTopikHasil } from '@/types/latihan';
 import { dummyHasilLatihan } from '@/data/dummyLatihan';
 
 interface HasilProps {
     // Sementara controller belum kirim props, jadi fallback ke dummy.
     hasil?: HasilLatihan;
-    pengerjaan?: { id: string; subtes_id: string; jumlah_soal_dipilih: number; tipe: string };
+    pengerjaan?: { id: string; subtes_id: string; jumlah_soal_dipilih: number; tipe: string; mode_latihan: ModeLatihan | null };
+    // Hanya untuk sesi fleksibel yang dihitung; null untuk simulasi dan Ulangi Latihan.
+    ringkasanTopik?: RingkasanTopikHasil | null;
+}
+
+// Keadaan topik setelah sesi ini. Belum didesain.
+function KartuTopik({ topik }: { topik: RingkasanTopikHasil }) {
+    const naik = topik.perubahan !== null && topik.perubahan.ke > topik.perubahan.dari;
+
+    return (
+        <div className="mt-6 flex w-full items-center gap-4 rounded-xl bg-white px-5 py-4 shadow-md">
+            <LingkaranTahap topik={topik} ukuran={56} />
+            <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-gray-600">Topik</p>
+                <p className="text-lg font-semibold text-[#1F2D5C]">{topik.nama}</p>
+                <p className="text-sm text-gray-700">
+                    Tahap {topik.tahap} · {TEKS_LABEL[topik.label]} · {keteranganSkor(topik)}
+                </p>
+            </div>
+            {topik.perubahan && (
+                <span className={`shrink-0 rounded-full px-3 py-1 text-sm font-semibold ${naik ? 'bg-[#C5EBA8] text-[#2F5E1A]' : 'bg-[#FDECEC] text-[#B94040]'}`}>
+                    {naik ? 'Naik' : 'Turun'} ke tahap {topik.perubahan.ke}
+                </span>
+            )}
+        </div>
+    );
 }
 
 function KartuStat({ ikon, label, nilai }: { ikon: ReactNode; label: string; nilai: string | number }) {
@@ -21,7 +47,7 @@ function KartuStat({ ikon, label, nilai }: { ikon: ReactNode; label: string; nil
     );
 }
 
-export default function Hasil({ hasil = dummyHasilLatihan, pengerjaan }: HasilProps) {
+export default function Hasil({ hasil = dummyHasilLatihan, pengerjaan, ringkasanTopik = null }: HasilProps) {
     const [modalUlangi, setModalUlangi] = useState(false);
 
     return (
@@ -81,6 +107,8 @@ export default function Hasil({ hasil = dummyHasilLatihan, pengerjaan }: HasilPr
                     />
                 </div>
 
+                {ringkasanTopik && <KartuTopik topik={ringkasanTopik} />}
+
                 <div className="mt-6 flex w-full max-w-md flex-col gap-3">
                     <button
                         type="button"
@@ -133,7 +161,8 @@ export default function Hasil({ hasil = dummyHasilLatihan, pengerjaan }: HasilPr
                                             pengerjaanId: pengerjaan.id,
                                             subtesId: pengerjaan.subtes_id,
                                             jumlahSoal: pengerjaan.jumlah_soal_dipilih,
-                                            mode: pengerjaan.tipe === 'simulasi' ? 'simulasi' : 'fleksibel',
+                                            // tipe selalu 'latihan_bebas' untuk keduanya; mode ada di mode_latihan.
+                                            mode: pengerjaan.mode_latihan === 'simulasi' ? 'simulasi' : 'fleksibel',
                                             _t: Date.now() // Cache buster tetap dipakai agar request tembus ke server
                                         }
                                     });

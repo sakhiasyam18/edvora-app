@@ -2,16 +2,18 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
 
 class Soal extends Model
 {
     use HasFactory, HasUuids;
 
     protected $table = 'soal';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $fillable = [
@@ -26,11 +28,17 @@ class Soal extends Model
         'pembahasan',
         'tingkat_kesulitan',
         'status',
+        'topik_id',
     ];
 
     public function subtes()
     {
         return $this->belongsTo(Subtes::class, 'subtes_id', 'id');
+    }
+
+    public function topik()
+    {
+        return $this->belongsTo(Topik::class, 'topik_id');
     }
 
     public function opsiJawaban()

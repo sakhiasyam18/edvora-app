@@ -31,6 +31,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->middleware('throttle:30,1')
             ->block(10, 10)
             ->name('latihan.cek');
+        // Membuka hint dicatat di session supaya jawaban benar dengan hint bernilai 0,5.
+        Route::post('/ujian/hint', [LatihanSoalController::class, 'bukaHint'])
+            ->middleware('throttle:30,1')
+            ->block(10, 10)
+            ->name('latihan.hint');
         Route::post('/ujian/simpan', [LatihanSoalController::class, 'simpanJawaban'])->block(10, 10)->name('latihan.simpan');
         Route::get('/hasil', [LatihanSoalController::class, 'hasil'])->name('latihan.hasil');
     });

@@ -2,17 +2,20 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
 
 class Pengerjaan extends Model
 {
     use HasFactory, HasUuids;
 
     protected $table = 'pengerjaan';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
+
     public $timestamps = false;
 
     protected $fillable = [
@@ -25,7 +28,9 @@ class Pengerjaan extends Model
         'try_out_id',
         'started_at',
         'finished_at',
-        'total_skor'
+        'total_skor',
+        'mode_latihan',
+        'sesi_ulangan',
     ];
 
     public function jawabanPengerjaan()

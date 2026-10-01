@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Services\ImportSoalExcel;
+use App\Services\Penguasaan;
 use Illuminate\Console\Command;
 use Throwable;
 
@@ -56,20 +57,27 @@ class ImportSoal extends Command
         $this->tampilkanRingkasan($hasil['soal']);
 
         if ($this->option('dry-run')) {
-            $this->info("Dry-run: {$jumlahSoal} soal valid. Tidak ada yang disimpan.");
+            $this->info("Dry-run: {$jumlahSoal} soal dan ".count($hasil['topik']).' topik di sheet Topik valid. Tidak ada yang disimpan.');
 
             return self::SUCCESS;
         }
 
         try {
-            $jumlah = $importer->simpan($hasil['soal']);
+            $jumlah = $importer->simpan($hasil['soal'], $hasil['topik']);
         } catch (Throwable $e) {
             $this->error("Gagal menyimpan, semua perubahan dibatalkan: {$e->getMessage()}");
 
             return self::FAILURE;
         }
 
-        $this->info("Tersimpan: {$jumlah['baru']} soal baru, {$jumlah['diperbarui']} soal diperbarui.");
+        $this->info("Tersimpan: {$jumlah['baru']} soal baru, {$jumlah['diperbarui']} soal diperbarui; "
+            ."{$jumlah['topik_baru']} topik baru, {$jumlah['topik_diperbarui']} topik diperbarui.");
+
+        if ($kurang = $importer->topikKurangSoalMudah()) {
+            $this->warn('Topik berikut punya kurang dari '.Penguasaan::JENDELA.' soal mudah. Siswa tahap 1 hanya diberi soal mudah, '
+                .'jadi skor mereka di topik ini tidak akan pernah terhitung sampai soal mudahnya ditambah.');
+            $this->table(['Subtes', 'Topik', 'Soal mudah'], array_map(fn ($t) => array_values($t), $kurang));
+        }
 
         return self::SUCCESS;
     }
@@ -96,9 +104,10 @@ class ImportSoal extends Command
     private function tampilkanRingkasan(array $soalList): void
     {
         $baris = collect($soalList)
-            ->groupBy(fn ($s) => $s['kode_subtes'].'|'.$s['tipe'])
+            ->groupBy(fn ($s) => $s['kode_subtes'].'|'.$s['nama_topik'].'|'.$s['tipe'])
             ->map(fn ($grup) => [
                 $grup[0]['kode_subtes'],
+                $grup[0]['nama_topik'],
                 $grup[0]['tipe'],
                 $grup->where('sudah_ada', false)->count(),
                 $grup->where('sudah_ada', true)->count(),
@@ -107,7 +116,7 @@ class ImportSoal extends Command
             ->values()
             ->all();
 
-        $this->table(['Subtes', 'Tipe', 'Baru', 'Diperbarui'], $baris);
+        $this->table(['Subtes', 'Topik', 'Tipe', 'Baru', 'Diperbarui'], $baris);
     }
 
     // [3, 4, 5, 9] => "3–5, 9"

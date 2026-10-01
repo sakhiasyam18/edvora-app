@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\OpsiJawaban;
 use App\Models\Soal;
 use App\Models\Subtes;
+use App\Models\Topik;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -12,16 +13,22 @@ use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\RichText\RichText;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use RuntimeException;
 
 /**
  * Membaca soal dari file Excel sesuai aturan pengisian yang disepakati tim,
  * lalu menyimpannya ke database dengan upsert berdasarkan kode_soal.
+ *
+ * Setiap soal wajib punya topik. Topik baru didaftarkan di sheet "Topik" pada file yang sama
+ * (Nama Subtes, Nama Topik, Urutan); topik yang sudah ada di database cukup ditulis namanya.
  */
 class ImportSoalExcel
 {
     public const NAMA_SHEET = 'Soal';
+
+    public const NAMA_SHEET_TOPIK = 'Topik';
 
     // Label di kolom Tipe Soal (sama dengan dropdown di Excel) => nilai enum tipe_soal.
     public const TIPE_SOAL = [
@@ -35,13 +42,13 @@ class ImportSoalExcel
     public const LABEL_OPSI = ['A', 'B', 'C', 'D', 'E'];
 
     // Kolom ini boleh terisi di baris yang belum berisi soal (mis. diisi sampai bawah sheet).
-    private const KOLOM_IDENTITAS = ['nama_subtes', 'kode_soal'];
+    private const KOLOM_IDENTITAS = ['nama_subtes', 'topik', 'kode_soal'];
 
     private const KOLOM_TEKS_MATEMATIKA = ['teks_soal', 'hint', 'pembahasan'];
 
     // Kolom tabel soal yang diisi dari Excel (selain kode_soal).
     private const KOLOM_SOAL = [
-        'subtes_id', 'tipe', 'teks_soal', 'gambar_soal', 'kunci_jawaban', 'hint', 'pembahasan', 'tingkat_kesulitan',
+        'subtes_id', 'topik_id', 'tipe', 'teks_soal', 'gambar_soal', 'kunci_jawaban', 'hint', 'pembahasan', 'tingkat_kesulitan',
     ];
 
     /**
@@ -50,12 +57,13 @@ class ImportSoalExcel
      *     peringatan: string[],
      *     error: array<int, array{baris: int|null, kolom: string|null, pesan: string}>,
      *     soal: array<int, array<string, mixed>>,
+     *     topik: array<int, array{kode_subtes: string, subtes_id: string, nama_topik: string, urutan: int}>,
      *     dilewati: int,
      * }
      */
     public function periksa(string $path): array
     {
-        $hasil = ['sheet' => null, 'peringatan' => [], 'error' => [], 'soal' => [], 'dilewati' => 0];
+        $hasil = ['sheet' => null, 'peringatan' => [], 'error' => [], 'soal' => [], 'topik' => [], 'dilewati' => 0];
 
         $spreadsheet = IOFactory::createReader('Xlsx')->load($path);
         [$sheet, $kolom] = $this->pilihSheet($spreadsheet->getAllSheets(), $hasil);
@@ -66,6 +74,9 @@ class ImportSoalExcel
 
         $hasil['sheet'] = $sheet->getTitle();
         $subtes = Subtes::pluck('id', 'kode_subtes')->all();
+        // Topik yang dikenal: yang sudah ada di database ditambah isi sheet Topik di file ini.
+        $hasil['topik'] = $this->periksaSheetTopik($spreadsheet, $subtes, $hasil);
+        $topik = $this->petaTopik($subtes, $hasil['topik']);
         $soalLama = Soal::pluck('id', 'kode_soal')->all();
         $batas = $this->batasPanjangKolom();
         $kodeDipakai = [];
@@ -87,7 +98,7 @@ class ImportSoalExcel
                 $errorBaris[] = ['baris' => $baris, 'kolom' => $kolom[$kunci]['nama'], 'pesan' => $pesan];
             };
 
-            $soal = $this->periksaBaris($sel, $tambahError, $subtes, $batas, $kodeDipakai, $baris);
+            $soal = $this->periksaBaris($sel, $tambahError, $subtes, $topik, $batas, $kodeDipakai, $baris);
 
             if ($errorBaris) {
                 array_push($hasil['error'], ...$errorBaris);
@@ -102,23 +113,26 @@ class ImportSoalExcel
     }
 
     /**
-     * Simpan soal hasil periksa() dalam satu transaksi. Soal dengan kode yang sudah ada diperbarui.
+     * Simpan topik dan soal hasil periksa() dalam satu transaksi. Soal dengan kode yang sudah ada diperbarui.
      *
-     * @return array{baru: int, diperbarui: int}
+     * @return array{baru: int, diperbarui: int, topik_baru: int, topik_diperbarui: int}
      */
-    public function simpan(array $soalList): array
+    public function simpan(array $soalList, array $topikList = []): array
     {
         // Query dibuat sesedikit mungkin: database ada di server jauh, jadi tiap query terasa.
-        return DB::transaction(function () use ($soalList) {
+        return DB::transaction(function () use ($soalList, $topikList) {
+            [$idTopik, $jumlahTopik] = $this->simpanTopik($topikList);
+
             $soalLama = Soal::whereIn('kode_soal', array_column($soalList, 'kode_soal'))->get()->keyBy('kode_soal');
             $opsiLama = OpsiJawaban::whereIn('soal_id', $soalLama->pluck('id'))->get()->groupBy('soal_id');
 
-            $jumlah = ['baru' => 0, 'diperbarui' => 0];
+            $jumlah = ['baru' => 0, 'diperbarui' => 0] + $jumlahTopik;
             $soalBaru = [];
             $opsiBaru = [];
             $opsiHapus = [];
 
             foreach ($soalList as $data) {
+                $data['topik_id'] = $idTopik[$data['subtes_id'].'|'.mb_strtolower($data['nama_topik'])];
                 $atribut = Arr::only($data, self::KOLOM_SOAL);
                 $soal = $soalLama->get($data['kode_soal']);
 
@@ -166,6 +180,70 @@ class ImportSoalExcel
 
             return $jumlah;
         });
+    }
+
+    /**
+     * Topik yang soal mudahnya kurang dari satu jendela penilaian. Siswa tahap 1 hanya diberi soal mudah
+     * dan jendela menghitung satu jawaban per soal, jadi skor mereka di topik ini tidak akan pernah terhitung.
+     *
+     * @return array<int, array{kode_subtes: string, nama_topik: string, mudah: int}>
+     */
+    public function topikKurangSoalMudah(): array
+    {
+        $baris = DB::select(<<<'SQL'
+            select s.kode_subtes, t.nama_topik, count(q.id) filter (where q.tingkat_kesulitan = 'mudah') as mudah
+            from topik t
+            join subtes s on s.id = t.subtes_id
+            left join soal q on q.topik_id = t.id
+            group by s.kode_subtes, s.urutan, t.nama_topik, t.urutan
+            having count(q.id) filter (where q.tingkat_kesulitan = 'mudah') < ?
+            order by s.urutan, t.urutan
+            SQL, [Penguasaan::JENDELA]);
+
+        return array_map(fn ($b) => ['kode_subtes' => $b->kode_subtes, 'nama_topik' => $b->nama_topik, 'mudah' => (int) $b->mudah], $baris);
+    }
+
+    /**
+     * Topik dari sheet Topik: yang baru disisipkan, yang sudah ada diperbarui nama dan urutannya.
+     * Hasilnya peta "subtes_id|nama topik huruf kecil" => id topik (semua topik), beserta jumlahnya.
+     *
+     * @return array{0: array<string, string>, 1: array{topik_baru: int, topik_diperbarui: int}}
+     */
+    private function simpanTopik(array $topikList): array
+    {
+        $peta = [];
+        foreach (Topik::all() as $t) {
+            $peta[$t->subtes_id.'|'.mb_strtolower($t->nama_topik)] = $t;
+        }
+
+        $jumlah = ['topik_baru' => 0, 'topik_diperbarui' => 0];
+        $baru = [];
+
+        foreach ($topikList as $t) {
+            $kunci = $t['subtes_id'].'|'.mb_strtolower($t['nama_topik']);
+            $ada = $peta[$kunci] ?? null;
+
+            if ($ada instanceof Topik) {
+                $ada->fill(['nama_topik' => $t['nama_topik'], 'urutan' => $t['urutan']]);
+                if ($ada->isDirty()) {
+                    $ada->save();
+                    $jumlah['topik_diperbarui']++;
+                }
+
+                continue;
+            }
+
+            $id = (string) Str::orderedUuid();
+            $baru[] = ['id' => $id, 'subtes_id' => $t['subtes_id'], 'nama_topik' => $t['nama_topik'], 'urutan' => $t['urutan']];
+            $peta[$kunci] = $id;
+            $jumlah['topik_baru']++;
+        }
+
+        if ($baru) {
+            DB::table('topik')->insert($baru);
+        }
+
+        return [array_map(fn ($t) => $t instanceof Topik ? $t->id : $t, $peta), $jumlah];
     }
 
     /**
@@ -230,11 +308,118 @@ class ImportSoalExcel
     }
 
     /**
-     * Petakan header baris 1 ke huruf kolom.
+     * Baca sheet "Topik" (Nama Subtes, Nama Topik, Urutan). Sheet ini boleh tidak ada bila semua topik
+     * yang dipakai soal sudah ada di database.
      *
+     * @return array<int, array{kode_subtes: string, subtes_id: string, nama_topik: string, urutan: int}>
+     */
+    private function periksaSheetTopik(Spreadsheet $spreadsheet, array $subtes, array &$hasil): array
+    {
+        $sheet = $spreadsheet->getSheetByName(self::NAMA_SHEET_TOPIK);
+
+        if (! $sheet) {
+            return [];
+        }
+
+        $daftar = ['nama_subtes' => 'nama subtes', 'nama_topik' => 'nama topik', 'urutan' => 'urutan'];
+        ['kolom' => $kolom, 'hilang' => $hilang] = $this->petakanHeader($sheet, $daftar);
+
+        foreach ($hilang as $header) {
+            $hasil['error'][] = ['baris' => 1, 'kolom' => 'Sheet '.self::NAMA_SHEET_TOPIK, 'pesan' => "Header \"{$header}\" tidak ditemukan."];
+        }
+
+        if ($hilang) {
+            return [];
+        }
+
+        $topik = [];
+        $dipakai = [];
+
+        for ($baris = 2; $baris <= $sheet->getHighestDataRow(); $baris++) {
+            $sel = [];
+            foreach ($kolom as $kunci => $info) {
+                $sel[$kunci] = $this->bacaSel($sheet, $info['huruf'].$baris);
+            }
+
+            if (! array_filter($sel, fn ($isi) => ! $isi['kosong'])) {
+                continue;
+            }
+
+            $galat = [];
+            $tambahError = function (string $kunci, string $pesan) use (&$galat, $baris, $kolom) {
+                $galat[] = ['baris' => $baris, 'kolom' => $kolom[$kunci]['nama'].' (sheet '.self::NAMA_SHEET_TOPIK.')', 'pesan' => $pesan];
+            };
+
+            foreach ($sel as $kunci => $isi) {
+                if ($isi['masalah']) {
+                    $tambahError($kunci, $isi['masalah']);
+                } elseif ($isi['nilai'] === null) {
+                    $tambahError($kunci, 'Wajib diisi.');
+                }
+            }
+
+            $kodeSubtes = $sel['nama_subtes']['nilai'];
+            $nama = $sel['nama_topik']['nilai'];
+            $urutan = $sel['urutan']['nilai'];
+
+            if ($kodeSubtes !== null && ! isset($subtes[$kodeSubtes])) {
+                $tambahError('nama_subtes', "Kode subtes \"{$kodeSubtes}\" tidak dikenal. Pilihan: ".implode(', ', array_keys($subtes)).'.');
+            }
+
+            if ($urutan !== null && ! ctype_digit($urutan)) {
+                $tambahError('urutan', "\"{$urutan}\" bukan bilangan bulat positif.");
+            }
+
+            if ($kodeSubtes !== null && $nama !== null) {
+                $kunciTopik = $kodeSubtes.'|'.mb_strtolower($nama);
+                if (isset($dipakai[$kunciTopik])) {
+                    $tambahError('nama_topik', "Topik \"{$nama}\" untuk {$kodeSubtes} sudah ada di baris {$dipakai[$kunciTopik]}.");
+                }
+                $dipakai[$kunciTopik] ??= $baris;
+            }
+
+            if ($galat) {
+                array_push($hasil['error'], ...$galat);
+
+                continue;
+            }
+
+            $topik[] = ['kode_subtes' => $kodeSubtes, 'subtes_id' => $subtes[$kodeSubtes], 'nama_topik' => $nama, 'urutan' => (int) $urutan];
+        }
+
+        return $topik;
+    }
+
+    /**
+     * Topik yang boleh dipakai soal: yang sudah ada di database ditambah isi sheet Topik.
+     *
+     * @return array<string, array<string, string>> kode subtes => [nama topik huruf kecil => nama topik]
+     */
+    private function petaTopik(array $subtes, array $dariSheet): array
+    {
+        $kodeSubtes = array_flip($subtes);
+        $peta = [];
+
+        foreach (Topik::orderBy('urutan')->get(['subtes_id', 'nama_topik']) as $t) {
+            if (isset($kodeSubtes[$t->subtes_id])) {
+                $peta[$kodeSubtes[$t->subtes_id]][mb_strtolower($t->nama_topik)] = $t->nama_topik;
+            }
+        }
+
+        foreach ($dariSheet as $t) {
+            $peta[$t['kode_subtes']][mb_strtolower($t['nama_topik'])] = $t['nama_topik'];
+        }
+
+        return $peta;
+    }
+
+    /**
+     * Petakan header baris 1 ke huruf kolom. Tanpa $daftar, yang dipakai adalah header sheet Soal.
+     *
+     * @param  array<string, string>|null  $daftar  kunci internal => header yang sudah dinormalisasi
      * @return array{kolom: array<string, array{huruf: string, nama: string}>, hilang: string[]}
      */
-    private function petakanHeader(Worksheet $sheet): array
+    private function petakanHeader(Worksheet $sheet, ?array $daftar = null): array
     {
         $ditemukan = [];
         $iterator = $sheet->getRowIterator(1, 1)->current()->getCellIterator();
@@ -249,7 +434,7 @@ class ImportSoalExcel
 
         $kolom = [];
         $hilang = [];
-        foreach ($this->daftarHeader() as $kunci => $header) {
+        foreach ($daftar ?? $this->daftarHeader() as $kunci => $header) {
             if (isset($ditemukan[$header])) {
                 $kolom[$kunci] = $ditemukan[$header];
             } else {
@@ -265,6 +450,7 @@ class ImportSoalExcel
     {
         $header = [
             'nama_subtes' => 'nama subtes',
+            'topik' => 'topik',
             'kode_soal' => 'kode soal',
             'tipe' => 'tipe soal',
             'teks_soal' => 'teks soal',
@@ -358,7 +544,7 @@ class ImportSoalExcel
     }
 
     /** @return array<string, mixed> data soal yang siap disimpan (hanya valid jika tidak ada error) */
-    private function periksaBaris(array $sel, callable $tambahError, array $subtes, array $batas, array &$kodeDipakai, int $baris): array
+    private function periksaBaris(array $sel, callable $tambahError, array $subtes, array $topik, array $batas, array &$kodeDipakai, int $baris): array
     {
         $nilai = [];
         foreach ($sel as $kunci => $isi) {
@@ -387,6 +573,19 @@ class ImportSoalExcel
                 $kodeSubtes = $nilai['nama_subtes'];
             } else {
                 $tambahError('nama_subtes', "Kode subtes \"{$nilai['nama_subtes']}\" tidak dikenal. Pilihan: ".implode(', ', array_keys($subtes)).'.');
+            }
+        }
+
+        // Topik, dicocokkan tanpa membedakan huruf besar/kecil
+        $namaTopik = null;
+        if ($wajib('topik') && $kodeSubtes) {
+            $pilihan = $topik[$kodeSubtes] ?? [];
+            $namaTopik = $pilihan[mb_strtolower($nilai['topik'])] ?? null;
+
+            if ($namaTopik === null) {
+                $tambahError('topik', $pilihan
+                    ? "Topik \"{$nilai['topik']}\" tidak dikenal untuk {$kodeSubtes}. Pilihan: ".implode(', ', $pilihan).'.'
+                    : "Belum ada topik untuk {$kodeSubtes}. Tambahkan dulu di sheet \"".self::NAMA_SHEET_TOPIK.'".');
             }
         }
 
@@ -467,6 +666,7 @@ class ImportSoalExcel
             'kode_soal' => $kodeSoal,
             'kode_subtes' => $kodeSubtes,
             'subtes_id' => $kodeSubtes ? $subtes[$kodeSubtes] : null,
+            'nama_topik' => $namaTopik,
             'tipe' => $tipe,
             'teks_soal' => $nilai['teks_soal'],
             'gambar_soal' => $nilai['gambar_soal'],

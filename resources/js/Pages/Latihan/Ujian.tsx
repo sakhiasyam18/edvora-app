@@ -10,9 +10,6 @@ import TombolOpsi, { IkonHasil, StatusOpsi } from '@/Components/Ujian/TombolOpsi
 import { KonfigurasiSesiLatihan, OpsiJawaban } from '@/types/latihan';
 import { dummyKonfigurasiSesi, dummyKunciJawaban, dummySoalList } from '@/data/dummyLatihan';
 
-// Sementara: Soal belum punya field hint.
-const HINT_SEMENTARA = 'Hint untuk soal ini belum tersedia.';
-
 type ModalAktif = 'hint' | 'keluar' | 'selesai' | null;
 
 type IdOpsi = string | number;
@@ -27,16 +24,17 @@ function samaHimpunan(a: IdOpsi[], b: IdOpsi[]) {
     return a.length === b.length && a.every((x) => b.includes(x));
 }
 
-// Terjemahkan respons gagal dari latihan.cek menjadi pesan untuk siswa.
-function pesanGagalCek(e: unknown): string {
+// Terjemahkan respons gagal dari latihan.cek dan latihan.hint menjadi pesan untuk siswa.
+// aksi melengkapi kalimat, mis. "memeriksa jawaban" atau "membuka hint".
+function pesanGagal(e: unknown, aksi: string): string {
     if (!axios.isAxiosError(e) || !e.response) return 'Gagal terhubung ke server. Periksa koneksi lalu coba lagi.';
 
     const { status, data } = e.response;
-    if (status === 422) return (Object.values(data?.errors ?? {}) as string[][]).flat()[0] ?? data?.message ?? 'Jawaban tidak valid.';
+    if (status === 422) return (Object.values(data?.errors ?? {}) as string[][]).flat()[0] ?? data?.message ?? 'Permintaan tidak valid.';
     if (status === 410) return 'Sesi latihan sudah berakhir. Silakan mulai ulang latihan.';
-    if (status === 429) return 'Terlalu sering memeriksa jawaban. Tunggu sebentar lalu coba lagi.';
+    if (status === 429) return `Terlalu sering ${aksi}. Tunggu sebentar lalu coba lagi.`;
     if (status === 419) return 'Sesi login kedaluwarsa. Muat ulang halaman.';
-    return data?.message ?? 'Gagal memeriksa jawaban. Coba lagi.';
+    return data?.message ?? `Gagal ${aksi}. Coba lagi.`;
 }
 
 export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; soalList: any[]; konfigurasi: any }) {
@@ -58,6 +56,10 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
     const [hasilIsian, setHasilIsian] = useState<Record<string | number, HasilIsian>>({});
     const [mengecek, setMengecek] = useState(false);
     const [pesanCek, setPesanCek] = useState<{ soalId: IdOpsi; pesan: string } | null>(null);
+    // Teks hint dari latihan.hint, per soal. Soal yang ada di sini sudah tercatat di server memakai hint.
+    const [hintTerbuka, setHintTerbuka] = useState<Record<string | number, string>>({});
+    const [memuatHint, setMemuatHint] = useState(false);
+    const [pesanHint, setPesanHint] = useState<string | null>(null);
     const [modal, setModal] = useState<ModalAktif>(null);
 
     const soal = soalList[indeksAktif];
@@ -92,9 +94,25 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
             setHasilIsian((p) => ({ ...p, [soalId]: { benar: data.benar, kunciJawaban: data.kunciJawaban } }));
             simpanJawaban(soalId, [], teksIsian);
         } catch (e) {
-            setPesanCek({ soalId, pesan: pesanGagalCek(e) });
+            setPesanCek({ soalId, pesan: pesanGagal(e, 'memeriksa jawaban') });
         } finally {
             setMengecek(false);
+        }
+    };
+
+    // Mode fleksibel: server mencatat hint dibuka, lalu jawaban benar untuk soal ini bernilai setengah
+    // di skor topik. Teksnya disimpan per soal supaya membuka ulang tidak meminta ke server lagi.
+    const bukaHint = async () => {
+        const soalId = soal.id;
+        setMemuatHint(true);
+        setPesanHint(null);
+        try {
+            const { data } = await axios.post(route('latihan.hint'), { sesiId: konfigurasi.sesiId, soalId });
+            setHintTerbuka((p) => ({ ...p, [soalId]: data.hint }));
+        } catch (e) {
+            setPesanHint(pesanGagal(e, 'membuka hint'));
+        } finally {
+            setMemuatHint(false);
         }
     };
 
@@ -160,7 +178,7 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
 
     return (
         <LatihanLayout
-            breadcrumb={['Latihan Soal', konfigurasi.namaSubtes]}
+            breadcrumb={['Latihan Soal', konfigurasi.namaSubtes, ...(konfigurasi.namaTopik ? [konfigurasi.namaTopik] : [])]}
             sidebar={
                 <NavigasiSoal
                     jumlahSoal={soalList.length}
@@ -189,7 +207,16 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
                 }
                 footerKiri={
                     !simulasi && !terkunci && (
-                        <button type="button" onClick={() => setModal('hint')} className={`${tombolKecil} flex items-center gap-1 border border-[#E5D98A] bg-[#FBF1B8] text-[#6B5B12]`}>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setPesanHint(null);
+                                setModal('hint');
+                            }}
+                            disabled={!soal.ada_hint}
+                            title={soal.ada_hint ? undefined : 'Soal ini belum punya hint'}
+                            className={`${tombolKecil} flex items-center gap-1 border border-[#E5D98A] bg-[#FBF1B8] text-[#6B5B12]`}
+                        >
                             <IkonLampu className="h-3.5 w-3.5" /> Hint
                         </button>
                     )
@@ -306,11 +333,34 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
                     <h3 className="flex items-center gap-2 text-lg font-semibold">
                         <IkonLampu className="h-5 w-5 text-[#D4A017]" /> Hint
                     </h3>
-                    <p className="mt-2 text-sm text-gray-700">{HINT_SEMENTARA}</p>
-                    <div className="mt-4 flex justify-end">
-                        <button type="button" onClick={() => setModal(null)} className={`${tombolKecil} bg-[#5B86DB] text-sm text-white`}>
-                            Kembali
-                        </button>
+                    {hintTerbuka[soal.id] !== undefined ? (
+                        <div className="mt-2 text-sm leading-relaxed text-gray-700">
+                            <TeksMatematika teks={hintTerbuka[soal.id]} />
+                        </div>
+                    ) : (
+                        // Siswa diberi tahu dulu, karena begitu dibuka nilainya langsung tercatat di server.
+                        <p className="mt-2 text-sm text-gray-700">Kalau jawabanmu benar setelah membuka hint, nilainya dihitung setengah untuk skor topik.</p>
+                    )}
+                    {pesanHint && (
+                        <p role="alert" className="mt-2 text-sm text-[#B94040]">
+                            {pesanHint}
+                        </p>
+                    )}
+                    <div className="mt-4 flex justify-end gap-2">
+                        {hintTerbuka[soal.id] !== undefined ? (
+                            <button type="button" onClick={() => setModal(null)} className={`${tombolKecil} bg-[#5B86DB] text-sm text-white`}>
+                                Kembali
+                            </button>
+                        ) : (
+                            <>
+                                <button type="button" onClick={() => setModal(null)} className={`${tombolKecil} border border-gray-300 bg-white text-sm`}>
+                                    Batal
+                                </button>
+                                <button type="button" onClick={bukaHint} disabled={memuatHint} className={`${tombolKecil} bg-[#5B86DB] text-sm text-white`}>
+                                    {memuatHint ? 'Membuka…' : 'Buka Hint'}
+                                </button>
+                            </>
+                        )}
                     </div>
                 </div>
             </Modal>

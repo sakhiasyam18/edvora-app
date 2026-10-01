@@ -18,16 +18,40 @@ export interface Soal {
   gambar_soal?: string; // DB mapped
   opsi_jawaban: OpsiJawaban[]; // DB mapped relation
   pembahasan: string;
+  ada_hint?: boolean; // teks hint tidak ikut dikirim; diambil lewat latihan.hint supaya pemakaiannya tercatat
 }
 
 export interface KonfigurasiSesiLatihan {
-  sesiId?: string;                // dibuat server di ujian(); dipakai latihan.cek dan latihan.simpan
+  sesiId?: string;                // dibuat server di ujian(); dipakai latihan.cek, latihan.hint, dan latihan.simpan
   subtesId: string | number;
   namaSubtes: string;
+  topikId?: string | null;        // wajib untuk mode fleksibel
+  namaTopik?: string | null;
   mode: ModeLatihan;
   jumlahSoal: number;
   waktuPengerjaanMenit?: number;  // dipakai kalau mode === 'simulasi'
   iceBreakingAktif?: boolean;     // dipakai kalau mode === 'fleksibel'
+}
+
+// Dibaca dari tahap, bukan dari skor saja: skor 80 di tahap 1 (soal mudah) belum berarti dikuasai.
+export type LabelPenguasaan = 'belum_cukup_data' | 'belum_dikuasai' | 'berkembang' | 'dikuasai';
+
+// Keadaan siswa di satu topik mode fleksibel (RingkasanPenguasaan di backend).
+export interface TopikPenguasaan {
+  id: string;
+  nama: string;
+  adaSoal: boolean;
+  tahap: 1 | 2 | 3;               // 1 mudah, 2 sedang, 3 sulit
+  skor: number | null;            // null sampai 20 soal terakhir di topik ini terkumpul
+  nJendela: number;               // 0–20 soal terakhir yang dihitung
+  nDiTahap: number;               // soal yang dikerjakan sejak tahap terakhir berubah
+  isiLingkaran: number | null;    // 0–1 menuju batas naik tahap; null selama skor belum ada
+  label: LabelPenguasaan;
+  prioritas: boolean;             // belum dikuasai padahal sudah 60 soal di tahap yang sama
+}
+
+export interface RingkasanTopikHasil extends TopikPenguasaan {
+  perubahan: { dari: number; ke: number } | null; // naik/turun tahap di sesi ini
 }
 
 export interface HasilLatihan {
