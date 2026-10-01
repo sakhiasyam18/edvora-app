@@ -1,25 +1,26 @@
 import { Head, router } from '@inertiajs/react';
-import { ReactNode, useState } from 'react';
+import { ReactNode } from 'react';
 import LingkaranTahap, { keteranganSkor, TEKS_LABEL } from '@/Components/Gamifikasi/LingkaranTahap';
 import LatihanLayout from '@/Components/Layouts/LatihanLayout';
-import Modal from '@/Components/Modal';
-import { HasilLatihan, ModeLatihan, RingkasanTopikHasil } from '@/types/latihan';
+import { HasilLatihan, ModeLatihan, RingkasanTopikHasil, TopikPenguasaan } from '@/types/latihan';
 import { dummyHasilLatihan } from '@/data/dummyLatihan';
 
 interface HasilProps {
     // Sementara controller belum kirim props, jadi fallback ke dummy.
     hasil?: HasilLatihan;
     pengerjaan?: { id: string; subtes_id: string; jumlah_soal_dipilih: number; tipe: string; mode_latihan: ModeLatihan | null };
-    // Satu per topik yang dijawab di sesi fleksibel; kosong untuk simulasi dan Ulangi Latihan.
+    // Satu per topik yang dikerjakan di sesi fleksibel; kosong untuk simulasi.
     ringkasanTopik?: RingkasanTopikHasil[];
+    // Maks 3 topik subtes ini yang disarankan dilatih berikutnya (UCS1).
+    rekomendasiTopik?: TopikPenguasaan[];
 }
 
-// Keadaan topik setelah sesi ini. Belum didesain.
+// Keadaan satu topik setelah sesi ini. Belum didesain.
 function KartuTopik({ topik }: { topik: RingkasanTopikHasil }) {
     const naik = topik.perubahan !== null && topik.perubahan.ke > topik.perubahan.dari;
 
     return (
-        <div className="mt-6 flex w-full items-center gap-4 rounded-xl bg-white px-5 py-4 shadow-md">
+        <div className="flex w-full items-center gap-4 rounded-xl bg-white px-5 py-4 shadow-md">
             <LingkaranTahap topik={topik} ukuran={56} />
             <div className="min-w-0 flex-1">
                 <p className="text-xs font-medium text-gray-600">Topik</p>
@@ -47,9 +48,7 @@ function KartuStat({ ikon, label, nilai }: { ikon: ReactNode; label: string; nil
     );
 }
 
-export default function Hasil({ hasil = dummyHasilLatihan, pengerjaan, ringkasanTopik = [] }: HasilProps) {
-    const [modalUlangi, setModalUlangi] = useState(false);
-
+export default function Hasil({ hasil = dummyHasilLatihan, pengerjaan, ringkasanTopik = [], rekomendasiTopik = [] }: HasilProps) {
     return (
         <LatihanLayout breadcrumb={['Latihan Soal', 'Hasil Pengerjaan']}>
             <Head title="Hasil Pengerjaan Soal" />
@@ -107,9 +106,27 @@ export default function Hasil({ hasil = dummyHasilLatihan, pengerjaan, ringkasan
                     />
                 </div>
 
-                {ringkasanTopik.map((topik) => (
-                    <KartuTopik key={topik.id} topik={topik} />
-                ))}
+                {ringkasanTopik.length > 0 && (
+                    <div className="mt-6 w-full space-y-3">
+                        {ringkasanTopik.map((topik) => (
+                            <KartuTopik key={topik.id} topik={topik} />
+                        ))}
+                    </div>
+                )}
+
+                {/* Daftar dasar, belum didesain. */}
+                {rekomendasiTopik.length > 0 && (
+                    <div className="mt-6 w-full rounded-xl bg-white px-5 py-4 shadow-md">
+                        <p className="text-sm font-semibold text-[#1F2D5C]">Topik yang disarankan untuk dilatih berikutnya</p>
+                        <ul className="mt-2 space-y-1 text-sm text-gray-700">
+                            {rekomendasiTopik.map((topik) => (
+                                <li key={topik.id}>
+                                    {topik.nama} · Tahap {topik.tahap} · {TEKS_LABEL[topik.label]}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
 
                 <div className="mt-6 flex w-full max-w-md flex-col gap-3">
                     <button
@@ -125,60 +142,16 @@ export default function Hasil({ hasil = dummyHasilLatihan, pengerjaan, ringkasan
                     >
                         Lihat Pembahasan
                     </button>
-                    <div className="grid grid-cols-2 gap-3">
-                        <button
-                            type="button"
-                            onClick={() => setModalUlangi(true)}
-                            className="rounded-lg bg-white py-2.5 font-medium text-[#1F2D5C] shadow-md transition hover:bg-gray-50"
-                        >
-                            Ulangi Latihan
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => router.visit(route('dashboard'))}
-                            className="rounded-lg bg-[#2E3F85] py-2.5 font-medium text-white shadow-md transition hover:bg-[#263573]"
-                        >
-                            Kembali ke Beranda
-                        </button>
-                    </div>
+                    {/* Ulangi Latihan dihapus: soal hanya muncul sekali per siswa. */}
+                    <button
+                        type="button"
+                        onClick={() => router.visit(route('dashboard'))}
+                        className="w-full rounded-lg bg-white py-2.5 font-medium text-[#1F2D5C] shadow-md transition hover:bg-gray-50"
+                    >
+                        Kembali ke Beranda
+                    </button>
                 </div>
             </div>
-
-            <Modal show={modalUlangi} maxWidth="md" onClose={() => setModalUlangi(false)}>
-                <div className="p-5 font-['Poppins',sans-serif] text-[#1F2D5C]">
-                    <h3 className="text-lg font-semibold">Ulangi Latihan</h3>
-                    <p className="mt-1 text-sm text-gray-700">Anda yakin ingin mengulangi latihan ini dengan soal yang sama persis (loop soal)?</p>
-                    <div className="mt-6 flex justify-end gap-2">
-                        <button type="button" onClick={() => setModalUlangi(false)} className="rounded-md px-4 py-1.5 text-xs font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition">
-                            Batal
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setModalUlangi(false);
-                                if (pengerjaan && pengerjaan.id) {
-                                    // Mengirimkan pengerjaanId ke Laravel untuk memanggil soal yang SAMA PERSIS (ngeloop)
-                                    router.visit(route('latihan.ujian'), {
-                                        data: {
-                                            pengerjaanId: pengerjaan.id,
-                                            subtesId: pengerjaan.subtes_id,
-                                            jumlahSoal: pengerjaan.jumlah_soal_dipilih,
-                                            // tipe selalu 'latihan_bebas' untuk keduanya; mode ada di mode_latihan.
-                                            mode: pengerjaan.mode_latihan === 'simulasi' ? 'simulasi' : 'fleksibel',
-                                            _t: Date.now() // Cache buster tetap dipakai agar request tembus ke server
-                                        }
-                                    });
-                                } else {
-                                    router.visit(route('latihan.persiapan'));
-                                }
-                            }}
-                            className="rounded-md px-4 py-1.5 text-xs font-medium bg-[#5B86DB] text-white hover:bg-[#4673CD] transition"
-                        >
-                            Ya, Ulangi
-                        </button>
-                    </div>
-                </div>
-            </Modal>
         </LatihanLayout>
     );
 }
