@@ -15,9 +15,10 @@ class RingkasanPenguasaan
      * Topik tiap subtes beserta keadaan siswa. Topik yang bisa dikerjakan diurutkan untuk rekomendasi
      * (prioritas dulu); topik tanpa soal ditaruh paling bawah.
      *
+     * @param  string|null  $subtesId  hanya topik subtes ini; null untuk semua subtes
      * @return array<string, array<int, array<string, mixed>>> subtes_id => daftar topik
      */
-    public function perSubtes(string $userId): array
+    public function perSubtes(string $userId, ?string $subtesId = null): array
     {
         $baris = DB::select(<<<'SQL'
             select t.id, t.subtes_id, t.nama_topik,
@@ -25,8 +26,9 @@ class RingkasanPenguasaan
                    pt.tahap, pt.skor, pt.n_jendela, pt.n_di_tahap
             from topik t
             left join penguasaan_topik pt on pt.topik_id = t.id and pt.user_id = ?
+            where ?::uuid is null or t.subtes_id = ?::uuid
             order by t.subtes_id, t.urutan, t.nama_topik
-            SQL, [$userId]);
+            SQL, [$userId, $subtesId, $subtesId]);
 
         $perSubtes = [];
         foreach ($baris as $b) {
@@ -40,36 +42,46 @@ class RingkasanPenguasaan
     }
 
     /**
-     * Keadaan topik setelah satu sesi fleksibel, termasuk naik/turun tahap di sesi itu.
-     * Null untuk sesi simulasi, sesi ulangan, atau sesi tanpa jawaban.
+     * Topik yang disarankan dilatih berikutnya di satu subtes, mengikuti urutan rekomendasi.
+     * Topik yang sudah dikuasai atau belum punya soal tidak disarankan.
+     *
+     * @return array<int, array<string, mixed>>
      */
-    public function untukHasil(Pengerjaan $pengerjaan): ?array
+    public function rekomendasi(string $userId, string $subtesId, int $batas = 3): array
     {
-        $soalId = $pengerjaan->jawabanPengerjaan->first()?->soal_id;
+        $topik = $this->perSubtes($userId, $subtesId)[$subtesId] ?? [];
 
-        if ($pengerjaan->mode_latihan !== 'fleksibel' || $pengerjaan->sesi_ulangan || ! $soalId) {
-            return null;
+        return array_slice(array_values(array_filter($topik, fn ($t) => $t['adaSoal'] && $t['label'] !== 'dikuasai')), 0, $batas);
+    }
+
+    /**
+     * Keadaan setiap topik yang dikerjakan di satu sesi fleksibel, termasuk naik/turun tahap di sesi itu.
+     * Kosong untuk sesi simulasi dan sesi tanpa jawaban.
+     *
+     * @return array<int, array<string, mixed>> urut sesuai urutan topik
+     */
+    public function untukHasil(Pengerjaan $pengerjaan): array
+    {
+        if ($pengerjaan->mode_latihan !== 'fleksibel') {
+            return [];
         }
 
-        // Satu sesi fleksibel hanya berisi satu topik, jadi topiknya cukup dibaca dari satu soal.
-        $b = DB::selectOne(<<<'SQL'
+        $baris = DB::select(<<<'SQL'
             select t.id, t.nama_topik, true as ada_soal,
                    pt.tahap, pt.skor, pt.n_jendela, pt.n_di_tahap,
                    r.dari_tahap, r.ke_tahap
-            from soal q
-            join topik t on t.id = q.topik_id
+            from topik t
             left join penguasaan_topik pt on pt.topik_id = t.id and pt.user_id = ?
             left join riwayat_tahap r on r.pengerjaan_id = ? and r.topik_id = t.id
-            where q.id = ?
-            SQL, [$pengerjaan->user_id, $pengerjaan->id, $soalId]);
+            where t.id in (
+                select q.topik_id from jawaban_pengerjaan j join soal q on q.id = j.soal_id where j.pengerjaan_id = ?
+            )
+            order by t.urutan, t.nama_topik
+            SQL, [$pengerjaan->user_id, $pengerjaan->id, $pengerjaan->id]);
 
-        if (! $b) {
-            return null;
-        }
-
-        return self::keadaan($b) + [
+        return array_map(fn ($b) => self::keadaan($b) + [
             'perubahan' => $b->ke_tahap === null ? null : ['dari' => (int) $b->dari_tahap, 'ke' => (int) $b->ke_tahap],
-        ];
+        ], $baris);
     }
 
     /** Satu topik sebagai props React (camelCase). Tanpa baris penguasaan berarti tahap 1 dan belum ada skor. */

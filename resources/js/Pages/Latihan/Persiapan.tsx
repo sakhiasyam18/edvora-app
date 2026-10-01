@@ -8,7 +8,10 @@ import { KonfigurasiSesiLatihan, ModeLatihan, TopikPenguasaan } from '@/types/la
 // Batas sama dengan LatihanSoalController::JUMLAH_SOAL_MIN dan JUMLAH_SOAL_MAKS.
 const JUMLAH_SOAL_FLEKSIBEL_AWAL = 10;
 const JUMLAH_SOAL_MIN = 10;
-const JUMLAH_SOAL_MAKS = 25;
+const JUMLAH_SOAL_MAKS = 20;
+
+// Kelas checkbox (plugin @tailwindcss/forms) untuk daftar topik.
+const KELAS_CHECKBOX = 'h-4 w-4 shrink-0 rounded border-gray-300 text-[#5B86DB] focus:ring-[#5B86DB] disabled:opacity-50';
 
 interface SubtesLatihan {
     id: string;
@@ -17,13 +20,14 @@ interface SubtesLatihan {
     waktu_default_menit: number;
 }
 
-function konfigurasiUntukMode(item: SubtesLatihan, mode: ModeLatihan): KonfigurasiSesiLatihan {
+// topikIds = topik awal yang tercentang di mode fleksibel.
+function konfigurasiUntukMode(item: SubtesLatihan, mode: ModeLatihan, topikIds: string[]): KonfigurasiSesiLatihan {
     const subtesId = item.id;
     const namaSubtes = item.nama_subtes;
     if (mode === 'simulasi') {
         return { subtesId, namaSubtes, mode, jumlahSoal: item.jumlah_soal, waktuPengerjaanMenit: item.waktu_default_menit };
     }
-    return { subtesId, namaSubtes, mode, jumlahSoal: JUMLAH_SOAL_FLEKSIBEL_AWAL, iceBreakingAktif: false };
+    return { subtesId, namaSubtes, mode, jumlahSoal: JUMLAH_SOAL_FLEKSIBEL_AWAL, iceBreakingAktif: false, topikIds };
 }
 
 function IkonPanah() {
@@ -49,30 +53,27 @@ const warnaSubtes: Record<string, string> = {
 const WARNA_CADANGAN = 'bg-[#DCE7F0]';
 
 // Satu baris topik di modal mode fleksibel. Belum didesain.
-function PilihanTopik({ topik, dipilih, onPilih }: { topik: TopikPenguasaan; dipilih: boolean; onPilih: () => void }) {
+function PilihanTopik({ topik, dipilih, onUbah }: { topik: TopikPenguasaan; dipilih: boolean; onUbah: () => void }) {
     return (
-        <button
-            type="button"
-            role="radio"
-            aria-checked={dipilih}
-            onClick={onPilih}
-            disabled={!topik.adaSoal}
-            className={`flex w-full items-center gap-3 rounded-lg border bg-white px-3 py-2 text-left transition disabled:cursor-not-allowed disabled:opacity-60 ${dipilih ? 'border-[#5B86DB] ring-2 ring-[#5B86DB]' : 'border-gray-200 enabled:hover:border-[#5B86DB]'
-                }`}
+        <label
+            className={`flex w-full items-center gap-3 rounded-lg border bg-white px-3 py-2 transition ${dipilih ? 'border-[#5B86DB]' : 'border-gray-200'
+                } ${topik.adaSoal ? 'cursor-pointer hover:border-[#5B86DB]' : 'cursor-not-allowed opacity-60'}`}
         >
+            <input type="checkbox" checked={dipilih} onChange={onUbah} disabled={!topik.adaSoal} className={KELAS_CHECKBOX} />
             <LingkaranTahap topik={topik} />
             <span className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-center gap-2 font-medium">
                     {topik.nama}
+                    {/* Topik prioritas: belum dikuasai padahal sudah 60 soal di tahap yang sama. */}
                     {topik.prioritas && (
-                        <span className="rounded-full bg-[#FDECEC] px-2 py-0.5 text-[10px] font-semibold text-[#B94040]">Prioritas</span>
+                        <span className="rounded-full bg-[#FDECEC] px-2 py-0.5 text-[10px] font-semibold text-[#B94040]">Direkomendasikan</span>
                     )}
                 </span>
                 <span className="block text-xs text-gray-600">
                     {topik.adaSoal ? `Tahap ${topik.tahap} · ${TEKS_LABEL[topik.label]} · ${keteranganSkor(topik)}` : 'Belum ada soal'}
                 </span>
             </span>
-        </button>
+        </label>
     );
 }
 
@@ -89,15 +90,18 @@ export default function Persiapan({ subtes = [], topikPerSubtes = {} }: Persiapa
     const { flash } = usePage();
     const pesanError = typeof flash.error === 'string' ? flash.error : null;
 
+    // Topik subtes yang punya soal. Di mode fleksibel semuanya tercentang lebih dulu (UCS1).
+    const topikTersedia = (subtesId: string | number) => (topikPerSubtes[subtesId] ?? []).filter((t) => t.adaSoal).map((t) => t.id);
+
     const bukaModal = (item: any) => {
-        setKonfigurasi(konfigurasiUntukMode(item, 'fleksibel'));
+        setKonfigurasi(konfigurasiUntukMode(item, 'fleksibel', topikTersedia(item.id)));
         setTampilModal(true);
     };
 
     const gantiMode = (mode: ModeLatihan) => {
         if (!konfigurasi || konfigurasi.mode === mode) return;
         const item = subtes.find((s) => s.id === konfigurasi.subtesId);
-        if (item) setKonfigurasi(konfigurasiUntukMode(item, mode));
+        if (item) setKonfigurasi(konfigurasiUntukMode(item, mode, topikTersedia(item.id)));
     };
 
     const ubahJumlahSoal = (delta: number) => {
@@ -107,8 +111,24 @@ export default function Persiapan({ subtes = [], topikPerSubtes = {} }: Persiapa
     };
 
     const topikList = konfigurasi ? (topikPerSubtes[konfigurasi.subtesId] ?? []) : [];
-    // Mode fleksibel selalu satu topik; soalnya dipilih backend menurut tahap siswa di topik itu.
-    const bisaMulai = konfigurasi !== null && (konfigurasi.mode === 'simulasi' || Boolean(konfigurasi.topikId));
+    const idTersedia = konfigurasi ? topikTersedia(konfigurasi.subtesId) : [];
+    const topikIds = konfigurasi?.topikIds ?? [];
+    // "Semua Topik" tercentang hanya bila semua topik yang punya soal tercentang (UCS1).
+    const semuaDipilih = idTersedia.length > 0 && idTersedia.every((id) => topikIds.includes(id));
+
+    const ubahTopik = (id: string) => {
+        if (!konfigurasi) return;
+        setKonfigurasi({ ...konfigurasi, topikIds: topikIds.includes(id) ? topikIds.filter((t) => t !== id) : [...topikIds, id] });
+    };
+
+    // Mencentang "Semua Topik" memilih semuanya; melepasnya mengosongkan pilihan (UCS1).
+    const ubahSemuaTopik = () => {
+        if (!konfigurasi) return;
+        setKonfigurasi({ ...konfigurasi, topikIds: semuaDipilih ? [] : idTersedia });
+    };
+
+    // Mode fleksibel butuh minimal satu topik; soalnya dibagi rata ke topik terpilih menurut tahap siswa di tiap topik.
+    const bisaMulai = konfigurasi !== null && (konfigurasi.mode === 'simulasi' || topikIds.length > 0);
 
     const mulaiMengerjakan = () => {
         if (!konfigurasi || !bisaMulai) return;
@@ -186,15 +206,25 @@ export default function Persiapan({ subtes = [], topikPerSubtes = {} }: Persiapa
                             <div className="mt-4 space-y-4">
                                 <div className="rounded-lg border border-[#C9DBF2] bg-[#EAF2FC] p-4">
                                     <p className="text-lg font-medium">Topik</p>
-                                    <p className="text-sm text-gray-600">Diurutkan dari topik yang paling perlu kamu latih</p>
+                                    <p className="text-sm text-gray-600">Pilih satu atau beberapa topik, diurutkan dari yang paling perlu kamu latih</p>
                                     {topikList.length > 0 ? (
-                                        <div role="radiogroup" aria-label="Topik" className="mt-3 max-h-64 space-y-2 overflow-y-auto p-0.5">
+                                        <div role="group" aria-label="Topik" className="mt-3 max-h-72 space-y-2 overflow-y-auto p-0.5">
+                                            <label className="flex cursor-pointer items-center gap-3 px-3 py-1 font-medium">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={semuaDipilih}
+                                                    onChange={ubahSemuaTopik}
+                                                    disabled={idTersedia.length === 0}
+                                                    className={KELAS_CHECKBOX}
+                                                />
+                                                Semua Topik ({idTersedia.length} Topik)
+                                            </label>
                                             {topikList.map((topik) => (
                                                 <PilihanTopik
                                                     key={topik.id}
                                                     topik={topik}
-                                                    dipilih={konfigurasi.topikId === topik.id}
-                                                    onPilih={() => setKonfigurasi({ ...konfigurasi, topikId: topik.id })}
+                                                    dipilih={topikIds.includes(topik.id)}
+                                                    onUbah={() => ubahTopik(topik.id)}
                                                 />
                                             ))}
                                         </div>
@@ -300,7 +330,7 @@ export default function Persiapan({ subtes = [], topikPerSubtes = {} }: Persiapa
                             disabled={!bisaMulai}
                             className="mt-5 w-full rounded-lg bg-[#5B86DB] py-3 font-medium text-white shadow transition enabled:hover:bg-[#4A74C8] disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                            {bisaMulai ? 'Mulai Mengerjakan' : 'Pilih topik dulu'}
+                            {bisaMulai ? 'Mulai Mengerjakan' : 'Pilih minimal satu topik'}
                         </button>
                     </div>
                 )}

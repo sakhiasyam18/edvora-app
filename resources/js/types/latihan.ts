@@ -25,8 +25,8 @@ export interface KonfigurasiSesiLatihan {
   sesiId?: string;                // dibuat server di ujian(); dipakai latihan.cek, latihan.hint, dan latihan.simpan
   subtesId: string | number;
   namaSubtes: string;
-  topikId?: string | null;        // wajib untuk mode fleksibel
-  namaTopik?: string | null;
+  topikIds?: string[];            // mode fleksibel: minimal satu topik
+  namaTopik?: string | null;      // dari server: "Semua topik" atau nama topik yang dipilih
   mode: ModeLatihan;
   jumlahSoal: number;
   waktuPengerjaanMenit?: number;  // dipakai kalau mode === 'simulasi'

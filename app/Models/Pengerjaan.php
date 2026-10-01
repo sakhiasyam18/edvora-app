@@ -30,7 +30,6 @@ class Pengerjaan extends Model
         'finished_at',
         'total_skor',
         'mode_latihan',
-        'sesi_ulangan',
     ];
 
     public function jawabanPengerjaan()
