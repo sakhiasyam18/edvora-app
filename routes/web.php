@@ -10,7 +10,6 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RiwayatController;
 use App\Http\Controllers\WelcomeController;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
 Route::get('/', [WelcomeController::class, 'index'])->name('welcome');
 
@@ -72,9 +71,14 @@ Route::middleware('auth')->group(function () {
     Route::get('/biodata', [BiodataController::class, 'index'])->name('biodata');
     Route::post('/biodata', [BiodataController::class, 'simpan'])->name('biodata.simpan');
 
-    Route::get('/akun/profil', function () {
-        return Inertia::render('Akun/Profil');
-    })->name('akun.profil');
+    Route::get('/akun/profil/utama', [ProfileController::class, 'profilUtama'])
+        ->name('akun.profil.utama');
+
+    Route::get('/akun/profil', [ProfileController::class, 'show'])
+        ->name('akun.profil');
+
+    Route::patch('/akun/profil', [ProfileController::class, 'updateBiodata'])
+        ->name('akun.profil.update');
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
