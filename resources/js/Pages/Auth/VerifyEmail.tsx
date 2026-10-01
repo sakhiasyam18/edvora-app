@@ -83,13 +83,15 @@ export default function VerifyEmail({ status }: { status?: string }) {
         }
 
         setIsVerifying(true);
-        setTimeout(() => {
-            setIsVerifying(false);
-            setIsVerified(true);
-            setTimeout(() => {
-                router.visit('/biodata');
-            }, 1000);
-        }, 1200);
+        router.post(route('otp.verify'), { otp: fullCode }, {
+            onFinish: () => setIsVerifying(false),
+            onSuccess: () => setIsVerified(true),
+            onError: () => {
+                setHasError(true);
+                setOtp(['', '', '', '', '', '']);
+                inputRefs.current[0]?.focus();
+            }
+        });
     };
 
     const handleEditEmail = () => {

@@ -57,4 +57,20 @@ class User extends Authenticatable implements MustVerifyEmail
             'password' => 'hashed',
         ];
     }
+
+    /**
+     * Override default email verification untuk mengirim OTP angka.
+     */
+    public function sendEmailVerificationNotification()
+    {
+        // 1. Buat angka acak 6 digit
+        $otp = (string) random_int(100000, 999999);
+        
+        // 2. Simpan di Cache selama 10 menit menggunakan ID User
+        \Illuminate\Support\Facades\Cache::put('otp_' . $this->id, $otp, now()->addMinutes(10));
+        
+        // 3. Kirim template email cantik yang tadi saya buat
+        \Illuminate\Support\Facades\Mail::to($this->email)->send(new \App\Mail\OtpMail($otp));
+    }
+
 }
