@@ -3,8 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
-use App\Http\Requests\UpdateBiodataRequest;
+use App\Http\Requests\SimpanBiodataRequest;
 use App\Models\Siswa;
+use App\Services\LevelXp;
 use App\Services\ReferensiKampus;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
@@ -58,7 +59,6 @@ class ProfileController extends Controller
                     ? [
                         'id' => $siswa->universitasTujuan->id,
                         'nama' => $siswa->universitasTujuan->nama_universitas,
-                        'singkatan' => $siswa->universitasTujuan->singkatan,
                     ]
                     : null,
 
@@ -86,55 +86,63 @@ class ProfileController extends Controller
                 ->values(),
         ]);
     }
-    public function profilUtama(
-    Request $request
-): Response {
-    $user = $request->user();
 
-    abort_unless($user->role === 'siswa', 403);
+    /**
+     * Akun Pribadi: ringkasan profil, level XP, dan biodata siswa.
+     */
+    public function profilUtama(Request $request): Response
+    {
+        $user = $request->user();
 
-    $siswa = $user->siswa;
+        abort_unless($user->role === 'siswa', 403);
 
-    return Inertia::render('Akun/ProfilUtama', [
-        'user' => [
-            'id' => $user->id,
-            'name' => $user->name,
-            'email' => $user->email,
-        ],
+        $siswa = $user->siswa;
+        $xp = (int) ($siswa?->xp ?? 0);
 
-        'siswa' => [
-            'namaLengkap' => $siswa?->nama_lengkap ?? $user->name ?? '',
-            'kelas' => $siswa?->kelas,
-            'jenisKelamin' => $siswa?->jenis_kelamin,
-            'xp' => $siswa?->xp ?? 0,
-            'point' => $siswa?->point ?? 0,
+        return Inertia::render('Akun/ProfilUtama', [
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+            ],
 
-            'universitasTujuanId' => $siswa?->universitas_tujuan_id,
-            'prodiTujuanId' => $siswa?->prodi_tujuan_id,
+            'siswa' => [
+                'namaLengkap' => $siswa?->nama_lengkap ?? $user->name ?? '',
+                'kelas' => $siswa?->kelas,
+                // Label dari daftar yang sama dengan form Biodata, supaya tidak ditulis ulang di frontend.
+                'kelasLabel' => Siswa::PILIHAN_KELAS[$siswa?->kelas ?? ''] ?? null,
+                'jenisKelamin' => $siswa?->jenis_kelamin,
+                'xp' => $xp,
+                'point' => (int) ($siswa?->point ?? 0),
 
-            'universitas' => $siswa?->universitasTujuan
-                ? [
-                    'id' => $siswa->universitasTujuan->id,
-                    'nama' => $siswa->universitasTujuan->nama_universitas,
-                    'singkatan' => $siswa->universitasTujuan->singkatan,
-                ]
-                : null,
+                'universitas' => $siswa?->universitasTujuan
+                    ? [
+                        'id' => $siswa->universitasTujuan->id,
+                        'nama' => $siswa->universitasTujuan->nama_universitas,
+                    ]
+                    : null,
 
-            'prodi' => $siswa?->prodiTujuan
-                ? [
-                    'id' => $siswa->prodiTujuan->id,
-                    'nama' => $siswa->prodiTujuan->nama_prodi,
-                    'jenjang' => $siswa->prodiTujuan->jenjang,
-                ]
-                : null,
-        ],
-    ]);
-}
+                'prodi' => $siswa?->prodiTujuan
+                    ? [
+                        'id' => $siswa->prodiTujuan->id,
+                        'nama' => $siswa->prodiTujuan->nama_prodi,
+                        'jenjang' => $siswa->prodiTujuan->jenjang,
+                    ]
+                    : null,
+            ],
+
+            // Tanggal daftar akun (YYYY-MM-DD), diformat di frontend.
+            'bergabung' => $user->created_at?->toDateString(),
+            'level' => LevelXp::dariXp($xp),
+        ]);
+    }
+
     /**
      * Menyimpan perubahan biodata siswa.
      */
     public function updateBiodata(
-        UpdateBiodataRequest $request
+        // Aturan sama dengan form Biodata saat daftar, karena kolom yang diubah sama persis.
+        SimpanBiodataRequest $request
     ): RedirectResponse {
         $data = $request->validated();
 
@@ -147,7 +155,7 @@ class ProfileController extends Controller
             $siswa = $user->siswa;
 
             // Jika data siswa belum ada, buat data baru.
-            if (!$siswa) {
+            if (! $siswa) {
                 $siswa = Siswa::create([
                     'user_id' => $user->id,
                     'xp' => 0,
@@ -171,10 +179,10 @@ class ProfileController extends Controller
             ]);
         });
 
-        return back()->with(
-            'status',
-            'Data biodata berhasil diperbarui.'
-        );
+        // Kembali ke Akun Pribadi, yang langsung menampilkan data terbaru dari database.
+        Inertia::flash('sukses', 'Biodata berhasil disimpan.');
+
+        return redirect()->route('akun.profil.utama');
     }
 
     /**

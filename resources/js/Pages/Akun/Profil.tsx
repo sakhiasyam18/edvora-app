@@ -1,12 +1,11 @@
-import { FormEventHandler, useEffect, useState } from 'react';
-import { Head, router, usePage } from '@inertiajs/react';
+import { FormEventHandler, ReactNode, useEffect, useState } from 'react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 
-import MainLayout from '@/Components/Layouts/MainLayout';
+import SiswaLayout from '@/Components/Layouts/SiswaLayout';
 
 interface Universitas {
     id: string;
     nama: string;
-    singkatan?: string | null;
     prodi: ProgramStudi[];
 }
 
@@ -38,7 +37,6 @@ interface SiswaData {
     universitas: {
         id: string;
         nama: string;
-        singkatan?: string | null;
     } | null;
     prodi: {
         id: string;
@@ -68,8 +66,9 @@ interface ProfilProps {
     };
 }
 
+// Edit Biodata dari Akun Pribadi. Simpan berhasil → server mengarahkan kembali ke Akun Pribadi.
 export default function Profil({
-    title = 'Profil & Biodata Siswa',
+    title = 'Edit Biodata',
     user,
     siswa,
     universitasList,
@@ -104,17 +103,7 @@ export default function Profil({
         siswa?.prodiTujuanId || ''
     );
 
-    /*
-    |--------------------------------------------------------------------------
-    | State UI
-    |--------------------------------------------------------------------------
-    */
-
     const [isSubmitting, setIsSubmitting] = useState(false);
-
-    const [isSaved, setIsSaved] = useState(false);
-
-    const [showToast, setShowToast] = useState(false);
 
     /*
     |--------------------------------------------------------------------------
@@ -163,17 +152,17 @@ export default function Profil({
     |--------------------------------------------------------------------------
     | Submit Form
     |--------------------------------------------------------------------------
+    |
+    | Email tidak ikut dikirim karena tidak bisa diubah. Jika valid, server
+    | mengarahkan ke Akun Pribadi; jika tidak, pesan error tampil di bawah field.
+    |
     */
 
     const handleSubmit: FormEventHandler = (e) => {
         e.preventDefault();
 
-        setIsSubmitting(true);
-        setIsSaved(false);
-        setShowToast(false);
-
         router.patch(
-            '/akun/profil',
+            route('akun.profil.update'),
             {
                 namaLengkap,
                 kelas,
@@ -183,26 +172,8 @@ export default function Profil({
             },
             {
                 preserveScroll: true,
-
-                onSuccess: () => {
-                    setIsSubmitting(false);
-                    setIsSaved(true);
-                    setShowToast(true);
-
-                    setTimeout(() => {
-                        setIsSaved(false);
-                        setShowToast(false);
-                    }, 3000);
-                },
-
-                onError: () => {
-                    setIsSubmitting(false);
-                    setIsSaved(false);
-                },
-
-                onFinish: () => {
-                    setIsSubmitting(false);
-                },
+                onStart: () => setIsSubmitting(true),
+                onFinish: () => setIsSubmitting(false),
             }
         );
     };
@@ -214,7 +185,7 @@ export default function Profil({
     */
 
     return (
-        <MainLayout>
+        <>
             <Head title={title} />
 
             <div className="max-w-3xl mx-auto py-4">
@@ -228,22 +199,9 @@ export default function Profil({
 
                     {/* Card Header */}
                     <div className="flex items-center justify-between pb-space-md">
-
-                        <div>
-                            <span className="font-label-sm text-label-sm uppercase tracking-widest text-[#26355D]/70 block font-semibold">
-                                Informasi Pembelajaran
-                            </span>
-
-                            <h2 className="font-headline-xl text-headline-xl tracking-tight text-[#26355D] font-extrabold mt-0.5">
-                                BIODATA SISWA
-                            </h2>
-                        </div>
-
-                        <div className="w-12 h-12 rounded-full bg-surface-container-lowest/80 flex items-center justify-center shadow-sm text-primary">
-                            <span className="material-symbols-outlined text-[26px]">
-                                badge
-                            </span>
-                        </div>
+                        <h2 className="font-headline-xl text-headline-xl tracking-tight text-[#26355D] font-extrabold mt-0.5">
+                            Biodata
+                        </h2>
                     </div>
 
                     {/* Form Container */}
@@ -260,10 +218,6 @@ export default function Profil({
                                 className="font-label-md text-label-md text-[#26355D] font-semibold flex items-center gap-1.5"
                                 htmlFor="nama-lengkap"
                             >
-                                <span className="material-symbols-outlined text-[16px] text-primary">
-                                    person
-                                </span>
-
                                 Nama Lengkap
                             </label>
 
@@ -274,6 +228,7 @@ export default function Profil({
                                     id="nama-lengkap"
                                     placeholder="Masukkan Nama Lengkap"
                                     required
+                                    maxLength={50}
                                     type="text"
                                     value={namaLengkap}
                                     onChange={(e) => setNamaLengkap(e.target.value)}
@@ -288,7 +243,31 @@ export default function Profil({
                             )}
                         </div>
 
-                        {/* 2. Two-Column Grid: Kelas & Jenis Kelamin */}
+                        {/* 2. Email (tidak bisa diubah) */}
+                        <div className="flex flex-col gap-1.5">
+
+                            <label
+                                className="font-label-md text-label-md text-[#26355D] font-semibold flex items-center gap-1.5"
+                                htmlFor="email"
+                            >
+                                Email
+                            </label>
+
+                            <input
+                                className="w-full h-12 px-space-md rounded-DEFAULT bg-[#E6F2FF]/60 text-[#26355D]/60 font-body-md text-body-md cursor-not-allowed"
+                                id="email"
+                                type="email"
+                                value={user.email}
+                                disabled
+                                readOnly
+                            />
+
+                            <span className="text-xs text-[#26355D]/60">
+                                Email tidak dapat diubah.
+                            </span>
+                        </div>
+
+                        {/* 3. Two-Column Grid: Kelas & Jenis Kelamin */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-space-md">
 
                             {/* Kelas */}
@@ -298,10 +277,6 @@ export default function Profil({
                                     className="font-label-md text-label-md text-[#26355D] font-semibold flex items-center gap-1.5"
                                     htmlFor="kelas-select"
                                 >
-                                    <span className="material-symbols-outlined text-[16px] text-primary">
-                                        school
-                                    </span>
-
                                     Kelas
                                 </label>
 
@@ -334,12 +309,6 @@ export default function Profil({
 
                                     </select>
 
-                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#26355D]/70 flex items-center">
-                                        <span className="material-symbols-outlined text-[20px]">
-                                            keyboard_arrow_down
-                                        </span>
-                                    </div>
-
                                 </div>
 
                                 {errors.kelas && (
@@ -356,10 +325,6 @@ export default function Profil({
                                     className="font-label-md text-label-md text-[#26355D] font-semibold flex items-center gap-1.5"
                                     htmlFor="gender-select"
                                 >
-                                    <span className="material-symbols-outlined text-[16px] text-primary">
-                                        wc
-                                    </span>
-
                                     Jenis Kelamin
                                 </label>
 
@@ -391,12 +356,6 @@ export default function Profil({
 
                                     </select>
 
-                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#26355D]/70 flex items-center">
-                                        <span className="material-symbols-outlined text-[20px]">
-                                            keyboard_arrow_down
-                                        </span>
-                                    </div>
-
                                 </div>
 
                                 {errors.jenisKelamin && (
@@ -407,18 +366,14 @@ export default function Profil({
                             </div>
                         </div>
 
-                        {/* 3. Universitas / Sekolah */}
+                        {/* 4. Universitas */}
                         <div className="flex flex-col gap-1.5">
 
                             <label
                                 className="font-label-md text-label-md text-[#26355D] font-semibold flex items-center gap-1.5"
                                 htmlFor="institusi-select"
                             >
-                                <span className="material-symbols-outlined text-[16px] text-primary">
-                                    apartment
-                                </span>
-
-                                Universitas / Sekolah
+                                Universitas
                             </label>
 
                             <div className="relative">
@@ -438,7 +393,7 @@ export default function Profil({
                                         disabled
                                         value=""
                                     >
-                                        Pilih Universitas / Sekolah
+                                        Pilih Universitas
                                     </option>
 
                                     {universitasList.map((universitas) => (
@@ -447,19 +402,10 @@ export default function Profil({
                                             value={universitas.id}
                                         >
                                             {universitas.nama}
-                                            {universitas.singkatan
-                                                ? ` (${universitas.singkatan})`
-                                                : ''}
                                         </option>
                                     ))}
 
                                 </select>
-
-                                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#26355D]/70 flex items-center">
-                                    <span className="material-symbols-outlined text-[20px]">
-                                        keyboard_arrow_down
-                                    </span>
-                                </div>
 
                             </div>
 
@@ -470,17 +416,13 @@ export default function Profil({
                             )}
                         </div>
 
-                        {/* 4. Program Studi */}
+                        {/* 5. Program Studi */}
                         <div className="flex flex-col gap-1.5">
 
                             <label
                                 className="font-label-md text-label-md text-[#26355D] font-semibold flex items-center gap-1.5"
                                 htmlFor="prodi-select"
                             >
-                                <span className="material-symbols-outlined text-[16px] text-primary">
-                                    menu_book
-                                </span>
-
                                 Program Studi
                             </label>
 
@@ -519,12 +461,6 @@ export default function Profil({
 
                                 </select>
 
-                                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#26355D]/70 flex items-center">
-                                    <span className="material-symbols-outlined text-[20px]">
-                                        keyboard_arrow_down
-                                    </span>
-                                </div>
-
                             </div>
 
                             {errors.prodiTujuanId && (
@@ -534,91 +470,34 @@ export default function Profil({
                             )}
                         </div>
 
-                        {/* Verification / Status Notice Tag */}
-                        <div className="pt-space-xs flex items-center gap-2 px-space-sm py-2 rounded-DEFAULT bg-surface-container-lowest/60 text-[#26355D]">
+                        {/* Tombol: Batal kembali ke Akun Pribadi tanpa menyimpan */}
+                        <div className="flex justify-end gap-3 border-t border-[#26355D]/10 pt-space-sm">
 
-                            <span className="material-symbols-outlined text-[18px] text-primary">
-                                info
-                            </span>
-
-                            <span className="font-body-sm text-body-sm text-[#26355D]/80">
-                                Data ini akan dicantumkan pada sertifikat dan profil resmi Anda.
-                            </span>
-
-                        </div>
-
-                        {/* Action Button: SIMPAN */}
-                        <div className="pt-space-sm">
+                            <Link
+                                href={route('akun.profil.utama')}
+                                className="rounded-lg border border-[#26355D]/20 bg-white px-5 py-2 font-medium text-[#26355D]"
+                            >
+                                Batal
+                            </Link>
 
                             <button
-                                className={`w-full h-12 text-on-primary font-headline-md text-headline-md tracking-wider uppercase rounded-DEFAULT shadow-[0_8px_20px_-4px_rgba(91,136,221,0.5)] active:scale-[0.99] transition-all flex items-center justify-center gap-2 group cursor-pointer ${
-                                    isSaved
-                                        ? 'bg-[#275aac]'
-                                        : 'bg-[#5B88DD] hover:bg-primary'
-                                }`}
+                                className="rounded-lg bg-[#5B88DD] px-5 py-2 font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
                                 disabled={isSubmitting}
                                 id="btn-simpan"
                                 type="submit"
                             >
-
-                                {isSubmitting ? (
-                                    <>
-                                        <span className="material-symbols-outlined animate-spin text-[20px]">
-                                            progress_activity
-                                        </span>
-
-                                        <span>
-                                            MENYIMPAN...
-                                        </span>
-                                    </>
-                                ) : isSaved ? (
-                                    <>
-                                        <span className="material-symbols-outlined text-[20px]">
-                                            done
-                                        </span>
-
-                                        <span>
-                                            TERSINKRONISASI
-                                        </span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <span>
-                                            SIMPAN PERUBAHAN
-                                        </span>
-
-                                        <span className="material-symbols-outlined text-[20px] transition-transform duration-200 group-hover:translate-x-1">
-                                            arrow_forward
-                                        </span>
-                                    </>
-                                )}
-
+                                {isSubmitting ? 'Menyimpan...' : 'Simpan'}
                             </button>
 
                         </div>
 
                     </form>
 
-                    {/* Feedback Toast */}
-                    {showToast && (
-                        <div
-                            className="mt-space-md p-space-sm bg-surface-container-lowest text-[#26355D] rounded-DEFAULT shadow-md flex items-center gap-space-sm animate-fade-in"
-                            id="toast-success"
-                        >
-
-                            <span className="material-symbols-outlined text-primary text-[20px]">
-                                check_circle
-                            </span>
-
-                            <span className="font-body-sm text-body-sm font-medium">
-                                Data biodata berhasil diperbarui!
-                            </span>
-
-                        </div>
-                    )}
-
                 </div>
             </div>
-        </MainLayout>
+        </>
     );
 }
+
+// Persistent layout: sidebar tidak dirender ulang saat pindah dari/ke Akun Pribadi.
+Profil.layout = (page: ReactNode) => <SiswaLayout>{page}</SiswaLayout>;
