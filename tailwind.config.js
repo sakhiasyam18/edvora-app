@@ -26,6 +26,38 @@ export default {
                     gradientStart: '#9DC5EE',
                     gradientEnd: '#5B88DD',
                 },
+
+                // Token desain Figma EDVORA — frame Beranda (node 641:3423).
+                // Dipakai sidebar, topbar, dan kartu-kartu Beranda. Jangan hardcode warnanya lagi di komponen.
+                siswa: {
+                    // Latar halaman dan sidebar
+                    'laman-awal': '#F2F7FD',
+                    'laman-akhir': '#E5EAF0',
+                    'sidebar-awal': '#495FA0',
+                    'sidebar-tengah': '#2C3F73',
+                    'sidebar-akhir': '#202E51',
+                    // Pil menu sidebar yang sedang aktif
+                    'nav-awal': '#6690DF',
+                    'nav-tengah': '#5B88DD',
+                    'nav-akhir': '#4F77C1',
+                    // Banner sapaan
+                    'banner-awal': '#B2D2FF',
+                    'banner-akhir': '#6285C5',
+                    // Teks
+                    judul: '#26355D',
+                    'judul-kartu': 'rgba(0,0,0,0.7)',
+                    teks: '#6B7285',
+                    'judul-seksi': '#4D4D4D',
+                    subtes: '#4E84C1',
+                    // Latar ikon dan badge
+                    'badge-subtes': '#E7F2FF',
+                    'ikon-latihan': '#CAE9FD',
+                    'ikon-tryout': '#D2F4BB',
+                    // Cincin penguasaan
+                    'cincin-dasar': '#D9D9D9',
+                    'cincin-naik': '#FFAE4C',
+                    'cincin-rendah': '#E75E7E',
+                },
                 brand: {
                     navy: '#22385D',
                     blue: '#5B88DD',
@@ -93,9 +125,19 @@ export default {
                 "space-sm": "0.5rem",
                 "space-xl": "2.5rem",
                 "space-md": "1rem",
+                // Lebar sidebar siswa (Figma: 254px).
+                sidebar: '254px',
             },
             borderRadius: {
                 "DEFAULT": "1rem",
+                // Radius dari desain Beranda.
+                kartu: '17px',
+                nav: '16px',
+                item: '9px',
+            },
+            boxShadow: {
+                // Bayangan kartu & topbar dari desain Beranda.
+                kartu: '0 0 10px 10px rgba(0,0,0,0.05)',
             },
             fontSize: {
                 "label-md": ["13px", { "lineHeight": "18px", "fontWeight": "600" }],
