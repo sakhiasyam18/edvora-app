@@ -28,7 +28,8 @@ export default function SiswaLayout({ children }: { children: ReactNode }) {
 
     return (
         <div className="flex min-h-screen bg-white">
-            <aside className="hidden w-64 shrink-0 flex-col bg-[#344A91] md:flex">
+            {/* sticky + h-screen: sidebar diam di layar, hanya konten yang ter-scroll. */}
+            <aside className="hidden w-64 shrink-0 flex-col bg-[#344A91] md:sticky md:top-0 md:flex md:h-screen md:overflow-y-auto">
                 <div className="flex h-24 items-center justify-center">
                     <Link href={route('dashboard')} className="text-3xl font-bold tracking-wide text-white">
                         EDVORA
