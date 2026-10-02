@@ -4,13 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\JawabanPengerjaan;
 use App\Models\Pengerjaan;
-use App\Models\Siswa;
 use App\Models\Soal;
 use App\Models\Subtes;
 use App\Models\Topik;
+use App\Models\TransaksiXp;
 use App\Services\PemilihSoal;
 use App\Services\Penguasaan;
 use App\Services\PenilaianIsian;
+use App\Services\PenilaianLatihan;
 use App\Services\PerbaruiPenguasaan;
 use App\Services\RekomendasiTopik;
 use App\Services\RingkasanPenguasaan;
@@ -58,18 +59,15 @@ class LatihanSoalController extends Controller
     /**
      * Pilih Mode untuk satu subtes: fleksibel (pilih topik dan jumlah soal), simulasi, dan remedial.
      */
-    public function pilihMode(Subtes $subtes, RingkasanPenguasaan $ringkasan, RekomendasiTopik $rekomendasi, SoalRemedial $remedial)
+    public function pilihMode(Subtes $subtes, RingkasanPenguasaan $ringkasan, SoalRemedial $remedial)
     {
         $userId = Auth::id();
-        $topikPerSubtes = $ringkasan->perSubtes($userId);
+        $topikSubtes = $ringkasan->perSubtes($userId, $subtes->id)[$subtes->id] ?? [];
 
-        // Label "Direkomendasikan" = topik subtes ini yang masuk 3 rekomendasi teratas di Beranda.
-        $idRekomendasi = array_column(
-            $rekomendasi->teratas(Subtes::orderBy('urutan')->get(['id', 'kode_subtes']), $topikPerSubtes),
-            'id',
-        );
+        // Label "Direkomendasikan" = 3 rekomendasi teratas subtes ini (RANCANGAN-penyesuaian-sdd.md 5.4).
+        $idRekomendasi = array_column(RekomendasiTopik::untukSubtes($topikSubtes), 'id');
 
-        $topikList = collect($topikPerSubtes[$subtes->id] ?? [])
+        $topikList = collect($topikSubtes)
             ->filter(fn (array $topik) => $topik['adaSoal'])
             ->sortBy('urutan')
             ->map(fn (array $topik) => [
@@ -103,7 +101,7 @@ class LatihanSoalController extends Controller
         ]);
     }
 
-    public function ujian(Request $request, PemilihSoal $pemilih)
+    public function ujian(Request $request, PemilihSoal $pemilih, SoalRemedial $remedial)
     {
         $subtesId = $request->get('subtesId');
 
@@ -113,7 +111,7 @@ class LatihanSoalController extends Controller
 
         $subtes = Subtes::findOrFail($subtesId);
 
-        $mode = $request->get('mode') === 'simulasi' ? 'simulasi' : 'fleksibel';
+        $mode = in_array($request->get('mode'), ['simulasi', 'remedial'], true) ? $request->get('mode') : 'fleksibel';
         $namaTopik = null;
         // Input tidak valid atau soal habis: kembali ke halaman Pilih Mode subtes ini.
         $halamanMode = route('latihan.mode', ['subtes' => $subtes->kode_subtes]);
@@ -134,6 +132,10 @@ class LatihanSoalController extends Controller
 
             $soalIds = $pemilih->fleksibel(Auth::id(), $topikList->pluck('id')->all(), $jumlahSoal);
             $namaTopik = $topikList->count() === $semuaTopik->count() ? 'Semua topik' : $topikList->pluck('nama_topik')->implode(', ');
+        } elseif ($mode === 'remedial') {
+            // Remedial: 25 soal yang paling lama menunggu di daftar remedial subtes ini, tanpa tahap dan tanpa timer.
+            $soalIds = $remedial->ambil(Auth::id(), $subtes->id);
+            $namaTopik = 'Remedial';
         } else {
             // Simulasi mengikuti format UTBK per subtes dan tidak memakai tahap; jumlah soal dari URL diabaikan.
             $soalIds = $pemilih->simulasi(Auth::id(), $subtes->id, $subtes->jumlah_soal);
@@ -141,7 +143,9 @@ class LatihanSoalController extends Controller
 
         // Soal hanya muncul sekali per siswa, jadi soal di pilihan ini bisa sudah habis dikerjakan.
         if ($soalIds === []) {
-            Inertia::flash('error', 'Tidak ada soal baru untuk pilihan ini: semua soalnya sudah pernah kamu kerjakan.');
+            Inertia::flash('error', $mode === 'remedial'
+                ? 'Tidak ada soal remedial untuk subtes ini.'
+                : 'Tidak ada soal baru untuk pilihan ini: semua soalnya sudah pernah kamu kerjakan.');
 
             return redirect($halamanMode);
         }
@@ -180,7 +184,7 @@ class LatihanSoalController extends Controller
     }
 
     /**
-     * Mode fleksibel: nilai satu jawaban isian saat tombol "Simpan Jawaban" ditekan.
+     * Mode fleksibel dan remedial: nilai satu jawaban isian saat tombol "Simpan Jawaban" ditekan.
      * Jawaban pertama dikunci di session dan dipakai lagi oleh simpanJawaban(),
      * sehingga hasil yang dilihat siswa selalu sama dengan nilai akhir.
      */
@@ -200,8 +204,8 @@ class LatihanSoalController extends Controller
         }
 
         // Mode simulasi tidak boleh tahu benar/salah sebelum latihan selesai.
-        if ($sesi['mode'] !== 'fleksibel') {
-            return response()->json(['message' => 'Pengecekan per soal hanya tersedia di mode fleksibel.'], 403);
+        if ($sesi['mode'] === 'simulasi') {
+            return response()->json(['message' => 'Pengecekan per soal tidak tersedia di mode simulasi.'], 403);
         }
 
         if (! in_array($data['soalId'], $sesi['soal_ids'], true)) {
@@ -249,28 +253,15 @@ class LatihanSoalController extends Controller
         }
 
         if (! $benar) {
-            $data['kunciJawaban'] = $this->kunciTampil($kunci);
+            // Kunci boleh punya alternatif dipisah "|"; siswa cukup dilihatkan yang pertama.
+            $data['kunciJawaban'] = PenilaianIsian::kunciTampil($kunci);
         }
 
         return response()->json($data);
     }
 
-    // Kunci boleh punya alternatif dipisah "|" (mis. "delapan|8"); siswa cukup dilihatkan yang pertama.
-    private function kunciTampil(?string $kunci): string
-    {
-        foreach (explode('|', (string) $kunci) as $alternatif) {
-            $alternatif = $this->rapikanIsian($alternatif);
-
-            if ($alternatif !== '') {
-                return $alternatif;
-            }
-        }
-
-        return '';
-    }
-
     /**
-     * Mode fleksibel: buka hint satu soal. Pembukaan dicatat di session, lalu simpanJawaban() mengisi
+     * Mode fleksibel dan remedial: buka hint satu soal. Pembukaan dicatat di session, lalu simpanJawaban() mengisi
      * pakai_hint dari catatan ini, bukan dari kiriman browser.
      */
     public function bukaHint(Request $request)
@@ -287,8 +278,8 @@ class LatihanSoalController extends Controller
             return response()->json(['message' => 'Sesi latihan tidak ditemukan atau sudah selesai.'], 410);
         }
 
-        if ($sesi['mode'] !== 'fleksibel') {
-            return response()->json(['message' => 'Hint hanya tersedia di mode fleksibel.'], 403);
+        if ($sesi['mode'] === 'simulasi') {
+            return response()->json(['message' => 'Hint tidak tersedia di mode simulasi.'], 403);
         }
 
         if (! in_array($data['soalId'], $sesi['soal_ids'], true)) {
@@ -309,7 +300,7 @@ class LatihanSoalController extends Controller
         return response()->json(['hint' => $hint]);
     }
 
-    public function simpanJawaban(Request $request, PerbaruiPenguasaan $penguasaan)
+    public function simpanJawaban(Request $request, PerbaruiPenguasaan $penguasaan, PenilaianLatihan $penilaian)
     {
         $sesiId = $request->input('sesiId');
         $kunciSesi = 'latihan.'.$sesiId;
@@ -349,7 +340,7 @@ class LatihanSoalController extends Controller
         $iceBreakingAktif = $request->boolean('iceBreakingAktif');
         $selesai = now();
 
-        [$pengerjaan, $topikDijawab] = DB::transaction(function () use ($sesi, $kiriman, $iceBreakingAktif, $selesai) {
+        [$pengerjaan, $topikDijawab] = DB::transaction(function () use ($sesi, $kiriman, $iceBreakingAktif, $selesai, $penilaian) {
             $p = Pengerjaan::create([
                 'user_id' => Auth::id(),
                 'tipe' => 'latihan_bebas',
@@ -361,19 +352,22 @@ class LatihanSoalController extends Controller
                 'finished_at' => $selesai,
                 'total_skor' => 0,
                 'mode_latihan' => $sesi['mode'],
+                // Semua soal sesi urut tampil, termasuk yang tidak dijawab, untuk halaman pembahasan.
+                // Ditulis sebagai literal array Postgres karena create() tidak mengubah array PHP menjadi uuid[].
+                'soal_ids' => '{'.implode(',', $sesi['soal_ids']).'}',
             ]);
 
             // Ambil semua soal beserta opsinya sekali jalan - hindari N+1 query.
             $soalMap = Soal::with('opsiJawaban:id,soal_id,is_kunci')
                 ->whereIn('id', $sesi['soal_ids'])
-                ->get(['id', 'tipe', 'kunci_jawaban', 'topik_id'])
+                ->get(['id', 'tipe', 'kunci_jawaban', 'topik_id', 'tingkat_kesulitan'])
                 ->keyBy('id');
 
             $jawabanModel = new JawabanPengerjaan;
             $waktuSelesai = now()->toDateTimeString();
             $baris = [];
-            $jumlahBenar = 0;
-            $totalSkor = 0;
+            $totalXp = 0;
+            $totalPoin = 0;
 
             // Urut sesuai soal yang diberikan; soal tanpa jawaban tidak dicatat.
             foreach ($sesi['soal_ids'] as $soalId) {
@@ -419,7 +413,8 @@ class LatihanSoalController extends Controller
                     $isCorrect = $kunci !== [] && $dipilih === $kunci;
                 }
 
-                $skor = $isCorrect ? 10 : 0;
+                $pakaiHint = isset($sesi['hint'][$soalId]);
+                $hadiah = PenilaianLatihan::hadiah($soal->tingkat_kesulitan, $isCorrect, $pakaiHint);
 
                 $baris[] = [
                     'id' => $jawabanModel->newUniqueId(),
@@ -431,29 +426,23 @@ class LatihanSoalController extends Controller
                     'opsi_dipilih_ids' => $soal->tipe === 'benar_salah' ? '{'.implode(',', $dipilih).'}' : null,
                     'jawaban_isian' => $teksIsian,
                     'is_correct' => $isCorrect,
-                    'skor' => $skor,
+                    // Poin jawaban ini (RANCANGAN-penyesuaian-sdd.md 4.2).
+                    'skor' => $hadiah['poin'],
                     'waktu_menjawab' => $waktuMenjawab,
-                    'pakai_hint' => isset($sesi['hint'][$soalId]),
+                    'pakai_hint' => $pakaiHint,
                 ];
 
-                if ($isCorrect) {
-                    $jumlahBenar++;
-                }
-                $totalSkor += $skor;
+                $totalXp += $hadiah['xp'];
+                $totalPoin += $hadiah['poin'];
             }
 
             if ($baris) {
                 JawabanPengerjaan::insert($baris);
             }
 
-            $p->update(['total_skor' => $totalSkor]);
+            $p->update(['total_skor' => $totalPoin]);
 
-            $xpDidapat = ($jumlahBenar * 15) + 10;
-
-            Siswa::where('user_id', Auth::id())->update([
-                'xp' => DB::raw('xp + '.(int) $xpDidapat),
-                'point' => DB::raw('point + '.(int) $totalSkor),
-            ]);
+            $penilaian->catatHadiah($p->user_id, $p->id, $totalXp, $totalPoin, $selesai);
 
             // Topik yang benar-benar punya jawaban di sesi ini; hanya topik ini yang tahapnya dinilai.
             $topikDijawab = array_values(array_unique(array_map(fn ($b) => $soalMap[$b['soal_id']]->topik_id, $baris)));
@@ -464,9 +453,10 @@ class LatihanSoalController extends Controller
         // Sesi yang sudah diselesaikan dihapus agar tidak bisa disubmit ulang untuk menambah XP.
         session()->forget($kunciSesi);
 
-        // Skor dan tahap hanya untuk sesi fleksibel; setiap topik yang dijawab dinilai sendiri-sendiri. Dihitung sesudah
-        // jawaban tersimpan: bila gagal, jawaban dan XP tetap aman, dan sesi berikutnya menghitung ulang dari log jawaban.
-        if ($sesi['mode'] === 'fleksibel' && $topikDijawab !== []) {
+        // Skor dan tahap dihitung untuk sesi fleksibel dan remedial (#4); setiap topik yang dijawab dinilai sendiri-sendiri.
+        // Dihitung sesudah jawaban tersimpan: bila gagal, jawaban dan XP tetap aman, dan sesi berikutnya menghitung ulang
+        // dari log jawaban.
+        if (in_array($sesi['mode'], ['fleksibel', 'remedial'], true) && $topikDijawab !== []) {
             try {
                 $penguasaan->setelahSesi(Auth::id(), $topikDijawab, $pengerjaan->id, $selesai);
             } catch (Throwable $e) {
@@ -485,7 +475,8 @@ class LatihanSoalController extends Controller
         $jumlahBenar = $pengerjaan->jawabanPengerjaan->where('is_correct', true)->count();
         $jumlahSalah = $pengerjaan->jawabanPengerjaan->where('is_correct', false)->count();
 
-        $xpDidapat = ($jumlahBenar * 15) + 10;
+        // XP dibaca dari catatan saat diberikan (K12); sesi sebelum aturan ini tidak punya catatan, jadi 0.
+        $xpDidapat = (int) TransaksiXp::where('pengerjaan_id', $pengerjaan->id)->sum('jumlah');
 
         $hasil = [
             'jumlahBenar' => $jumlahBenar,
@@ -499,8 +490,10 @@ class LatihanSoalController extends Controller
             'pengerjaan' => $pengerjaan,
             // Tahap dan skor setiap topik setelah sesi fleksibel ini, termasuk naik/turun tahap bila ada.
             'ringkasanTopik' => $ringkasan->untukHasil($pengerjaan),
-            // Topik yang disarankan dilatih berikutnya di subtes yang sama.
-            'rekomendasiTopik' => $pengerjaan->subtes_id ? $ringkasan->rekomendasi(Auth::id(), $pengerjaan->subtes_id) : [],
+            // Topik yang disarankan dilatih berikutnya di subtes yang sama (maks 3).
+            'rekomendasiTopik' => $pengerjaan->subtes_id
+                ? RekomendasiTopik::untukSubtes($ringkasan->perSubtes(Auth::id(), $pengerjaan->subtes_id)[$pengerjaan->subtes_id] ?? [])
+                : [],
         ]);
     }
 
@@ -534,24 +527,5 @@ class LatihanSoalController extends Controller
     private function rapikanIsian(?string $teks): string
     {
         return preg_replace('/^[\p{Z}\s]+|[\p{Z}\s]+$/u', '', (string) $teks);
-    }
-    
-    public function pembahasan(Request $request)
-    {
-        $id = $request->get('id');
-
-        // Ambil data pengerjaan beserta relasi soal, opsi jawaban, dan pembahasan
-        $pengerjaan = Pengerjaan::with([
-            'subtes',
-            'jawabanPengerjaan.soal.opsiJawaban' => function ($q) {
-                $q->orderBy('urutan');
-            }
-        ])
-        ->where('user_id', Auth::id())
-        ->findOrFail($id);
-
-        return Inertia::render('Latihan/Pembahasan', [
-            'pengerjaan' => $pengerjaan,
-        ]);
     }
 }

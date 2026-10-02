@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Pengerjaan;
 use App\Models\JawabanPengerjaan;
+use App\Services\PembahasanPengerjaan;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -79,7 +80,10 @@ class RiwayatController extends Controller
      */
     public function getModalInfo($pengerjaanId)
     {
-        $pengerjaan = \App\Models\Pengerjaan::with(['subtes', 'pengerjaanTryout'])->findOrFail($pengerjaanId);
+        // Hanya pengerjaan milik siswa yang login; milik orang lain dijawab 404 agar datanya tidak bocor.
+        $pengerjaan = \App\Models\Pengerjaan::with(['subtes', 'pengerjaanTryout'])
+            ->where('user_id', auth()->id())
+            ->findOrFail($pengerjaanId);
 
         $totalDijawab = \App\Models\JawabanPengerjaan::where('pengerjaan_id', $pengerjaanId)->count();
         
@@ -109,65 +113,24 @@ class RiwayatController extends Controller
     /**
      * Halaman Pembahasan Detail Latihan
      */
-    public function pembahasan($pengerjaanId)
+    /**
+     * Pembahasan satu pengerjaan: semua soal sesi (termasuk yang kosong) dengan jawaban siswa, kunci, dan pembahasan.
+     * Halaman Latihan/Pembahasan memakai gaya halaman ujian (satu soal per tampilan, sidebar nomor soal).
+     */
+    public function pembahasan(string $pengerjaanId, PembahasanPengerjaan $pembahasan)
     {
-        // Ambil data pengerjaan beserta relasi jawaban, soal, dan opsi
-        $pengerjaan = \App\Models\Pengerjaan::with([
-            'subtes',
-            'jawabanPengerjaan.soal.opsiJawaban'
-        ])->findOrFail($pengerjaanId);
+        // Hanya pengerjaan milik siswa ini; milik orang lain dianggap tidak ada (404).
+        $pengerjaan = Pengerjaan::with('subtes:id,nama_subtes')
+            ->where('user_id', auth()->id())
+            ->findOrFail($pengerjaanId);
 
-        // Keamanan: Pastikan user hanya bisa melihat riwayat pengerjaannya sendiri
-        if ($pengerjaan->user_id !== auth()->id()) {
-            abort(403, 'Akses ditolak. Anda tidak memiliki izin melihat riwayat ini.');
-        }
-
-        // Format data detail jawaban agar rapi saat dibaca oleh React Frontend
-        $detailJawaban = $pengerjaan->jawabanPengerjaan->map(function ($jawaban, $index) {
-            return [
-                'nomor' => $index + 1,
-                'is_correct' => $jawaban->is_correct,
-                'skor' => $jawaban->skor,
-                'soal' => [
-                    'id' => $jawaban->soal->id,
-                    'tipe' => $jawaban->soal->tipe,
-                    'teks_soal' => $jawaban->soal->teks_soal,
-                    'gambar_soal' => $jawaban->soal->gambar_soal,
-                    'pembahasan' => $jawaban->soal->pembahasan,
-                    'kunci_jawaban' => $jawaban->soal->kunci_jawaban,
-                ],
-                'jawaban_user' => [
-                    'opsi_dipilih_id' => $jawaban->opsi_dipilih_id,
-                    'opsi_dipilih_ids' => $jawaban->opsi_dipilih_ids,
-                    'jawaban_isian' => $jawaban->jawaban_isian,
-                ],
-                'opsi_jawaban' => $jawaban->soal->opsiJawaban->map(function ($opsi) {
-                    return [
-                        'id' => $opsi->id,
-                        'teks_opsi' => $opsi->teks_opsi,
-                        'is_kunci' => $opsi->is_kunci,
-                    ];
-                })->toArray(), // Pastikan menjadi array biasa
-            ];
-        });
-
-        // Hitung statistik cepat
-        $totalSoal = $detailJawaban->count();
-        $totalBenar = $detailJawaban->where('is_correct', true)->count();
-        $totalSalah = $totalSoal - $totalBenar;
-
-        return Inertia::render('Riwayat/Pembahasan', [
+        return Inertia::render('Latihan/Pembahasan', [
             'pengerjaan' => [
                 'id' => $pengerjaan->id,
-                'mode_latihan' => $pengerjaan->mode_latihan ? ucfirst($pengerjaan->mode_latihan) : 'Latihan',
-                'nama_materi' => $pengerjaan->subtes ? $pengerjaan->subtes->nama_subtes : 'Try Out',
-                'total_skor' => $pengerjaan->total_skor,
-                'waktu_selesai' => $pengerjaan->finished_at ? $pengerjaan->finished_at->format('d M Y, H:i WIB') : '-',
-                'total_soal' => $totalSoal,
-                'total_benar' => $totalBenar,
-                'total_salah' => $totalSalah,
+                'namaSubtes' => $pengerjaan->subtes?->nama_subtes ?? 'Try Out',
+                'mode' => $pengerjaan->mode_latihan,
             ],
-            'detailJawaban' => $detailJawaban,
+            'soalList' => $pembahasan->untuk($pengerjaan),
         ]);
     }
 

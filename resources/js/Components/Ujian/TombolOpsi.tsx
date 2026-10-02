@@ -13,6 +13,8 @@ interface TombolOpsiProps {
     // Dipisah dari status karena setelah dikunci semua opsi berwarna benar/salah,
     // sedangkan centang harus tetap menunjukkan apa yang tadi dipilih siswa.
     dipilih?: boolean;
+    // false: opsi netral tetap putih walau disabled (halaman pembahasan), bukan abu-abu redup.
+    redup?: boolean;
 }
 
 const gayaStatus: Record<StatusOpsi, string> = {
@@ -57,6 +59,7 @@ export default function TombolOpsi({
     onPilih,
     kotakCentang = false,
     dipilih = false,
+    redup = true,
 }: TombolOpsiProps) {
     if (kotakCentang) {
         const hasil = status === 'benar' || status === 'salah';
@@ -98,7 +101,7 @@ export default function TombolOpsi({
         );
     }
 
-    const gaya = disabled && status === 'default' ? gayaRedup : gayaStatus[status];
+    const gaya = disabled && redup && status === 'default' ? gayaRedup : gayaStatus[status];
 
     return (
         <button

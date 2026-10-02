@@ -22,6 +22,7 @@ class Topik extends Model
         'subtes_id',
         'nama_topik',
         'urutan',
+        'jumlah_soal_simulasi',
     ];
 
     public function subtes()

@@ -11,7 +11,7 @@ interface TopikPilihan {
     tahap: 1 | 2 | 3;
     label: LabelPenguasaan;
     persen: number; // 0–100, progres tahap
-    direkomendasikan: boolean; // termasuk 3 rekomendasi teratas di Beranda
+    direkomendasikan: boolean; // termasuk 3 rekomendasi teratas subtes ini
 }
 
 interface PilihModeProps {
@@ -252,13 +252,13 @@ export default function PilihMode({ subtes, topikList, batasSoal, simulasi, reme
                                 )}
                             </div>
 
-                            {/* Mode remedial belum bisa dimulai: butuh migration lanjutan (rancangan bagian 4.2). */}
                             <button
                                 type="button"
-                                disabled
-                                className="w-full cursor-not-allowed rounded-lg bg-[#5B86DB] py-3 font-medium text-white opacity-50"
+                                onClick={() => mulai({ mode: 'remedial' })}
+                                disabled={memuat}
+                                className="w-full rounded-lg bg-[#5B86DB] py-3 font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
                             >
-                                Mulai Mengerjakan (segera tersedia)
+                                Mulai Mengerjakan →
                             </button>
                         </section>
                     ))}

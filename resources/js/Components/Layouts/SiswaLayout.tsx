@@ -11,7 +11,7 @@ interface MenuSidebar {
 const MENU_SIDEBAR: MenuSidebar[] = [
     { label: 'Beranda', rute: 'dashboard' },
     { label: 'Latihan Soal', rute: 'latihan.index', aktifUntuk: 'latihan.*' },
-    { label: 'Try Out', rute: null },
+    { label: 'Try Out', rute: 'tryout.index', aktifUntuk: 'tryout.*' },
     { label: 'Riwayat', rute: 'riwayat.index', aktifUntuk: 'riwayat.*' },
     { label: 'Perkembangan', rute: null },
     { label: 'Akun Pribadi', rute: 'akun.profil.utama', aktifUntuk: 'akun.*' },

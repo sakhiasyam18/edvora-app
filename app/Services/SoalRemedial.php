@@ -3,33 +3,54 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\DB;
+use Random\Engine\Mt19937;
+use Random\Randomizer;
 
 /**
- * Soal remedial siswa per subtes: soal yang pernah dijawab salah dan belum pernah dijawab benar,
- * dari pengerjaan apa pun yang sudah selesai. Statusnya dihitung dari log jawaban, tidak disimpan
- * (RANCANGAN-dashboard-topik-remedial.md, K5).
+ * Soal remedial siswa per subtes (RANCANGAN-penyesuaian-sdd.md bagian 6): soal yang pernah dijawab salah di
+ * fleksibel atau simulasi dan belum pernah dijawab benar. Daftarnya tidak dibatasi dan dihitung dari log
+ * jawaban, tanpa tabel status (K5). Jawaban Try Out (mode_latihan null) tidak ikut.
  */
 class SoalRemedial
 {
-    // Batas soal per sesi remedial; sisanya dikerjakan di sesi berikutnya (UCS1, K9).
-    public const BATAS_SESI = 20;
+    // Soal per sesi remedial; sisanya dikerjakan di sesi berikutnya.
+    public const BATAS_SESI = 25;
+
+    // Antrean FIFO menurut waktu salah terakhir: soal yang salah lagi di remedial pindah ke belakang.
+    // Parameternya user_id lalu subtes_id.
+    private const DAFTAR = <<<'SQL'
+        with jawaban_siswa as (
+            select j.soal_id,
+                   bool_or(j.is_correct) as pernah_benar,
+                   bool_or(not j.is_correct and p.mode_latihan in ('fleksibel', 'simulasi')) as salah_di_latihan,
+                   max(p.finished_at) filter (where not j.is_correct) as salah_terakhir
+            from jawaban_pengerjaan j
+            join pengerjaan p on p.id = j.pengerjaan_id
+            where p.user_id = ? and p.status = 'selesai'
+              and p.mode_latihan in ('fleksibel', 'simulasi', 'remedial')
+            group by j.soal_id
+        )
+        select q.id
+        from jawaban_siswa js
+        join soal q on q.id = js.soal_id
+        where q.subtes_id = ? and js.salah_di_latihan and not js.pernah_benar
+        SQL;
 
     public function jumlah(string $userId, string $subtesId): int
     {
-        // bool_or(is_correct) false berarti semua jawaban siswa untuk soal itu salah.
-        $hasil = DB::selectOne(<<<'SQL'
-            select count(*) as jumlah
-            from (
-                select j.soal_id
-                from jawaban_pengerjaan j
-                join pengerjaan p on p.id = j.pengerjaan_id
-                join soal q on q.id = j.soal_id
-                where p.user_id = ? and p.status = 'selesai' and q.subtes_id = ?
-                group by j.soal_id
-                having not bool_or(j.is_correct)
-            ) remedial
-            SQL, [$userId, $subtesId]);
+        return (int) DB::selectOne('select count(*) as jumlah from ('.self::DAFTAR.') remedial', [$userId, $subtesId])->jumlah;
+    }
 
-        return (int) $hasil->jumlah;
+    /**
+     * Soal satu sesi remedial: 25 soal yang paling lama menunggu, lalu urutan tampilnya diacak (SDD 5.3.3).
+     *
+     * @return string[] id soal dalam urutan tampil
+     */
+    public function ambil(string $userId, string $subtesId, ?int $seed = null): array
+    {
+        $baris = DB::select(self::DAFTAR.' order by js.salah_terakhir, q.kode_soal limit ?', [$userId, $subtesId, self::BATAS_SESI]);
+        $ids = array_column($baris, 'id');
+
+        return $ids === [] ? [] : (new Randomizer($seed === null ? null : new Mt19937($seed)))->shuffleArray($ids);
     }
 }

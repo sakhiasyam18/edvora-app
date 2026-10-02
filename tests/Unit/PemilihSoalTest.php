@@ -48,7 +48,7 @@ class PemilihSoalTest extends TestCase
         $this->assertSame([
             'a' => ['mudah' => 6],
             'b' => ['mudah' => 2, 'sedang' => 4],
-            'c' => ['mudah' => 1, 'sedang' => 2, 'sulit' => 3],
+            'c' => ['mudah' => 2, 'sedang' => 2, 'sulit' => 2],
         ], $this->hitung($terpilih, $this->tigaTopik()));
     }
 
@@ -69,13 +69,13 @@ class PemilihSoalTest extends TestCase
 
     public function test_stok_tingkat_kurang_diisi_dari_tingkat_terdekat(): void
     {
-        // Tahap 3, 10 soal: jatah 2 mudah, 3 sedang, 5 sulit. Soal sulit hanya ada 2,
-        // jadi kekurangan 3 soal diambil dari sedang (terdekat dengan sulit), bukan dari mudah.
+        // Tahap 3, 10 soal: jatah 3 mudah, 4 sedang, 3 sulit. Soal sulit hanya ada 2,
+        // jadi kekurangan 1 soal diambil dari sedang (terdekat dengan sulit), bukan dari mudah.
         $kandidat = [...$this->soal('a', 'mudah', 10), ...$this->soal('a', 'sedang', 10), ...$this->soal('a', 'sulit', 2)];
 
         $terpilih = PemilihSoal::susun($kandidat, ['a' => 3], 10, seed: 1);
 
-        $this->assertSame(['a' => ['mudah' => 2, 'sedang' => 6, 'sulit' => 2]], $this->hitung($terpilih, $kandidat));
+        $this->assertSame(['a' => ['mudah' => 3, 'sedang' => 5, 'sulit' => 2]], $this->hitung($terpilih, $kandidat));
     }
 
     public function test_stok_tingkat_tengah_kurang_diisi_dari_yang_lebih_sulit_dulu(): void
@@ -85,7 +85,7 @@ class PemilihSoalTest extends TestCase
 
         $terpilih = PemilihSoal::susun($kandidat, ['a' => 3], 10, seed: 1);
 
-        $this->assertSame(['a' => ['mudah' => 2, 'sedang' => 1, 'sulit' => 7]], $this->hitung($terpilih, $kandidat));
+        $this->assertSame(['a' => ['mudah' => 3, 'sedang' => 1, 'sulit' => 6]], $this->hitung($terpilih, $kandidat));
     }
 
     public function test_topik_yang_kurang_diisi_dari_topik_lain_di_sesi_itu(): void
@@ -137,6 +137,50 @@ class PemilihSoalTest extends TestCase
 
         $this->assertSame($terpilih, array_values(array_unique($terpilih)));
         $this->assertSame($terpilih, PemilihSoal::susun($this->tigaTopik(), $tahap, 20, seed: 7));
+    }
+
+    public function test_simulasi_per_topik_memakai_proporsi_dan_30_40_30(): void
+    {
+        // PK: Bilangan 5, Aljabar dan Fungsi 6, Geometri 4, Statistika 5 (SDD 5.3.2.3).
+        $kuota = ['bil' => 5, 'alj' => 6, 'geo' => 4, 'sta' => 5];
+        $kandidat = [];
+        foreach (array_keys($kuota) as $topik) {
+            foreach (['mudah', 'sedang', 'sulit'] as $tingkat) {
+                array_push($kandidat, ...$this->soal($topik, $tingkat, 10));
+            }
+        }
+        $jatah = array_map(fn ($n) => Penguasaan::bagiPorsi(PemilihSoal::PORSI_SIMULASI, $n), $kuota);
+
+        $terpilih = PemilihSoal::susunJatah($kandidat, $jatah, new Randomizer(new Mt19937(1)));
+
+        $this->assertCount(20, $terpilih);
+        $this->assertSame([
+            'alj' => ['mudah' => 2, 'sedang' => 2, 'sulit' => 2],
+            'bil' => ['mudah' => 1, 'sedang' => 2, 'sulit' => 2],
+            'geo' => ['mudah' => 1, 'sedang' => 2, 'sulit' => 1],
+            'sta' => ['mudah' => 1, 'sedang' => 2, 'sulit' => 2],
+        ], $this->hitung($terpilih, $kandidat));
+    }
+
+    public function test_simulasi_stok_kurang_diisi_dari_tingkat_terdekat(): void
+    {
+        // Jatah 2/2/2, tetapi topik a tidak punya soal sulit: 2 soal diambil dari sedang.
+        $kandidat = [...$this->soal('a', 'mudah', 5), ...$this->soal('a', 'sedang', 5)];
+        $jatah = ['a' => Penguasaan::bagiPorsi(PemilihSoal::PORSI_SIMULASI, 6)];
+
+        $terpilih = PemilihSoal::susunJatah($kandidat, $jatah, new Randomizer(new Mt19937(1)));
+
+        $this->assertSame(['a' => ['mudah' => 2, 'sedang' => 4]], $this->hitung($terpilih, $kandidat));
+    }
+
+    public function test_proporsi_simulasi_hanya_dipakai_bila_lengkap(): void
+    {
+        $this->assertTrue(PemilihSoal::kuotaLengkap(['a' => 10, 'b' => 10, 'c' => 10], 30));
+        // Ada topik yang belum diisi.
+        $this->assertFalse(PemilihSoal::kuotaLengkap(['a' => 10, 'b' => null, 'c' => 10], 30));
+        // Review Focus 4: total tidak sama dengan jumlah soal subtes.
+        $this->assertFalse(PemilihSoal::kuotaLengkap(['a' => 10, 'b' => 10, 'c' => 9], 30));
+        $this->assertFalse(PemilihSoal::kuotaLengkap([], 30));
     }
 
     /**

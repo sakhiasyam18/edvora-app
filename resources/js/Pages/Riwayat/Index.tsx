@@ -1,5 +1,6 @@
-import { Head, Link, usePage, router } from '@inertiajs/react';
-import { useState, useEffect } from 'react';
+import { Head, Link, router } from '@inertiajs/react';
+import { ReactNode, useState, useEffect } from 'react';
+import SiswaLayout from '@/Components/Layouts/SiswaLayout';
 
 // Tombol "Lanjut Kerjakan" disembunyikan sampai fitur simpan per soal selesai (RANCANGAN-dashboard-topik-remedial.md).
 // Saat itu, aktifkan lagi dan arahkan ke rute pengerjaan yang baru; cabang Ulangi di latihan.ujian sudah dihapus.
@@ -105,9 +106,6 @@ export default function Index({
     riwayat,
     filters,
 }: IndexProps) {
-    const user = usePage<any>().props.auth.user;
-    const initial = user?.name ? user.name.charAt(0).toUpperCase() : 'A';
-
     const [search, setSearch] = useState(filters.search || '');
     const [selectedInfo, setSelectedInfo] = useState<ModalInfoData | null>(null);
     const [isLoadingInfo, setIsLoadingInfo] = useState(false);
@@ -140,45 +138,7 @@ export default function Index({
         <>
             <Head title={title} />
 
-            <div className="flex min-h-screen bg-[#F5F8FF]">
-                {/* Sidebar */}
-                <aside className="hidden w-64 shrink-0 flex-col bg-[#344A91] md:flex">
-                    <div className="flex h-24 items-center justify-center">
-                        <span className="text-3xl font-bold tracking-wide text-white">
-                            EDVORA
-                        </span>
-                    </div>
-
-                    <nav className="mt-16 space-y-4 px-4">
-                        <Link href={route('dashboard')} className="flex items-center gap-4 rounded-xl px-6 py-4 text-lg font-medium text-white transition hover:bg-white/10">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
-                                <path d="M12 3.2 3.5 10v10.2c0 .5.4.8.8.8H9v-6h6v6h4.7c.4 0 .8-.3.8-.8V10L12 3.2Z" />
-                            </svg>
-                            <span>Beranda</span>
-                        </Link>
-                        <Link href={route('riwayat.index')} className="flex items-center gap-4 rounded-xl bg-[#5F8DDD] px-6 py-4 text-lg font-semibold text-white">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
-                                <path d="M6 3h10a2 2 0 0 1 2 2v15H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
-                                <path d="M8 8h6" />
-                                <path d="M8 12h6" />
-                                <path d="M8 16h4" />
-                            </svg>
-                            <span>Riwayat</span>
-                        </Link>
-                    </nav>
-                </aside>
-
-                {/* Main Area */}
-                <div className="flex min-h-screen flex-1 flex-col">
-                    {/* Header Top Bar */}
-                    <header className="flex h-20 shrink-0 items-center justify-end bg-white px-10 border-b border-gray-100">
-                        <Link href={route('profile.edit')} className="flex h-10 w-10 items-center justify-center rounded-full bg-[#5F8DDF] text-lg font-medium text-white transition hover:bg-[#507FD0]">
-                            {initial}
-                        </Link>
-                    </header>
-
-                    {/* Content */}
-                    <main className="flex flex-1 px-6 py-8 md:px-12">
+            {/* Sidebar dan header dari SiswaLayout (persistent), sama dengan halaman siswa lain. */}
                         <div className="w-full max-w-6xl mx-auto">
                             
                             {/* Header Section (Banner & Search) */}
@@ -285,9 +245,6 @@ export default function Index({
                                 </div>
                             )}
                         </div>
-                    </main>
-                </div>
-            </div>
 
             {/* Modal Info Pengerjaan */}
             {isModalOpen && (
@@ -356,3 +313,6 @@ export default function Index({
         </>
     );
 }
+
+// Persistent layout: sidebar tidak dirender ulang saat pindah dari/ke halaman siswa lain.
+Index.layout = (page: ReactNode) => <SiswaLayout>{page}</SiswaLayout>;

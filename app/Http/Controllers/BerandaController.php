@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Siswa;
 use App\Models\Subtes;
+use App\Services\LevelXp;
 use App\Services\Penguasaan;
 use App\Services\RekomendasiTopik;
 use App\Services\RingkasanPenguasaan;
@@ -13,20 +14,18 @@ use Inertia\Response;
 
 class BerandaController extends Controller
 {
-    // Sementara konstanta; nanti dihitung dari XP.
-    private const LEVEL_SEMENTARA = 1;
-
     public function index(RingkasanPenguasaan $ringkasan, RekomendasiTopik $rekomendasi): Response
     {
         $userId = Auth::id();
+        // Akun tanpa baris siswa (admin, akun lama) dianggap 0 XP dan 0 poin.
+        $siswa = Siswa::whereKey($userId)->first(['xp', 'point']);
         $subtesList = Subtes::orderBy('urutan')->get(['id', 'kode_subtes', 'nama_subtes']);
         // subtes_id => topik beserta tahap dan skor siswa, dalam satu query untuk semua subtes.
         $topikPerSubtes = $ringkasan->perSubtes($userId);
 
         return Inertia::render('Dashboard/Siswa', [
-            'level' => self::LEVEL_SEMENTARA,
-            // Akun tanpa baris siswa (admin, akun lama) dianggap 0.
-            'poin' => (int) (Siswa::whereKey($userId)->value('point') ?? 0),
+            'level' => LevelXp::dariXp((int) ($siswa?->xp ?? 0))['level'],
+            'poin' => (int) ($siswa?->point ?? 0),
             'rekomendasi' => array_map(fn (array $topik) => [
                 'topikId' => $topik['id'],
                 'kodeSubtes' => $topik['kodeSubtes'],

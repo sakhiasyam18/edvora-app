@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -30,12 +31,22 @@ class Pengerjaan extends Model
         'finished_at',
         'total_skor',
         'mode_latihan',
+        'soal_ids',
     ];
 
     protected $casts = [
         'started_at' => 'datetime',
         'finished_at' => 'datetime',
     ];
+
+    // Soal yang diberikan di sesi, urut tampil (termasuk yang tidak dijawab). Postgres mengirim uuid[] sebagai
+    // teks "{a,b}"; sesi sebelum kolom ini ada bernilai NULL, jadi dibaca sebagai array kosong.
+    protected function soalIds(): Attribute
+    {
+        return Attribute::make(
+            get: fn ($v) => $v ? array_values(array_filter(explode(',', trim($v, '{}')))) : [],
+        );
+    }
 
     public function jawabanPengerjaan()
     {

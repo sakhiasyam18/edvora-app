@@ -10,9 +10,14 @@ export const TEKS_LABEL: Record<LabelPenguasaan, string> = {
     dikuasai: 'Dikuasai',
 };
 
-// Skor dibulatkan ke bawah supaya cocok dengan batas naik (75) dan turun (35): skor 74,9 tampil 74 dan memang belum naik.
+// Satu desimal supaya batas naik (> 75) dan turun (< 30) terbaca: 75,0 belum naik, 75,4 naik; 29,8 turun, 30,0 tetap.
+// Skor dari 20 jawaban berbobot tidak pernah berada di antara 75 dan 75,4 atau di antara 29,9 dan 30, jadi pembulatan aman.
 export function keteranganSkor(topik: Pick<TopikPenguasaan, 'skor' | 'nJendela'>): string {
-    return topik.skor === null ? `${topik.nJendela} dari ${JENDELA} soal` : `Skor ${Math.floor(topik.skor)}`;
+    if (topik.skor === null) {
+        return `${topik.nJendela} dari ${JENDELA} soal`;
+    }
+
+    return `Skor ${topik.skor.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`;
 }
 
 interface LingkaranTahapProps {

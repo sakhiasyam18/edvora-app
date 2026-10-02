@@ -339,7 +339,7 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
                         </div>
                     ) : (
                         // Siswa diberi tahu dulu, karena begitu dibuka nilainya langsung tercatat di server.
-                        <p className="mt-2 text-sm text-gray-700">Kalau jawabanmu benar setelah membuka hint, nilainya dihitung setengah untuk skor topik.</p>
+                        <p className="mt-2 text-sm text-gray-700">Kalau jawabanmu benar setelah membuka hint, XP dan poin soal ini dihitung setengah, begitu juga nilainya untuk skor topik.</p>
                     )}
                     {pesanHint && (
                         <p role="alert" className="mt-2 text-sm text-[#B94040]">

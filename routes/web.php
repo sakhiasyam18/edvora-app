@@ -71,7 +71,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 ->name('latihan.hint');
             Route::post('/ujian/simpan', [LatihanSoalController::class, 'simpanJawaban'])->block(10, 10)->name('latihan.simpan');
             Route::get('/hasil', [LatihanSoalController::class, 'hasil'])->name('latihan.hasil');
-            Route::get('/pembahasan', [LatihanSoalController::class, 'pembahasan'])->name('latihan.pembahasan');
         });
 
         // Rute Battle

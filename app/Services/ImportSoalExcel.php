@@ -22,7 +22,8 @@ use RuntimeException;
  * lalu menyimpannya ke database dengan upsert berdasarkan kode_soal.
  *
  * Setiap soal wajib punya topik. Topik baru didaftarkan di sheet "Topik" pada file yang sama
- * (Nama Subtes, Nama Topik, Urutan); topik yang sudah ada di database cukup ditulis namanya.
+ * (Nama Subtes, Nama Topik, Urutan, dan opsional Jumlah Soal Simulasi); topik yang sudah ada di database
+ * cukup ditulis namanya.
  */
 class ImportSoalExcel
 {
@@ -57,7 +58,7 @@ class ImportSoalExcel
      *     peringatan: string[],
      *     error: array<int, array{baris: int|null, kolom: string|null, pesan: string}>,
      *     soal: array<int, array<string, mixed>>,
-     *     topik: array<int, array{kode_subtes: string, subtes_id: string, nama_topik: string, urutan: int}>,
+     *     topik: array<int, array{kode_subtes: string, subtes_id: string, nama_topik: string, urutan: int, jumlah_soal_simulasi?: int|null}>,
      *     dilewati: int,
      * }
      */
@@ -76,6 +77,7 @@ class ImportSoalExcel
         $subtes = Subtes::pluck('id', 'kode_subtes')->all();
         // Topik yang dikenal: yang sudah ada di database ditambah isi sheet Topik di file ini.
         $hasil['topik'] = $this->periksaSheetTopik($spreadsheet, $subtes, $hasil);
+        $this->periksaProporsiSimulasi($hasil['topik'], $hasil);
         $topik = $this->petaTopik($subtes, $hasil['topik']);
         $soalLama = Soal::pluck('id', 'kode_soal')->all();
         $batas = $this->batasPanjangKolom();
@@ -204,7 +206,8 @@ class ImportSoalExcel
     }
 
     /**
-     * Topik dari sheet Topik: yang baru disisipkan, yang sudah ada diperbarui nama dan urutannya.
+     * Topik dari sheet Topik: yang baru disisipkan, yang sudah ada diperbarui nama, urutan, dan jumlah soal
+     * simulasinya (bila kolomnya ada).
      * Hasilnya peta "subtes_id|nama topik huruf kecil" => id topik (semua topik), beserta jumlahnya.
      *
      * @return array{0: array<string, string>, 1: array{topik_baru: int, topik_diperbarui: int}}
@@ -224,7 +227,13 @@ class ImportSoalExcel
             $ada = $peta[$kunci] ?? null;
 
             if ($ada instanceof Topik) {
-                $ada->fill(['nama_topik' => $t['nama_topik'], 'urutan' => $t['urutan']]);
+                $ubah = ['nama_topik' => $t['nama_topik'], 'urutan' => $t['urutan']];
+                // Tanpa kolom Jumlah Soal Simulasi di sheet, nilai yang tersimpan tidak diubah.
+                if (array_key_exists('jumlah_soal_simulasi', $t)) {
+                    $ubah['jumlah_soal_simulasi'] = $t['jumlah_soal_simulasi'];
+                }
+
+                $ada->fill($ubah);
                 if ($ada->isDirty()) {
                     $ada->save();
                     $jumlah['topik_diperbarui']++;
@@ -234,7 +243,13 @@ class ImportSoalExcel
             }
 
             $id = (string) Str::orderedUuid();
-            $baru[] = ['id' => $id, 'subtes_id' => $t['subtes_id'], 'nama_topik' => $t['nama_topik'], 'urutan' => $t['urutan']];
+            $baru[] = [
+                'id' => $id,
+                'subtes_id' => $t['subtes_id'],
+                'nama_topik' => $t['nama_topik'],
+                'urutan' => $t['urutan'],
+                'jumlah_soal_simulasi' => $t['jumlah_soal_simulasi'] ?? null,
+            ];
             $peta[$kunci] = $id;
             $jumlah['topik_baru']++;
         }
@@ -308,10 +323,10 @@ class ImportSoalExcel
     }
 
     /**
-     * Baca sheet "Topik" (Nama Subtes, Nama Topik, Urutan). Sheet ini boleh tidak ada bila semua topik
-     * yang dipakai soal sudah ada di database.
+     * Baca sheet "Topik" (Nama Subtes, Nama Topik, Urutan, dan opsional Jumlah Soal Simulasi). Sheet ini boleh
+     * tidak ada bila semua topik yang dipakai soal sudah ada di database.
      *
-     * @return array<int, array{kode_subtes: string, subtes_id: string, nama_topik: string, urutan: int}>
+     * @return array<int, array{kode_subtes: string, subtes_id: string, nama_topik: string, urutan: int, jumlah_soal_simulasi?: int|null}>
      */
     private function periksaSheetTopik(Spreadsheet $spreadsheet, array $subtes, array &$hasil): array
     {
@@ -331,6 +346,11 @@ class ImportSoalExcel
         if ($hilang) {
             return [];
         }
+
+        // Kolom opsional: tanpa kolom ini, jumlah soal simulasi topik yang sudah ada tidak diubah.
+        $opsional = $this->petakanHeader($sheet, ['jumlah_soal_simulasi' => 'jumlah soal simulasi'])['kolom'];
+        $kolom += $opsional;
+        $adaKolomSimulasi = $opsional !== [];
 
         $topik = [];
         $dipakai = [];
@@ -353,7 +373,7 @@ class ImportSoalExcel
             foreach ($sel as $kunci => $isi) {
                 if ($isi['masalah']) {
                     $tambahError($kunci, $isi['masalah']);
-                } elseif ($isi['nilai'] === null) {
+                } elseif ($isi['nilai'] === null && $kunci !== 'jumlah_soal_simulasi') {
                     $tambahError($kunci, 'Wajib diisi.');
                 }
             }
@@ -370,6 +390,11 @@ class ImportSoalExcel
                 $tambahError('urutan', "\"{$urutan}\" bukan bilangan bulat positif.");
             }
 
+            $jumlahSimulasi = $sel['jumlah_soal_simulasi']['nilai'] ?? null;
+            if ($jumlahSimulasi !== null && (! ctype_digit($jumlahSimulasi) || (int) $jumlahSimulasi === 0)) {
+                $tambahError('jumlah_soal_simulasi', "\"{$jumlahSimulasi}\" bukan bilangan bulat positif.");
+            }
+
             if ($kodeSubtes !== null && $nama !== null) {
                 $kunciTopik = $kodeSubtes.'|'.mb_strtolower($nama);
                 if (isset($dipakai[$kunciTopik])) {
@@ -384,10 +409,46 @@ class ImportSoalExcel
                 continue;
             }
 
-            $topik[] = ['kode_subtes' => $kodeSubtes, 'subtes_id' => $subtes[$kodeSubtes], 'nama_topik' => $nama, 'urutan' => (int) $urutan];
+            $baru = ['kode_subtes' => $kodeSubtes, 'subtes_id' => $subtes[$kodeSubtes], 'nama_topik' => $nama, 'urutan' => (int) $urutan];
+            if ($adaKolomSimulasi) {
+                $baru['jumlah_soal_simulasi'] = $jumlahSimulasi === null ? null : (int) $jumlahSimulasi;
+            }
+            $topik[] = $baru;
         }
 
         return $topik;
+    }
+
+    /**
+     * Peringatan bila jumlah soal simulasi topik suatu subtes (isi database ditimpa isi sheet Topik) belum lengkap
+     * atau totalnya tidak sama dengan jumlah soal simulasi subtes. Simulasi subtes itu lalu memakai pembagian rata
+     * (PemilihSoal::simulasi()). Subtes yang belum satu pun topiknya diisi tidak diperingatkan.
+     */
+    private function periksaProporsiSimulasi(array $topikSheet, array &$hasil): void
+    {
+        $nilai = [];
+        foreach (Topik::get(['subtes_id', 'nama_topik', 'jumlah_soal_simulasi']) as $t) {
+            $nilai[$t->subtes_id][mb_strtolower($t->nama_topik)] = $t->jumlah_soal_simulasi;
+        }
+
+        foreach ($topikSheet as $t) {
+            $kunci = mb_strtolower($t['nama_topik']);
+            if (array_key_exists('jumlah_soal_simulasi', $t)) {
+                $nilai[$t['subtes_id']][$kunci] = $t['jumlah_soal_simulasi'];
+            } else {
+                $nilai[$t['subtes_id']][$kunci] ??= null;
+            }
+        }
+
+        foreach (Subtes::orderBy('urutan')->get(['id', 'kode_subtes', 'jumlah_soal']) as $s) {
+            $kuota = $nilai[$s->id] ?? [];
+            if (array_filter($kuota, fn ($n) => $n !== null) === [] || PemilihSoal::kuotaLengkap($kuota, (int) $s->jumlah_soal)) {
+                continue;
+            }
+
+            $hasil['peringatan'][] = "Jumlah soal simulasi topik {$s->kode_subtes} belum lengkap atau totalnya bukan {$s->jumlah_soal}; "
+                ."simulasi {$s->kode_subtes} memakai pembagian rata.";
+        }
     }
 
     /**

@@ -51,4 +51,22 @@ class PenilaianIsian
 
         return false;
     }
+
+    /**
+     * Kunci yang ditunjukkan ke siswa: alternatif pertama yang tidak kosong, huruf besar-kecil apa adanya
+     * (mis. "delapan|8" → "delapan"). String kosong bila tidak ada kunci.
+     */
+    public static function kunciTampil(?string $kunci): string
+    {
+        foreach (explode('|', (string) $kunci) as $alternatif) {
+            // Pangkas tepi termasuk non-breaking space.
+            $alternatif = preg_replace('/^[\p{Z}\s]+|[\p{Z}\s]+$/u', '', $alternatif);
+
+            if ($alternatif !== '') {
+                return $alternatif;
+            }
+        }
+
+        return '';
+    }
 }

@@ -12,8 +12,7 @@ use Illuminate\Support\Facades\DB;
 class RingkasanPenguasaan
 {
     /**
-     * Topik tiap subtes beserta keadaan siswa. Topik yang bisa dikerjakan diurutkan untuk rekomendasi
-     * (prioritas dulu); topik tanpa soal ditaruh paling bawah.
+     * Topik tiap subtes beserta keadaan siswa, urut `urutan`. Urutan rekomendasi ada di RekomendasiTopik.
      *
      * @param  string|null  $subtesId  hanya topik subtes ini; null untuk semua subtes
      * @return array<string, array<int, array<string, mixed>>> subtes_id => daftar topik
@@ -21,10 +20,11 @@ class RingkasanPenguasaan
     public function perSubtes(string $userId, ?string $subtesId = null): array
     {
         $baris = DB::select(<<<'SQL'
-            select t.id, t.subtes_id, t.nama_topik, t.urutan,
+            select t.id, t.subtes_id, t.nama_topik, t.urutan, t.jumlah_soal_simulasi, s.jumlah_soal as jumlah_soal_subtes,
                    exists (select 1 from soal q where q.topik_id = t.id) as ada_soal,
-                   pt.tahap, pt.skor, pt.n_jendela, pt.n_di_tahap
+                   pt.tahap, pt.skor, pt.skor_sementara, pt.n_jendela, pt.n_di_tahap
             from topik t
+            join subtes s on s.id = t.subtes_id
             left join penguasaan_topik pt on pt.topik_id = t.id and pt.user_id = ?
             where ?::uuid is null or t.subtes_id = ?::uuid
             order by t.subtes_id, t.urutan, t.nama_topik
@@ -35,42 +35,27 @@ class RingkasanPenguasaan
             $perSubtes[$b->subtes_id][] = self::keadaan($b);
         }
 
-        return array_map(fn (array $topik) => [
-            ...Penguasaan::urutkanRekomendasi(array_values(array_filter($topik, fn ($t) => $t['adaSoal']))),
-            ...array_values(array_filter($topik, fn ($t) => ! $t['adaSoal'])),
-        ], $perSubtes);
+        return $perSubtes;
     }
 
     /**
-     * Topik yang disarankan dilatih berikutnya di satu subtes, mengikuti urutan rekomendasi.
-     * Topik yang sudah dikuasai atau belum punya soal tidak disarankan.
-     *
-     * @return array<int, array<string, mixed>>
-     */
-    public function rekomendasi(string $userId, string $subtesId, int $batas = 3): array
-    {
-        $topik = $this->perSubtes($userId, $subtesId)[$subtesId] ?? [];
-
-        return array_slice(array_values(array_filter($topik, fn ($t) => $t['adaSoal'] && $t['label'] !== 'dikuasai')), 0, $batas);
-    }
-
-    /**
-     * Keadaan setiap topik yang dikerjakan di satu sesi fleksibel, termasuk naik/turun tahap di sesi itu.
+     * Keadaan setiap topik yang dikerjakan di satu sesi fleksibel atau remedial, termasuk naik/turun tahap di sesi itu.
      * Kosong untuk sesi simulasi dan sesi tanpa jawaban.
      *
      * @return array<int, array<string, mixed>> urut sesuai urutan topik
      */
     public function untukHasil(Pengerjaan $pengerjaan): array
     {
-        if ($pengerjaan->mode_latihan !== 'fleksibel') {
+        if (! in_array($pengerjaan->mode_latihan, ['fleksibel', 'remedial'], true)) {
             return [];
         }
 
         $baris = DB::select(<<<'SQL'
-            select t.id, t.nama_topik, t.urutan, true as ada_soal,
-                   pt.tahap, pt.skor, pt.n_jendela, pt.n_di_tahap,
+            select t.id, t.nama_topik, t.urutan, true as ada_soal, t.jumlah_soal_simulasi, s.jumlah_soal as jumlah_soal_subtes,
+                   pt.tahap, pt.skor, pt.skor_sementara, pt.n_jendela, pt.n_di_tahap,
                    r.dari_tahap, r.ke_tahap
             from topik t
+            join subtes s on s.id = t.subtes_id
             left join penguasaan_topik pt on pt.topik_id = t.id and pt.user_id = ?
             left join riwayat_tahap r on r.pengerjaan_id = ? and r.topik_id = t.id
             where t.id in (
@@ -89,21 +74,23 @@ class RingkasanPenguasaan
     {
         $tahap = (int) ($b->tahap ?? Penguasaan::TAHAP_AWAL);
         $skor = $b->skor === null ? null : (float) $b->skor;
-        $nDiTahap = (int) ($b->n_di_tahap ?? 0);
 
         return [
             'id' => $b->id,
             'nama' => $b->nama_topik,
-            // Dipakai halaman Pilih Mode supaya daftar topik tetap urut `urutan`, bukan urutan rekomendasi.
+            // Dipakai halaman Pilih Mode dan urutan rekomendasi.
             'urutan' => (int) $b->urutan,
             'adaSoal' => (bool) $b->ada_soal,
             'tahap' => $tahap,
             'skor' => $skor,
+            // Skor dari jawaban yang sudah ada walaupun jendela belum penuh; hanya untuk urutan rekomendasi.
+            'skorSementara' => $b->skor_sementara === null ? null : (float) $b->skor_sementara,
+            // Porsi topik ini di UTBK (SDD 5.3.4); 0 bila jumlah soal simulasinya belum ditentukan.
+            'proporsi' => $b->jumlah_soal_simulasi === null ? 0.0 : round($b->jumlah_soal_simulasi / $b->jumlah_soal_subtes, 4),
             'nJendela' => (int) ($b->n_jendela ?? 0),
-            'nDiTahap' => $nDiTahap,
+            'nDiTahap' => (int) ($b->n_di_tahap ?? 0),
             'isiLingkaran' => Penguasaan::isiLingkaran($skor),
             'label' => Penguasaan::label($tahap, $skor),
-            'prioritas' => Penguasaan::prioritas($tahap, $skor, $nDiTahap),
         ];
     }
 }

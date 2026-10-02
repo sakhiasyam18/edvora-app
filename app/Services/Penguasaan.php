@@ -5,7 +5,7 @@ namespace App\Services;
 use InvalidArgumentException;
 
 /**
- * Skor penguasaan dan tahap per siswa × topik, khusus mode fleksibel.
+ * Skor penguasaan dan tahap per siswa × topik, dari jawaban mode fleksibel dan remedial.
  *
  * Jendela = 20 jawaban terakhir siswa di satu topik, satu jawaban per soal (yang terbaru).
  * Jendela tidak dikosongkan saat pindah tahap: jawaban baru menggeser yang paling lama masuk.
@@ -25,7 +25,7 @@ class Penguasaan
 
     public const BATAS_NAIK = 75;
 
-    public const BATAS_TURUN = 35;
+    public const BATAS_TURUN = 30;
 
     public const TAHAP_AWAL = 1;
 
@@ -36,11 +36,8 @@ class Penguasaan
     public const PORSI_PER_TAHAP = [
         1 => ['mudah' => 100],
         2 => ['mudah' => 40, 'sedang' => 60],
-        3 => ['mudah' => 20, 'sedang' => 30, 'sulit' => 50],
+        3 => ['mudah' => 30, 'sedang' => 40, 'sulit' => 30],
     ];
-
-    // Topik yang belum dikuasai setelah sekian soal di tahap yang sama menjadi prioritas rekomendasi.
-    public const BATAS_PRIORITAS = 60;
 
     /**
      * Skor = 100 × Σ(bobot × nilai) / Σ(bobot), atas jawaban yang diberikan.
@@ -100,7 +97,8 @@ class Penguasaan
             return $tahap;
         }
 
-        if ($skor >= self::BATAS_NAIK && $tahap < self::TAHAP_AKHIR) {
+        // Naik bila skor di atas batas (SDD 5.3.1.2); skor tepat 75 belum naik.
+        if ($skor > self::BATAS_NAIK && $tahap < self::TAHAP_AKHIR) {
             return $tahap + 1;
         }
 
@@ -113,7 +111,7 @@ class Penguasaan
 
     public static function dikuasai(int $tahap, ?float $skor): bool
     {
-        return $tahap === self::TAHAP_AKHIR && $skor !== null && $skor >= self::BATAS_NAIK;
+        return $tahap === self::TAHAP_AKHIR && $skor !== null && $skor > self::BATAS_NAIK;
     }
 
     /**
@@ -158,44 +156,24 @@ class Penguasaan
      * $nSejakTahap = jumlah soal yang dikerjakan sejak tahap terakhir berubah, termasuk sesi ini;
      * kembali 0 bila tahap berubah di sesi ini.
      *
-     * @return array{tahap: int, skor: ?float, n_jendela: int, n_di_tahap: int, berubah: bool}
+     * @return array{tahap: int, skor: ?float, skor_sementara: ?float, n_jendela: int, n_di_tahap: int, berubah: bool}
      */
     public static function setelahSesi(int $tahap, array $jendela, int $nSejakTahap): array
     {
-        $skor = self::skorJendela($jendela);
+        $isi = self::potongJendela($jendela);
+        $skor = self::skorJendela($isi);
         $tahapBaru = self::tahapBerikutnya($tahap, $skor);
         $berubah = $tahapBaru !== $tahap;
 
         return [
             'tahap' => $tahapBaru,
             'skor' => $skor,
-            'n_jendela' => count(self::potongJendela($jendela)),
+            // Hanya untuk urutan rekomendasi (SDD 5.3.4): dihitung walaupun jendela belum berisi 20 jawaban.
+            'skor_sementara' => $isi === [] ? null : self::skor($isi),
+            'n_jendela' => count($isi),
             'n_di_tahap' => $berubah ? 0 : $nSejakTahap,
             'berubah' => $berubah,
         ];
-    }
-
-    /**
-     * Topik prioritas: belum dikuasai padahal sudah 60 soal dikerjakan di tahap yang sama,
-     * mis. masih di tahap 1 setelah 60 soal. Frontend menampilkannya paling atas.
-     */
-    public static function prioritas(int $tahap, ?float $skor, int $nDiTahap): bool
-    {
-        return ! self::dikuasai($tahap, $skor) && $nDiTahap >= self::BATAS_PRIORITAS;
-    }
-
-    /**
-     * Urutan rekomendasi: topik prioritas dulu, lalu tahap terendah, lalu skor terendah.
-     * Topik yang belum punya skor ditaruh sesudah yang sudah punya di tahap yang sama; yang setara tetap di urutan asal.
-     *
-     * @param  array<int, array{tahap: int, skor: ?float, prioritas: bool}>  $topikList
-     */
-    public static function urutkanRekomendasi(array $topikList): array
-    {
-        usort($topikList, fn ($a, $b) => [! $a['prioritas'], $a['tahap'], $a['skor'] === null, $a['skor'] ?? 0.0]
-            <=> [! $b['prioritas'], $b['tahap'], $b['skor'] === null, $b['skor'] ?? 0.0]);
-
-        return $topikList;
     }
 
     /**

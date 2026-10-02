@@ -57,9 +57,9 @@ class PemilihSoal
     }
 
     /**
-     * Mode simulasi: semua topik subtes, komposisi 30% mudah, 40% sedang, 30% sulit (UCS1), tanpa tahap.
-     * Tiap tingkat disebar bergiliran ke semua topik. Giliran berlanjut antar tingkat, jadi total per topik
-     * berselisih paling banyak 1. Stok satu tingkat yang kurang diisi dari sisa tingkat lain.
+     * Mode simulasi: semua topik subtes, tanpa tahap. Bila proporsi UTBK subtes lengkap (kuotaLengkap()),
+     * kuota tiap topik = jumlah_soal_simulasi dan di dalam topik dibagi 30% mudah, 40% sedang, 30% sulit
+     * (SDD 5.3.2.3). Bila belum lengkap, pembagian rata ke semua topik (simulasiRata()).
      *
      * @return string[] id soal dalam urutan tampil (acak)
      */
@@ -73,6 +73,28 @@ class PemilihSoal
             where soal.subtes_id = ? and %s
             SQL, self::BELUM_DIKERJAKAN), [$subtesId, $userId]);
 
+        $kuota = DB::table('topik')->where('subtes_id', $subtesId)->pluck('jumlah_soal_simulasi', 'id')->all();
+
+        if (! self::kuotaLengkap($kuota, $jumlahSoal)) {
+            return self::simulasiRata($baris, $jumlahSoal, $acak);
+        }
+
+        $kandidat = array_map(fn ($b) => ['id' => $b->id, 'topik_id' => $b->topik_id, 'tingkat' => $b->tingkat], $baris);
+        $jatah = array_map(fn ($n) => Penguasaan::bagiPorsi(self::PORSI_SIMULASI, (int) $n), $kuota);
+
+        return self::susunJatah($kandidat, $jatah, $acak);
+    }
+
+    /**
+     * Simulasi tanpa proporsi: 30% mudah, 40% sedang, 30% sulit dari total, lalu tiap tingkat disebar
+     * bergiliran ke semua topik. Giliran berlanjut antar tingkat, jadi total per topik berselisih paling
+     * banyak 1. Stok satu tingkat yang kurang diisi dari sisa tingkat lain.
+     *
+     * @param  array<int, object>  $baris  soal yang belum pernah dikerjakan: id, topik_id, tingkat
+     * @return string[] id soal dalam urutan tampil (acak)
+     */
+    private static function simulasiRata(array $baris, int $jumlahSoal, Randomizer $acak): array
+    {
         // tingkat => topik_id => id soal (acak)
         $stok = [];
         foreach ($baris as $b) {
@@ -132,14 +154,8 @@ class PemilihSoal
     }
 
     /**
-     * Inti pemilihan fleksibel, tanpa database.
-     *
-     * 1. Jumlah soal dibagi rata ke topik (bagiKuota()).
-     * 2. Kuota tiap topik dibagi ke tingkat sesuai porsi tahap siswa di topik itu.
-     * 3. Tingkat yang stoknya kurang diisi dari tingkat lain yang boleh di tahap itu: yang terdekat dulu, dan bila
-     *    sama jauh, yang lebih sulit. Topik yang tetap kurang diisi dari sisa soal topik lain di sesi ini.
-     *    Stok yang tetap kurang membuat sesi lebih pendek.
-     * 4. Urutan tampil diacak, sehingga topik bercampur.
+     * Pemilihan fleksibel, tanpa database: jumlah soal dibagi rata ke topik (bagiKuota()), lalu kuota tiap topik
+     * dibagi ke tingkat sesuai tahap siswa di topik itu. Sisanya dikerjakan susunJatah().
      *
      * @param  array<int, array{id: string, topik_id: string, tingkat: string}>  $kandidat  soal yang belum pernah dikerjakan
      * @param  array<string, int>  $tahap  topik_id => tahap siswa, untuk setiap topik yang dipilih
@@ -150,15 +166,40 @@ class PemilihSoal
         $acak = new Randomizer($seed === null ? null : new Mt19937($seed));
         $kuota = self::bagiKuota(array_keys($tahap), $jumlahSoal, $acak);
 
+        $jatah = [];
+        foreach ($tahap as $topikId => $t) {
+            $jatah[$topikId] = Penguasaan::jatahSoal($t, $kuota[$topikId]);
+        }
+
+        return self::susunJatah($kandidat, $jatah, $acak);
+    }
+
+    /**
+     * Inti pemilihan, tanpa database. Dipakai fleksibel (jatah dari tahap) dan simulasi (jatah dari proporsi UTBK).
+     *
+     * 1. Setiap topik mengambil soal sesuai jatah per tingkat.
+     * 2. Tingkat yang stoknya kurang diisi dari tingkat lain di jatah topik itu: yang terdekat dulu, dan bila
+     *    sama jauh, yang lebih sulit. Topik yang tetap kurang diisi dari sisa soal topik lain di sesi ini.
+     *    Stok yang tetap kurang membuat sesi lebih pendek.
+     * 3. Urutan tampil diacak, sehingga topik bercampur.
+     *
+     * @param  array<int, array{id: string, topik_id: string, tingkat: string}>  $kandidat
+     * @param  array<string, array<string, int>>  $jatah  topik_id => [tingkat => jumlah soal], urut mudah ke sulit
+     * @return string[] id soal
+     */
+    public static function susunJatah(array $kandidat, array $jatah, ?Randomizer $acak = null): array
+    {
+        $acak ??= new Randomizer;
+
         $terpilih = [];
         $cadangan = [];
         $kurang = 0;
-        foreach ($tahap as $topikId => $t) {
+        foreach ($jatah as $topikId => $perTingkat) {
             $milikTopik = array_filter($kandidat, fn ($k) => $k['topik_id'] === $topikId);
-            [$ambil, $sisa] = self::susunTopik($milikTopik, Penguasaan::jatahSoal($t, $kuota[$topikId]), $acak);
+            [$ambil, $sisa] = self::susunTopik($milikTopik, $perTingkat, $acak);
             array_push($terpilih, ...$ambil);
             array_push($cadangan, ...$sisa);
-            $kurang += $kuota[$topikId] - count($ambil);
+            $kurang += array_sum($perTingkat) - count($ambil);
         }
 
         if ($kurang > 0 && $cadangan !== []) {
@@ -166,6 +207,17 @@ class PemilihSoal
         }
 
         return array_column($terpilih === [] ? [] : $acak->shuffleArray($terpilih), 'id');
+    }
+
+    /**
+     * Proporsi simulasi dipakai hanya bila setiap topik subtes sudah diisi dan totalnya sama dengan
+     * jumlah soal simulasi subtes; selain itu simulasi memakai pembagian rata.
+     *
+     * @param  array<string, int|string|null>  $kuota  topik_id => jumlah_soal_simulasi
+     */
+    public static function kuotaLengkap(array $kuota, int $jumlahSoal): bool
+    {
+        return $kuota !== [] && ! in_array(null, $kuota, true) && array_sum($kuota) === $jumlahSoal;
     }
 
     /**
