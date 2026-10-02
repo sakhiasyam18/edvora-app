@@ -139,6 +139,24 @@ class Penguasaan
     }
 
     /**
+     * Persen satu subtes = rata-rata persen semua topiknya yang punya soal (Beranda dan Perkembangan).
+     * Topik yang belum cukup data ikut dihitung 0, jadi persen subtes hanya 100 bila semua topik dikuasai.
+     *
+     * @param  array<int, array{adaSoal: bool, tahap: int, skor: ?float}>  $topikList  topik satu subtes dari RingkasanPenguasaan::perSubtes()
+     * @return array{persen: float, adaData: bool} adaData = minimal satu topik sudah punya skor
+     */
+    public static function persenSubtes(array $topikList): array
+    {
+        $topikList = array_filter($topikList, fn (array $topik) => $topik['adaSoal']);
+        $persen = array_map(fn (array $topik) => self::persen($topik['tahap'], $topik['skor']), $topikList);
+
+        return [
+            'persen' => $persen === [] ? 0.0 : round(array_sum($persen) / count($persen), 1),
+            'adaData' => array_filter($topikList, fn (array $topik) => $topik['skor'] !== null) !== [],
+        ];
+    }
+
+    /**
      * Label dibaca dari tahap, karena skor 80 di tahap 1 (soal mudah) tidak setara dengan skor 80 di tahap 3.
      */
     public static function label(int $tahap, ?float $skor): string

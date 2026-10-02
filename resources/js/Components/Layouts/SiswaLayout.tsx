@@ -13,7 +13,7 @@ const MENU_SIDEBAR: MenuSidebar[] = [
     { label: 'Latihan Soal', rute: 'latihan.index', aktifUntuk: 'latihan.*' },
     { label: 'Try Out', rute: 'tryout.index', aktifUntuk: 'tryout.*' },
     { label: 'Riwayat', rute: 'riwayat.index', aktifUntuk: 'riwayat.*' },
-    { label: 'Perkembangan', rute: null },
+    { label: 'Perkembangan', rute: 'perkembangan.index' },
     { label: 'Akun Pribadi', rute: 'akun.profil.utama', aktifUntuk: 'akun.*' },
 ];
 

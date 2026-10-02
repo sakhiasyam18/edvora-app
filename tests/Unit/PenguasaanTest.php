@@ -261,6 +261,35 @@ class PenguasaanTest extends TestCase
         $this->assertNull(Penguasaan::setelahSesi(1, [], 0)['skor_sementara']);
     }
 
+    public function test_persen_subtes_rata_rata_topik_yang_punya_soal(): void
+    {
+        $topikList = [
+            ['adaSoal' => true, 'tahap' => 3, 'skor' => 90.0],   // dikuasai: 100
+            ['adaSoal' => true, 'tahap' => 1, 'skor' => null],   // belum cukup data: 0
+            ['adaSoal' => true, 'tahap' => 1, 'skor' => null],
+            ['adaSoal' => false, 'tahap' => 3, 'skor' => 90.0],  // tanpa soal: tidak dihitung
+        ];
+
+        // 100 / 3 = 33,33, dibulatkan 1 desimal. Bila topik tanpa soal ikut dihitung, hasilnya 50.
+        $this->assertSame(['persen' => 33.3, 'adaData' => true], Penguasaan::persenSubtes($topikList));
+    }
+
+    public function test_persen_subtes_nol_tanpa_topik_bersoal(): void
+    {
+        $this->assertSame(['persen' => 0.0, 'adaData' => false], Penguasaan::persenSubtes([]));
+        $this->assertSame(['persen' => 0.0, 'adaData' => false], Penguasaan::persenSubtes([
+            ['adaSoal' => false, 'tahap' => 2, 'skor' => 50.0],
+        ]));
+    }
+
+    public function test_persen_subtes_belum_ada_data_bila_semua_topik_belum_cukup_data(): void
+    {
+        $this->assertSame(['persen' => 0.0, 'adaData' => false], Penguasaan::persenSubtes([
+            ['adaSoal' => true, 'tahap' => 1, 'skor' => null],
+            ['adaSoal' => true, 'tahap' => 1, 'skor' => null],
+        ]));
+    }
+
     private function skor(string $tingkat, int $jumlah, int $benar): ?float
     {
         return Penguasaan::skorJendela($this->jawaban($tingkat, $jumlah, $benar));

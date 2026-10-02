@@ -17,8 +17,9 @@ class SoalRemedial
     // Soal per sesi remedial; sisanya dikerjakan di sesi berikutnya.
     public const BATAS_SESI = 25;
 
-    // Antrean FIFO menurut waktu salah terakhir: soal yang salah lagi di remedial pindah ke belakang.
-    // Parameternya user_id lalu subtes_id.
+    // Aturan remedial untuk semua subtes, di satu tempat. jumlah(), ambil(), dan jumlahPerSubtes() hanya menambah
+    // filter subtes, urutan, atau pengelompokan, sehingga tab Remedial di Pilih Mode dan card di halaman
+    // Perkembangan selalu menghitung hal yang sama. Parameternya user_id.
     private const DAFTAR = <<<'SQL'
         with jawaban_siswa as (
             select j.soal_id,
@@ -31,31 +32,55 @@ class SoalRemedial
               and p.mode_latihan in ('fleksibel', 'simulasi', 'remedial')
             group by j.soal_id
         )
-        select q.id
+        select q.id, q.subtes_id, q.kode_soal, js.salah_terakhir
         from jawaban_siswa js
         join soal q on q.id = js.soal_id
-        where q.subtes_id = ? and js.salah_di_latihan and not js.pernah_benar
+        where js.salah_di_latihan and not js.pernah_benar
         SQL;
 
-    // Soal paket Try Out yang belum Ditutup tidak masuk sesi remedial (RANCANGAN-tryout.md T9).
+    // Daftar remedial sebagai subquery bernama "remedial". Soal paket Try Out yang belum Ditutup tidak ikut
+    // (RANCANGAN-tryout.md T9).
     private static function daftar(): string
     {
-        return self::DAFTAR.' and '.PemilihSoal::bukanSoalTryOutAktif('q.id');
+        return '('.self::DAFTAR.' and '.PemilihSoal::bukanSoalTryOutAktif('q.id').') remedial';
     }
 
     public function jumlah(string $userId, string $subtesId): int
     {
-        return (int) DB::selectOne('select count(*) as jumlah from ('.self::daftar().') remedial', [$userId, $subtesId])->jumlah;
+        return (int) DB::selectOne(
+            'select count(*) as jumlah from '.self::daftar().' where remedial.subtes_id = ?',
+            [$userId, $subtesId],
+        )->jumlah;
+    }
+
+    /**
+     * Jumlah soal remedial setiap subtes dalam satu query (halaman Perkembangan).
+     *
+     * @return array<string, int> subtes_id => jumlah; subtes tanpa soal remedial tidak ada di daftar
+     */
+    public function jumlahPerSubtes(string $userId): array
+    {
+        $baris = DB::select(
+            'select remedial.subtes_id, count(*) as jumlah from '.self::daftar().' group by remedial.subtes_id',
+            [$userId],
+        );
+
+        return array_map('intval', array_column($baris, 'jumlah', 'subtes_id'));
     }
 
     /**
      * Soal satu sesi remedial: 25 soal yang paling lama menunggu, lalu urutan tampilnya diacak (SDD 5.3.3).
+     * Antrean FIFO menurut waktu salah terakhir: soal yang salah lagi di remedial pindah ke belakang.
      *
      * @return string[] id soal dalam urutan tampil
      */
     public function ambil(string $userId, string $subtesId, ?int $seed = null): array
     {
-        $baris = DB::select(self::daftar().' order by js.salah_terakhir, q.kode_soal limit ?', [$userId, $subtesId, self::BATAS_SESI]);
+        $baris = DB::select(
+            'select remedial.id from '.self::daftar()
+                .' where remedial.subtes_id = ? order by remedial.salah_terakhir, remedial.kode_soal limit ?',
+            [$userId, $subtesId, self::BATAS_SESI],
+        );
         $ids = array_column($baris, 'id');
 
         return $ids === [] ? [] : (new Randomizer($seed === null ? null : new Mt19937($seed)))->shuffleArray($ids);

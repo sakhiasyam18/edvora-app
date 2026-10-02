@@ -39,21 +39,16 @@ class BerandaController extends Controller
     }
 
     /**
-     * Persen satu subtes = rata-rata persen semua topiknya yang punya soal.
-     * Topik yang belum cukup data ikut dihitung 0, jadi lingkaran hanya penuh bila semua topik dikuasai.
+     * Lingkaran satu subtes. Rumusnya di Penguasaan::persenSubtes(), dipakai juga halaman Perkembangan.
      *
      * @return array{kode: ?string, nama: string, persen: float, adaData: bool}
      */
     private function penguasaanSubtes(Subtes $subtes, array $topikList): array
     {
-        $topikList = array_values(array_filter($topikList, fn (array $topik) => $topik['adaSoal']));
-        $persen = array_map(fn (array $topik) => Penguasaan::persen($topik['tahap'], $topik['skor']), $topikList);
-
         return [
             'kode' => $subtes->kode_subtes,
             'nama' => $subtes->nama_subtes,
-            'persen' => $persen === [] ? 0.0 : round(array_sum($persen) / count($persen), 1),
-            'adaData' => collect($topikList)->contains(fn (array $topik) => $topik['skor'] !== null),
+            ...Penguasaan::persenSubtes($topikList),
         ];
     }
 }

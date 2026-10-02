@@ -6,6 +6,7 @@ use App\Http\Controllers\BerandaController;
 use App\Http\Controllers\BiodataController;
 use App\Http\Controllers\JadwalController;
 use App\Http\Controllers\LatihanSoalController;
+use App\Http\Controllers\PerkembanganController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RiwayatController;
 use App\Http\Controllers\TryOutController;
@@ -86,6 +87,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/{pengerjaanId}/info', [RiwayatController::class, 'getModalInfo'])->name('riwayat.info');
             Route::get('/{pengerjaanId}/pembahasan', [RiwayatController::class, 'pembahasan'])->name('riwayat.detail');
         });
+
+        // Perkembangan Belajar (UCS4, RANCANGAN-perkembangan.md)
+        Route::get('/perkembangan', [PerkembanganController::class, 'index'])->name('perkembangan.index');
 
         // Rute Jadwal
         Route::prefix('jadwal')->group(function () {

@@ -60,7 +60,7 @@ class LatihanSoalController extends Controller
     /**
      * Pilih Mode untuk satu subtes: fleksibel (pilih topik dan jumlah soal), simulasi, dan remedial.
      */
-    public function pilihMode(Subtes $subtes, RingkasanPenguasaan $ringkasan, SoalRemedial $remedial)
+    public function pilihMode(Request $request, Subtes $subtes, RingkasanPenguasaan $ringkasan, SoalRemedial $remedial)
     {
         $userId = Auth::id();
         $topikSubtes = $ringkasan->perSubtes($userId, $subtes->id)[$subtes->id] ?? [];
@@ -81,6 +81,11 @@ class LatihanSoalController extends Controller
             ])
             ->values();
 
+        // Dibuka dari halaman Perkembangan: tab dan topik awal dari URL. URL bisa diubah siswa, jadi nilai yang tidak
+        // dikenal (termasuk array dan topik subtes lain) diabaikan; in_array strict juga menolak array.
+        $tabAwal = in_array($request->query('tab'), ['fleksibel', 'simulasi', 'remedial'], true) ? $request->query('tab') : 'fleksibel';
+        $topikAwal = in_array($request->query('topik'), $topikList->pluck('id')->all(), true) ? $request->query('topik') : null;
+
         return Inertia::render('Latihan/PilihMode', [
             'subtes' => [
                 'id' => $subtes->id,
@@ -99,6 +104,8 @@ class LatihanSoalController extends Controller
                 'jumlahSoal' => $remedial->jumlah($userId, $subtes->id),
                 'batasSesi' => SoalRemedial::BATAS_SESI,
             ],
+            'tabAwal' => $tabAwal,
+            'topikAwal' => $topikAwal,
         ]);
     }
 
@@ -114,8 +121,9 @@ class LatihanSoalController extends Controller
 
         $mode = in_array($request->get('mode'), ['simulasi', 'remedial'], true) ? $request->get('mode') : 'fleksibel';
         $namaTopik = null;
-        // Input tidak valid atau soal habis: kembali ke halaman Pilih Mode subtes ini.
-        $halamanMode = route('latihan.mode', ['subtes' => $subtes->kode_subtes]);
+        // Input tidak valid atau soal habis: kembali ke halaman Pilih Mode subtes ini, di tab yang sama
+        // (mis. pesan "Tidak ada soal remedial" tampil di tab Remedial, bukan Fleksibel).
+        $halamanMode = route('latihan.mode', ['subtes' => $subtes->kode_subtes, 'tab' => $mode]);
 
         if ($mode === 'fleksibel') {
             // Fleksibel: satu atau beberapa topik subtes ini yang punya soal; soal dipilih menurut tahap siswa di tiap topik.

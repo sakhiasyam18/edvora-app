@@ -26,6 +26,8 @@ interface PilihModeProps {
     batasSoal: { min: number; maks: number };
     simulasi: { jumlahSoal: number; waktuMenit: number };
     remedial: { jumlahSoal: number; batasSesi: number }; // jumlahSoal = semua soal remedial subtes ini
+    tabAwal: TabMode; // tab yang terbuka pertama kali; dari Perkembangan bisa 'remedial' (?tab=)
+    topikAwal: string | null; // dari Perkembangan: hanya topik ini yang tercentang (?topik=)
 }
 
 const TAB: { mode: TabMode; label: string }[] = [
@@ -45,10 +47,11 @@ function Info({ judul, isi }: { judul: string; isi: string }) {
 }
 
 // Pilih Mode untuk satu subtes. Susunan saja, belum didesain.
-export default function PilihMode({ subtes, topikList, batasSoal, simulasi, remedial }: PilihModeProps) {
-    const [tab, setTab] = useState<TabMode>('fleksibel');
-    // Default semua topik tercentang (UCS1).
-    const [topikDipilih, setTopikDipilih] = useState<string[]>(() => topikList.map((topik) => topik.id));
+export default function PilihMode({ subtes, topikList, batasSoal, simulasi, remedial, tabAwal, topikAwal }: PilihModeProps) {
+    // Kunjungan Inertia memasang ulang halaman, jadi nilai awal ini dibaca lagi setiap URL Pilih Mode dibuka.
+    const [tab, setTab] = useState<TabMode>(tabAwal);
+    // Default semua topik tercentang (UCS1); dari Perkembangan hanya topik yang diklik.
+    const [topikDipilih, setTopikDipilih] = useState<string[]>(() => (topikAwal ? [topikAwal] : topikList.map((topik) => topik.id)));
     const [jumlahSoal, setJumlahSoal] = useState(batasSoal.min);
     const [memuat, setMemuat] = useState(false);
 
