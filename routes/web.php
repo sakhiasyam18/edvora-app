@@ -8,9 +8,9 @@ use App\Http\Controllers\JadwalController;
 use App\Http\Controllers\LatihanSoalController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RiwayatController;
+use App\Http\Controllers\TryOutController;
 use App\Http\Controllers\WelcomeController;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
 // ==========================================
 // AKSES PUBLIK
@@ -99,15 +99,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('/kelola-soal', [AdminSoalController::class, 'simpan'])->name('admin.soal.simpan');
         });
 
-        // Rute Try Out
+        // Rute Try Out (RANCANGAN-tryout.md 5.1). whereUuid: id yang bukan UUID langsung 404, bukan error query Postgres.
         Route::prefix('tryout')->group(function () {
-            Route::get('/', function () {
-                return Inertia::render('TryOut/Index');
-            })->name('tryout.index');
-
-            Route::get('/{id}/kerjakan', function ($id) {
-                return Inertia::render('TryOut/Kerjakan', ['id' => $id]);
-            })->name('tryout.kerjakan');
+            Route::get('/', [TryOutController::class, 'index'])->name('tryout.index');
+            // block(): klik ganda dan kirim otomatis yang bersamaan diproses bergantian.
+            Route::post('/{tryOut}/mulai', [TryOutController::class, 'mulai'])->whereUuid('tryOut')->block(10, 10)->name('tryout.mulai');
+            Route::get('/{tryOut}/kerjakan', [TryOutController::class, 'kerjakan'])->whereUuid('tryOut')->name('tryout.kerjakan');
+            Route::post('/{tryOut}/kirim', [TryOutController::class, 'kirim'])->whereUuid('tryOut')->block(10, 10)->name('tryout.kirim');
+            Route::get('/{tryOut}/hasil', [TryOutController::class, 'hasil'])->whereUuid('tryOut')->name('tryout.hasil');
         });
     });
 });

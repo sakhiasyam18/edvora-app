@@ -11,6 +11,7 @@ use App\Models\TransaksiXp;
 use App\Services\PemilihSoal;
 use App\Services\Penguasaan;
 use App\Services\PenilaianIsian;
+use App\Services\PenilaianJawaban;
 use App\Services\PenilaianLatihan;
 use App\Services\PerbaruiPenguasaan;
 use App\Services\RekomendasiTopik;
@@ -223,7 +224,7 @@ class LatihanSoalController extends Controller
             return $this->hasilCek($terkunci['benar'], $soal->kunci_jawaban, true);
         }
 
-        $teksIsian = $this->rapikanIsian($data['jawabanIsian']);
+        $teksIsian = PenilaianJawaban::rapikanIsian($data['jawabanIsian']);
 
         if (PenilaianIsian::normalisasi($teksIsian) === '') {
             throw ValidationException::withMessages(['jawabanIsian' => 'Jawaban tidak boleh kosong.']);
@@ -389,28 +390,26 @@ class LatihanSoalController extends Controller
                     $waktuMenjawab = $terkunci['waktu'];
                 } elseif (! $j) {
                     continue;
-                } elseif ($soal->tipe === 'isian_singkat') {
-                    $teksIsian = $this->rapikanIsian($j['jawabanIsian'] ?? '');
+                } else {
+                    // Aturan penilaian dipakai bersama Try Out (RANCANGAN-tryout.md 5.8).
+                    // Sementara: terima bentuk lama { opsiId } sampai semua klien memakai opsiIds.
+                    $hasil = PenilaianJawaban::nilai(
+                        $soal->tipe,
+                        $soal->opsiJawaban->pluck('id')->all(),
+                        $soal->opsiJawaban->where('is_kunci', true)->pluck('id')->all(),
+                        $soal->kunci_jawaban,
+                        $j['opsiIds'] ?? (isset($j['opsiId']) ? [$j['opsiId']] : []),
+                        $j['jawabanIsian'] ?? null,
+                    );
 
-                    // Jawaban kosong tidak dicatat, sama seperti soal ber-opsi yang dilewati.
-                    if (PenilaianIsian::normalisasi($teksIsian) === '') {
+                    // Jawaban kosong tidak dicatat.
+                    if ($hasil === null) {
                         continue;
                     }
 
-                    $isCorrect = PenilaianIsian::cocok($teksIsian, $soal->kunci_jawaban ?? '');
-                } else {
-                    // Sementara: terima bentuk lama { opsiId } sampai semua klien memakai opsiIds.
-                    $dikirim = $j['opsiIds'] ?? (isset($j['opsiId']) ? [$j['opsiId']] : []);
-
-                    // Kolom array tidak punya FK, jadi hanya terima opsi yang memang milik soal ini.
-                    $dipilih = array_values(array_intersect($dikirim, $soal->opsiJawaban->pluck('id')->all()));
-                    $kunci = $soal->opsiJawaban->where('is_kunci', true)->pluck('id')->all();
-                    sort($dipilih);
-                    sort($kunci);
-
-                    // Semua-atau-nol; pilihan ganda = himpunan beranggota satu.
-                    // $kunci !== [] mencegah soal tanpa kunci terbaca benar lewat [] === [].
-                    $isCorrect = $kunci !== [] && $dipilih === $kunci;
+                    $dipilih = $hasil['opsiIds'];
+                    $teksIsian = $hasil['jawabanIsian'];
+                    $isCorrect = $hasil['benar'];
                 }
 
                 $pakaiHint = isset($sesi['hint'][$soalId]);
@@ -472,6 +471,12 @@ class LatihanSoalController extends Controller
         $id = $request->get('id');
         $pengerjaan = Pengerjaan::with('jawabanPengerjaan')->where('user_id', Auth::id())->findOrFail($id);
 
+        // Hasil Try Out punya halamannya sendiri. Halaman ini mengirim benar/salah per soal, yang tidak boleh
+        // terlihat selama paket masih Dibuka (RANCANGAN-tryout.md T15).
+        if ($pengerjaan->try_out_id) {
+            return redirect()->route('tryout.hasil', $pengerjaan->try_out_id);
+        }
+
         $jumlahBenar = $pengerjaan->jawabanPengerjaan->where('is_correct', true)->count();
         $jumlahSalah = $pengerjaan->jawabanPengerjaan->where('is_correct', false)->count();
 
@@ -521,11 +526,5 @@ class LatihanSoalController extends Controller
         session()->put('latihan', $semua);
 
         return $sesiId;
-    }
-
-    // Pangkas tepi termasuk non-breaking space; huruf besar-kecil disimpan apa adanya.
-    private function rapikanIsian(?string $teks): string
-    {
-        return preg_replace('/^[\p{Z}\s]+|[\p{Z}\s]+$/u', '', (string) $teks);
     }
 }

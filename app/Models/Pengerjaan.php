@@ -63,8 +63,13 @@ class Pengerjaan extends Model
         return $this->belongsTo(User::class, 'user_id');
     }
 
-    public function pengerjaanTryout()
+    public function tryOut()
     {
-        return $this->belongsTo(PengerjaanTryout::class, 'try_out_id');
+        return $this->belongsTo(TryOut::class, 'try_out_id');
+    }
+
+    public function subtesPengerjaan()
+    {
+        return $this->hasMany(PengerjaanSubtes::class, 'pengerjaan_id');
     }
 }

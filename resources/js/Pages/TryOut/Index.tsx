@@ -1,54 +1,32 @@
 import { ReactNode, useState } from 'react';
-import { Head, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import SiswaLayout from '@/Components/Layouts/SiswaLayout';
+import { formatWaktuWib } from '@/lib/waktu';
+import { PaketTryOut } from '@/types/tryout';
 
-interface TryOutItem {
-    id: string;
-    judul: string;
-    status: string;
-    jumlah_soal: number;
-    durasi_menit: number;
-    batas_waktu: string;
-    peraturan?: string[];
+interface IndexProps {
+    paketList: PaketTryOut[];
 }
 
-interface Props {
-    tryouts?: TryOutItem[];
-}
+const gayaTombol = 'rounded-xl bg-[#5C82E6] px-6 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#486ed6]';
 
-export default function Index({ tryouts }: Props) {
-    const [selectedTryout, setSelectedTryout] = useState<TryOutItem | null>(null);
-    const [isModalOpen, setIsModalOpen] = useState(false);
+// 195 → "195", 42.5 → "42,5"
+const formatMenit = (menit: number) => menit.toLocaleString('id-ID');
 
-    // Data dummy fallback sesuai desain EDVORA
-    const defaultTryouts: TryOutItem[] = [
-        {
-            id: '1',
-            judul: 'Try Out EDVORA 1',
-            status: 'DIBUKA',
-            jumlah_soal: 160,
-            durasi_menit: 195,
-            batas_waktu: 's.d. 10 Oktober 2026, 23.59',
-            peraturan: [
-                'Waktu pengerjaan akan berjalan secara otomatis setelah tombol Mulai Kerjakan diklik.',
-                'Setiap subtes memiliki alokasi waktu tersendiri.',
-                'Kamu dapat menandai soal yang ragu-ragu dengan tombol Ragu-ragu.',
-                'Pastikan koneksi internet stabil selama pengerjaan berlangsung.',
-            ],
-        },
-    ];
+export default function Index({ paketList }: IndexProps) {
+    const [paketDipilih, setPaketDipilih] = useState<PaketTryOut | null>(null);
+    const [memulai, setMemulai] = useState(false);
 
-    const listData = tryouts && tryouts.length > 0 ? tryouts : defaultTryouts;
+    // Pesan sekali tampil dari backend (Inertia::flash), mis. paket sudah tidak dibuka.
+    const { flash } = usePage();
+    const pesanError = typeof flash.error === 'string' ? flash.error : null;
 
-    const handleOpenModal = (to: TryOutItem) => {
-        setSelectedTryout(to);
-        setIsModalOpen(true);
-    };
-
-    const handleStartExam = () => {
-        if (selectedTryout) {
-            router.get(`/tryout/${selectedTryout.id}/kerjakan`);
-        }
+    const mulaiKerjakan = () => {
+        if (!paketDipilih) return;
+        router.post(route('tryout.mulai', paketDipilih.id), {}, {
+            onStart: () => setMemulai(true),
+            onFinish: () => setMemulai(false),
+        });
     };
 
     return (
@@ -65,8 +43,20 @@ export default function Index({ tryouts }: Props) {
                     </p>
                 </div>
 
+                {pesanError && (
+                    <p className="mb-4 max-w-3xl rounded-2xl border border-red-200 bg-red-50 p-4 text-xs font-semibold text-red-700">
+                        {pesanError}
+                    </p>
+                )}
+
                 <div className="max-w-3xl space-y-4">
-                    {listData.map((to) => (
+                    {paketList.length === 0 && (
+                        <div className="rounded-2xl border border-gray-100 bg-white p-6 text-sm font-semibold text-gray-500 shadow-sm">
+                            Belum ada Try Out yang dibuka.
+                        </div>
+                    )}
+
+                    {paketList.map((to) => (
                         <div
                             key={to.id}
                             className="flex items-center justify-between rounded-2xl border border-gray-100 bg-white p-6 shadow-sm transition hover:shadow-md"
@@ -81,43 +71,51 @@ export default function Index({ tryouts }: Props) {
                                     <div className="flex items-center gap-2">
                                         <h3 className="text-base font-bold text-[#1E293B]">{to.judul}</h3>
                                         <span className="rounded-full bg-[#DCFCE7] px-2.5 py-0.5 text-[10px] font-bold text-[#15803D]">
-                                            {to.status}
+                                            DIBUKA
                                         </span>
                                     </div>
                                     <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-semibold text-gray-500">
                                         <span className="rounded-full border border-gray-200 px-3 py-1 bg-gray-50">
-                                            📄 {to.jumlah_soal} soal
+                                            📄 {to.totalSoal} soal
                                         </span>
                                         <span className="rounded-full border border-gray-200 px-3 py-1 bg-gray-50">
-                                            ⏱ {to.durasi_menit} menit
+                                            ⏱ {formatMenit(to.totalMenit)} menit
                                         </span>
                                         <span className="rounded-full border border-gray-200 px-3 py-1 bg-gray-50">
-                                            📅 {to.batas_waktu}
+                                            📅 s.d. {formatWaktuWib(to.selesaiAt)}
                                         </span>
                                     </div>
                                 </div>
                             </div>
 
-                            <button
-                                type="button"
-                                onClick={() => handleOpenModal(to)}
-                                className="rounded-xl bg-[#5C82E6] px-6 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#486ed6]"
-                            >
-                                Kerjakan &rarr;
-                            </button>
+                            {to.statusPengerjaan === 'belum' && (
+                                <button type="button" onClick={() => setPaketDipilih(to)} className={gayaTombol}>
+                                    Kerjakan &rarr;
+                                </button>
+                            )}
+                            {to.statusPengerjaan === 'berjalan' && (
+                                <Link href={route('tryout.kerjakan', to.id)} className={gayaTombol}>
+                                    Lanjut Kerjakan &rarr;
+                                </Link>
+                            )}
+                            {to.statusPengerjaan === 'selesai' && (
+                                <Link href={route('tryout.hasil', to.id)} className={gayaTombol}>
+                                    Lihat Hasil Try Out &rarr;
+                                </Link>
+                            )}
                         </div>
                     ))}
                 </div>
             </div>
 
             {/* POP UP PERATURAN (MODAL) */}
-            {isModalOpen && selectedTryout && (
+            {paketDipilih && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs">
                     <div className="relative w-full max-w-lg rounded-3xl bg-white p-8 shadow-2xl animate-in fade-in zoom-in duration-200">
-                        {/* Close Button */}
                         <button
                             type="button"
-                            onClick={() => setIsModalOpen(false)}
+                            onClick={() => setPaketDipilih(null)}
+                            aria-label="Tutup"
                             className="absolute right-6 top-6 flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 text-gray-400 hover:text-gray-600"
                         >
                             ✕
@@ -125,40 +123,45 @@ export default function Index({ tryouts }: Props) {
 
                         <div className="text-center">
                             <div className="flex items-center justify-center gap-2">
-                                <h2 className="text-xl font-extrabold text-[#1E293B]">
-                                    {selectedTryout.judul}
-                                </h2>
+                                <h2 className="text-xl font-extrabold text-[#1E293B]">{paketDipilih.judul}</h2>
                                 <span className="rounded-full bg-[#DCFCE7] px-2.5 py-0.5 text-[10px] font-bold text-[#15803D]">
-                                    {selectedTryout.status}
+                                    DIBUKA
                                 </span>
                             </div>
 
                             <div className="mt-2 flex justify-center gap-2 text-xs font-semibold text-gray-500">
-                                <span>📄 {selectedTryout.jumlah_soal} soal</span>
+                                <span>📄 {paketDipilih.totalSoal} soal</span>
                                 <span>•</span>
-                                <span>⏱ {selectedTryout.durasi_menit} menit</span>
+                                <span>⏱ {formatMenit(paketDipilih.totalMenit)} menit</span>
                                 <span>•</span>
-                                <span>📅 {selectedTryout.batas_waktu}</span>
+                                <span>📅 s.d. {formatWaktuWib(paketDipilih.selesaiAt)}</span>
                             </div>
                         </div>
 
-                        {/* Kotak Peraturan */}
                         <div className="mt-6 rounded-2xl bg-[#EBF3FC] border border-[#D0E2FF] p-5">
                             <h3 className="text-center text-sm font-extrabold tracking-wider text-[#2B4184] uppercase mb-3">
                                 PERATURAN
                             </h3>
                             <ol className="list-decimal pl-5 text-xs font-medium text-gray-700 leading-relaxed space-y-2">
-                                {selectedTryout.peraturan?.map((rule, idx) => (
-                                    <li key={idx}>{rule}</li>
+                                {paketDipilih.peraturan.map((aturan, idx) => (
+                                    <li key={idx}>{aturan}</li>
                                 ))}
                             </ol>
                         </div>
 
-                        {/* Tombol Mulai */}
+                        {/* Mulai tetap boleh, tetapi Try Out akan terpotong di akhir periode (T13). */}
+                        {!paketDipilih.waktuCukup && (
+                            <p className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs font-semibold text-amber-700">
+                                Periode berakhir {formatWaktuWib(paketDipilih.selesaiAt)}. Jawaban dikirim otomatis saat periode
+                                berakhir walaupun waktu subtes masih tersisa.
+                            </p>
+                        )}
+
                         <button
                             type="button"
-                            onClick={handleStartExam}
-                            className="mt-6 w-full rounded-xl bg-[#5C82E6] py-3 text-sm font-bold text-white shadow-md transition hover:bg-[#486ed6]"
+                            onClick={mulaiKerjakan}
+                            disabled={memulai}
+                            className="mt-6 w-full rounded-xl bg-[#5C82E6] py-3 text-sm font-bold text-white shadow-md transition hover:bg-[#486ed6] disabled:opacity-60"
                         >
                             Mulai Kerjakan &rarr;
                         </button>

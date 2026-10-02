@@ -183,6 +183,85 @@ class PemilihSoalTest extends TestCase
         $this->assertFalse(PemilihSoal::kuotaLengkap([], 30));
     }
 
+    public function test_acak_berprioritas_mendahulukan_soal_yang_paling_jarang_dijawab(): void
+    {
+        $kelompok = [
+            ['id' => 'x1', 'dijawab' => 3],
+            ['id' => 'x2', 'dijawab' => 0],
+            ['id' => 'x3', 'dijawab' => 1],
+            ['id' => 'x4', 'dijawab' => 0],
+            ['id' => 'x5', 'dijawab' => 3],
+        ];
+
+        $hasil = PemilihSoal::acakBerprioritas($kelompok, new Randomizer(new Mt19937(5)));
+
+        $this->assertSame([0, 0, 1, 3, 3], array_column($hasil, 'dijawab'));
+        $this->assertEqualsCanonicalizing(['x2', 'x4'], array_column(array_slice($hasil, 0, 2), 'id'));
+    }
+
+    public function test_acak_berprioritas_tanpa_dijawab_sama_dengan_acak_biasa(): void
+    {
+        // Kandidat latihan tidak membawa 'dijawab': hasilnya harus identik dengan shuffleArray pada seed yang sama,
+        // sehingga perilaku latihan tidak berubah.
+        $kelompok = $this->soal('a', 'mudah', 10);
+
+        $this->assertSame(
+            (new Randomizer(new Mt19937(9)))->shuffleArray($kelompok),
+            PemilihSoal::acakBerprioritas($kelompok, new Randomizer(new Mt19937(9))),
+        );
+    }
+
+    public function test_soal_dengan_dijawab_sama_tetap_diacak(): void
+    {
+        $kelompok = array_map(fn ($s) => $s + ['dijawab' => 0], $this->soal('a', 'mudah', 10));
+
+        $urutan = array_map(
+            fn ($seed) => array_column(PemilihSoal::acakBerprioritas($kelompok, new Randomizer(new Mt19937($seed))), 'id'),
+            [1, 2],
+        );
+
+        $this->assertNotSame($urutan[0], $urutan[1]);
+    }
+
+    public function test_paket_mendahulukan_soal_segar_di_tiap_kelompok(): void
+    {
+        // Topik a: 10 soal per tingkat, 5 di antaranya pernah dijawab. Kuota 10 → 3/4/3, semuanya soal segar.
+        $kandidat = [];
+        foreach (['mudah', 'sedang', 'sulit'] as $tingkat) {
+            foreach ($this->soal('a', $tingkat, 10) as $i => $s) {
+                $kandidat[] = $s + ['dijawab' => $i < 5 ? 0 : 2];
+            }
+        }
+
+        $terpilih = PemilihSoal::susunSimulasi($kandidat, ['a' => 10], 10, new Randomizer(new Mt19937(4)));
+
+        $this->assertSame(['a' => ['mudah' => 3, 'sedang' => 4, 'sulit' => 3]], $this->hitung($terpilih, $kandidat));
+        $info = array_column($kandidat, null, 'id');
+        foreach ($terpilih as $id) {
+            $this->assertSame(0, $info[$id]['dijawab'], $id);
+        }
+    }
+
+    public function test_paket_tanpa_kuota_lengkap_dibagi_rata_dan_totalnya_tepat(): void
+    {
+        $kandidat = array_map(fn ($s) => $s + ['dijawab' => 0], $this->tigaTopik());
+
+        $terpilih = PemilihSoal::susunSimulasi($kandidat, ['a' => null, 'b' => null, 'c' => null], 20, new Randomizer(new Mt19937(2)));
+
+        $this->assertCount(20, $terpilih);
+        $this->assertSame($terpilih, array_values(array_unique($terpilih)));
+        foreach ($this->hitung($terpilih, $kandidat) as $perTingkat) {
+            $this->assertContains(array_sum($perTingkat), [6, 7]);
+        }
+    }
+
+    public function test_paket_dengan_stok_kurang_menghasilkan_soal_lebih_sedikit(): void
+    {
+        $kandidat = array_map(fn ($s) => $s + ['dijawab' => 0], $this->soal('a', 'mudah', 4));
+
+        $this->assertCount(4, PemilihSoal::susunSimulasi($kandidat, ['a' => 10], 10, new Randomizer(new Mt19937(1))));
+    }
+
     /**
      * Jumlah soal terpilih per topik per tingkat; tingkat yang kosong dibuang.
      *

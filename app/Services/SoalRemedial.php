@@ -9,7 +9,8 @@ use Random\Randomizer;
 /**
  * Soal remedial siswa per subtes (RANCANGAN-penyesuaian-sdd.md bagian 6): soal yang pernah dijawab salah di
  * fleksibel atau simulasi dan belum pernah dijawab benar. Daftarnya tidak dibatasi dan dihitung dari log
- * jawaban, tanpa tabel status (K5). Jawaban Try Out (mode_latihan null) tidak ikut.
+ * jawaban, tanpa tabel status (K5). Jawaban Try Out (mode_latihan null) tidak ikut. Soal paket Try Out yang
+ * belum Ditutup juga tidak ikut.
  */
 class SoalRemedial
 {
@@ -36,9 +37,15 @@ class SoalRemedial
         where q.subtes_id = ? and js.salah_di_latihan and not js.pernah_benar
         SQL;
 
+    // Soal paket Try Out yang belum Ditutup tidak masuk sesi remedial (RANCANGAN-tryout.md T9).
+    private static function daftar(): string
+    {
+        return self::DAFTAR.' and '.PemilihSoal::bukanSoalTryOutAktif('q.id');
+    }
+
     public function jumlah(string $userId, string $subtesId): int
     {
-        return (int) DB::selectOne('select count(*) as jumlah from ('.self::DAFTAR.') remedial', [$userId, $subtesId])->jumlah;
+        return (int) DB::selectOne('select count(*) as jumlah from ('.self::daftar().') remedial', [$userId, $subtesId])->jumlah;
     }
 
     /**
@@ -48,7 +55,7 @@ class SoalRemedial
      */
     public function ambil(string $userId, string $subtesId, ?int $seed = null): array
     {
-        $baris = DB::select(self::DAFTAR.' order by js.salah_terakhir, q.kode_soal limit ?', [$userId, $subtesId, self::BATAS_SESI]);
+        $baris = DB::select(self::daftar().' order by js.salah_terakhir, q.kode_soal limit ?', [$userId, $subtesId, self::BATAS_SESI]);
         $ids = array_column($baris, 'id');
 
         return $ids === [] ? [] : (new Randomizer($seed === null ? null : new Mt19937($seed)))->shuffleArray($ids);

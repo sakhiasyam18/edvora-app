@@ -1,112 +1,174 @@
-import React, { useState, useEffect } from 'react';
-import { Head, router } from '@inertiajs/react';
+import { useEffect, useRef, useState } from 'react';
+import { Head, router, usePage } from '@inertiajs/react';
+import { TeksMatematika } from '@/Components/Ujian/KartuSoal';
+import { batasEfektif, sisaDetikDari } from '@/lib/batasSubtes';
+import { JawabanTryOut, SoalTryOut, SubtesAktifTryOut } from '@/types/tryout';
 
-interface Opsi {
-    id: string;
-    label: string;
-    teks: string;
+interface KerjakanProps {
+    paket: { id: string; judul: string };
+    pengerjaanId: string;
+    subtes: SubtesAktifTryOut;
+    soalList: SoalTryOut[];
+    sisaDetik: number;
 }
 
-interface Soal {
-    id: number;
-    pertanyaan: string;
-    opsi: Opsi[];
+// Jawaban dan tanda ragu subtes yang sedang dikerjakan. Hanya ada di browser (cadangan localStorage)
+// sampai Simpan Soal / Simpan Jawaban / waktu habis mengirimnya ke server.
+interface Draf {
+    jawaban: Record<string, JawabanTryOut>;
+    ragu: Record<string, boolean>;
 }
 
-// 7 Subtes UTBK Sesuai Gambar
-const DAFTAR_SUBTES = [
-    { id: 1, kode: 'PU', nama: 'Penalaran Umum', durasiDetik: 600 },
-    { id: 2, kode: 'PPU', nama: 'Pengetahuan dan Pemahaman Umum', durasiDetik: 600 },
-    { id: 3, kode: 'PBM', nama: 'Pemahaman Baca dan Menulis', durasiDetik: 600 },
-    { id: 4, kode: 'PK', nama: 'Pengetahuan Kuantitatif', durasiDetik: 600 },
-    { id: 5, kode: 'LBI', nama: 'Literasi Bahasa Indonesia', durasiDetik: 600 },
-    { id: 6, kode: 'LBE', nama: 'Literasi Bahasa Inggris', durasiDetik: 600 },
-    { id: 7, kode: 'PM', nama: 'Penalaran Matematika', durasiDetik: 600 },
-];
+const DRAF_KOSONG: Draf = { jawaban: {}, ragu: {} };
 
-export default function Kerjakan() {
-    // State subtes aktif (0 sampai 6)
-    const [subtesIndex, setSubtesIndex] = useState(0);
+function bacaDraf(kunci: string): Draf {
+    try {
+        const isi = window.localStorage.getItem(kunci);
+        return isi ? { ...DRAF_KOSONG, ...JSON.parse(isi) } : DRAF_KOSONG;
+    } catch {
+        return DRAF_KOSONG;
+    }
+}
 
-    // Dummy Soal per halaman
-    const listSoal: Soal[] = [
-        {
-            id: 1,
-            pertanyaan: `Perhatikan teks berikut!\nVierzha, Paramita, Hendra, Dewi, dan Nurul adalah siswa SMA ROGU. Jika diukur dari SMA ROGU, maka rumah Vierzha lebih jauh daripada rumah Hendra. Rumah Paramita lebih dekat daripada rumah Dewi dan rumah Nurul.\n\nJika rumah Hendra lebih jauh dari rumah Nurul, maka anak yang rumahnya paling dekat dari SMA ROGU adalah ...`,
-            opsi: [
-                { id: 'a', label: 'A', teks: 'Vierzha' },
-                { id: 'b', label: 'B', teks: 'Paramita' },
-                { id: 'c', label: 'C', teks: 'Hendra' },
-                { id: 'd', label: 'D', teks: 'Dewi' },
-                { id: 'e', label: 'E', teks: 'Nurul' },
-            ],
-        },
-    ];
+// Batas subtes yang pernah dipakai di browser ini (ms). Tidak dihapus setelah kirim, supaya halaman subtes lama
+// yang dibuka lagi lewat tombol Back langsung habis waktunya, bukan mulai menghitung dari awal.
+function bacaBatas(kunci: string): number | null {
+    try {
+        const isi = Number(window.localStorage.getItem(kunci));
+        return isi > 0 ? isi : null;
+    } catch {
+        return null;
+    }
+}
 
+const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const s = (seconds % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+};
+
+// Setiap subtes dirender ulang dari awal (key), sehingga draf, nomor aktif, dan timer tidak terbawa ke subtes berikutnya.
+export default function Kerjakan(props: KerjakanProps) {
+    return <PengerjaanSubtes key={props.subtes.id} {...props} />;
+}
+
+function PengerjaanSubtes({ paket, pengerjaanId, subtes, soalList, sisaDetik }: KerjakanProps) {
+    const user = usePage<any>().props.auth.user;
+    const inisial = user?.name ? user.name.charAt(0).toUpperCase() : 'S';
+    const kunciDraf = `tryout:${pengerjaanId}:${subtes.id}`;
+    const kunciBatas = `${kunciDraf}:batas`;
+
+    const [draf, setDraf] = useState<Draf>(() => bacaDraf(kunciDraf));
     const [indeksAktif, setIndeksAktif] = useState(0);
-    const [jawabanUser, setJawabanUser] = useState<{ [key: string]: string }>({});
-    const [raguRagu, setRaguRagu] = useState<{ [key: string]: boolean }>({});
+    const [modal, setModal] = useState<'subtes' | 'selesai' | null>(null);
+    const [timeLeft, setTimeLeft] = useState(sisaDetik);
+    const [waktuHabis, setWaktuHabis] = useState(false);
+    const mengirim = useRef(false);
 
-    // Pop-up modal state
-    const [showModalSubtes, setShowModalSubtes] = useState(false);
-    const [showModalSelesai, setShowModalSelesai] = useState(false);
+    const soal = soalList[indeksAktif];
+    const jawaban = draf.jawaban[soal.id];
 
-    // Cek apakah sedang berada di subtes terakhir (PM)
-    const isSubtesTerakhir = subtesIndex === DAFTAR_SUBTES.length - 1;
-
-    // Timer Countdown
-    const [timeLeft, setTimeLeft] = useState(DAFTAR_SUBTES[0].durasiDetik);
-
-    // Reset timer saat subtes berganti
+    // Cadangan agar jawaban tidak hilang saat halaman dimuat ulang.
     useEffect(() => {
-        setTimeLeft(DAFTAR_SUBTES[subtesIndex].durasiDetik);
-    }, [subtesIndex]);
+        try {
+            window.localStorage.setItem(kunciDraf, JSON.stringify(draf));
+        } catch {
+            // Tanpa cadangan (mode privat / penyimpanan diblokir).
+        }
+    }, [draf, kunciDraf]);
 
+    const kirim = () => {
+        if (mengirim.current) return;
+        mengirim.current = true;
+        setModal(null);
+
+        router.post(
+            route('tryout.kirim', paket.id),
+            {
+                tryOutSubtesId: subtes.id,
+                jawaban: Object.entries(draf.jawaban).map(([soalId, j]) => ({ soalId, ...j })),
+            },
+            {
+                onSuccess: () => {
+                    try {
+                        window.localStorage.removeItem(kunciDraf);
+                    } catch {
+                        // Abaikan.
+                    }
+                },
+                onFinish: () => {
+                    mengirim.current = false;
+                },
+            },
+        );
+    };
+
+    // Timer dihitung dari waktu batas, bukan dikurangi per detik. Server tetap patokannya: kiriman yang terlambat
+    // lebih dari 30 detik ditolak, jadi kirim otomatis harus tepat waktu walaupun tab disembunyikan.
     useEffect(() => {
-        const timer = setInterval(() => {
-            setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
+        const batas = batasEfektif(sisaDetik, Date.now(), bacaBatas(kunciBatas));
+        try {
+            window.localStorage.setItem(kunciBatas, String(batas));
+        } catch {
+            // Tanpa cadangan batas; Back lalu Forward memakai sisaDetik dari halaman lama.
+        }
+
+        const tampilkan = () => {
+            const sisa = sisaDetikDari(batas, Date.now());
+            setTimeLeft(sisa);
+            return sisa;
+        };
+        tampilkan();
+
+        // Kirim otomatis memakai satu setTimeout, bukan interval: Chrome memperlambat interval di tab yang
+        // tersembunyi lama sampai sekali per menit, sehingga kiriman bisa melewati toleransi server.
+        const timeout = window.setTimeout(() => setWaktuHabis(true), Math.max(0, batas - Date.now()));
+        const interval = window.setInterval(() => {
+            if (tampilkan() === 0) window.clearInterval(interval);
         }, 1000);
-        return () => clearInterval(timer);
-    }, []);
+        // Tab yang baru terlihat lagi setelah batas lewat langsung mengirim.
+        const saatTerlihat = () => {
+            if (document.visibilityState === 'visible' && tampilkan() === 0) setWaktuHabis(true);
+        };
+        document.addEventListener('visibilitychange', saatTerlihat);
 
-    const formatTime = (seconds: number) => {
-        const m = Math.floor(seconds / 60).toString().padStart(2, '0');
-        const s = (seconds % 60).toString().padStart(2, '0');
-        return `${m}:${s}`;
-    };
+        return () => {
+            window.clearTimeout(timeout);
+            window.clearInterval(interval);
+            document.removeEventListener('visibilitychange', saatTerlihat);
+        };
+    }, [sisaDetik, kunciBatas]);
 
-    const subtesAktif = DAFTAR_SUBTES[subtesIndex];
-    const soalCurrent = listSoal[0];
+    // Waktu habis: kirim tanpa konfirmasi (= Simpan Soal, atau Simpan Jawaban di subtes terakhir).
+    useEffect(() => {
+        if (waktuHabis) kirim();
+    }, [waktuHabis]);
 
-    // Key unik gabungan subtes & id soal agar jawaban terpisah tiap subtes
-    const currentKey = `${subtesIndex}_${soalCurrent.id}`;
+    // Jawaban kosong (tanpa opsi dan tanpa teks) berarti soal kembali belum dijawab.
+    const aturJawaban = (soalId: string, isi: JawabanTryOut | null) =>
+        setDraf((d) => {
+            const lain = { ...d.jawaban };
+            delete lain[soalId];
+            return { ...d, jawaban: isi ? { ...lain, [soalId]: isi } : lain };
+        });
 
-    const handlePilihJawaban = (opsiId: string) => {
-        setJawabanUser((prev) => ({ ...prev, [currentKey]: opsiId }));
-    };
-
-    const toggleRaguRagu = () => {
-        setRaguRagu((prev) => ({ ...prev, [currentKey]: !prev[currentKey] }));
-    };
-
-    // Tombol "Simpan Soal" untuk Lanjut Subtes (Subtes 1 - 6)
-    const handleLanjutSubtes = () => {
-        setShowModalSubtes(false);
-        if (!isSubtesTerakhir) {
-            setSubtesIndex((prev) => prev + 1);
-            setIndeksAktif(0);
+    const pilihOpsi = (opsiId: string) => {
+        if (soal.tipe === 'benar_salah') {
+            const sekarang = jawaban?.opsiIds ?? [];
+            const baru = sekarang.includes(opsiId) ? sekarang.filter((id) => id !== opsiId) : [...sekarang, opsiId];
+            aturJawaban(soal.id, baru.length ? { opsiIds: baru, jawabanIsian: null } : null);
+        } else {
+            aturJawaban(soal.id, { opsiIds: [opsiId], jawabanIsian: null });
         }
     };
 
-    // Konfirmasi Selesai Tryout & Kembali ke Dashboard
-    const handleFinishTryout = () => {
-        setShowModalSelesai(false);
-        router.get('/dashboard');
-    };
+    const isiIsian = (teks: string) => aturJawaban(soal.id, teks.trim() ? { opsiIds: [], jawabanIsian: teks } : null);
+
+    const toggleRaguRagu = () => setDraf((d) => ({ ...d, ragu: { ...d.ragu, [soal.id]: !d.ragu[soal.id] } }));
 
     return (
         <>
-            <Head title={`Pengerjaan Try Out - ${subtesAktif.nama}`} />
+            <Head title={`Pengerjaan Try Out - ${subtes.nama}`} />
             <div className="flex min-h-screen flex-col bg-[#EBF3FC] font-['Plus_Jakarta_Sans',sans-serif] text-[#1E293B]">
                 {/* HEADER */}
                 <header className="flex h-16 items-center justify-between bg-white px-8 border-b border-gray-200">
@@ -116,12 +178,10 @@ export default function Kerjakan() {
                         </div>
                     </div>
 
-                    <div className="text-sm font-bold text-gray-700">
-                        Try Out EDVORA 1
-                    </div>
+                    <div className="text-sm font-bold text-gray-700">{paket.judul}</div>
 
                     <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#5C82E6] text-sm font-bold text-white shadow-sm">
-                        A
+                        {inisial}
                     </div>
                 </header>
 
@@ -131,57 +191,90 @@ export default function Kerjakan() {
                     <div className="flex-1 flex flex-col justify-between">
                         <div>
                             <h2 className="text-xl font-extrabold text-[#1E293B] mb-4">
-                                Soal {indeksAktif + 1} dari 10
+                                Soal {indeksAktif + 1} dari {soalList.length}
                             </h2>
 
                             {/* TEKS SOAL */}
                             <div className="rounded-2xl bg-white p-6 shadow-xs border border-gray-100">
-                                <div className="text-sm font-semibold text-gray-800 leading-relaxed whitespace-pre-line">
-                                    {soalCurrent.pertanyaan}
+                                <div className="text-sm font-semibold text-gray-800 leading-relaxed">
+                                    <TeksMatematika teks={soal.teks_soal} />
                                 </div>
+                                {soal.gambar_soal && (
+                                    <img
+                                        src={soal.gambar_soal}
+                                        alt={`Ilustrasi soal nomor ${indeksAktif + 1}`}
+                                        className="mt-4 max-h-72 max-w-full rounded-lg"
+                                    />
+                                )}
                             </div>
 
-                            {/* OPSI JAWABAN */}
-                            <div className="mt-4 space-y-3">
-                                {soalCurrent.opsi.map((opsi) => {
-                                    const isSelected = jawabanUser[currentKey] === opsi.id;
-                                    return (
-                                        <button
-                                            key={opsi.id}
-                                            type="button"
-                                            onClick={() => handlePilihJawaban(opsi.id)}
-                                            className="flex w-full items-center gap-4 rounded-xl transition text-left"
-                                        >
-                                            <div
-                                                className={`flex h-11 w-11 items-center justify-center rounded-xl border text-sm font-bold transition ${
-                                                    isSelected
-                                                        ? 'bg-[#5C82E6] text-white border-[#5C82E6]'
-                                                        : 'bg-white border-gray-300 text-gray-600'
-                                                }`}
+                            {soal.tipe === 'benar_salah' && (
+                                <p className="mt-4 text-xs font-semibold text-gray-500">Pilih semua pernyataan yang benar.</p>
+                            )}
+
+                            {/* JAWABAN: kolom isian, atau opsi (pilihan ganda: satu; benar-salah: centang banyak) */}
+                            {soal.tipe === 'isian_singkat' ? (
+                                <input
+                                    type="text"
+                                    maxLength={100}
+                                    value={jawaban?.jawabanIsian ?? ''}
+                                    onChange={(e) => isiIsian(e.target.value)}
+                                    placeholder="Ketik jawabanmu"
+                                    aria-label="Jawaban isian singkat"
+                                    className="mt-4 w-full rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-semibold text-gray-700 focus:border-[#5C82E6] focus:ring-[#5C82E6]"
+                                />
+                            ) : (
+                                <div className="mt-4 space-y-3">
+                                    {soal.opsi.map((opsi) => {
+                                        const isSelected = jawaban?.opsiIds.includes(opsi.id) ?? false;
+                                        const centang = soal.tipe === 'benar_salah';
+                                        return (
+                                            <button
+                                                key={opsi.id}
+                                                type="button"
+                                                role={centang ? 'checkbox' : undefined}
+                                                aria-checked={centang ? isSelected : undefined}
+                                                onClick={() => pilihOpsi(opsi.id)}
+                                                className="flex w-full items-center gap-4 rounded-xl transition text-left"
                                             >
-                                                {opsi.label}
-                                            </div>
-                                            <div
-                                                className={`flex-1 rounded-xl border px-5 py-3 text-sm font-semibold transition ${
-                                                    isSelected
-                                                        ? 'bg-blue-50 border-[#5C82E6] text-[#2B4184]'
-                                                        : 'bg-white border-gray-200 text-gray-700'
-                                                }`}
-                                            >
-                                                {opsi.teks}
-                                            </div>
-                                        </button>
-                                    );
-                                })}
-                            </div>
+                                                <div
+                                                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border text-sm font-bold transition ${
+                                                        isSelected
+                                                            ? 'bg-[#5C82E6] text-white border-[#5C82E6]'
+                                                            : 'bg-white border-gray-300 text-gray-600'
+                                                    }`}
+                                                >
+                                                    {centang ? (isSelected ? '✓' : '') : opsi.label}
+                                                </div>
+                                                <div
+                                                    className={`flex-1 rounded-xl border px-5 py-3 text-sm font-semibold transition ${
+                                                        isSelected
+                                                            ? 'bg-blue-50 border-[#5C82E6] text-[#2B4184]'
+                                                            : 'bg-white border-gray-200 text-gray-700'
+                                                    }`}
+                                                >
+                                                    <TeksMatematika teks={opsi.teks_opsi} />
+                                                    {opsi.gambar_opsi && (
+                                                        <img
+                                                            src={opsi.gambar_opsi}
+                                                            alt={`Gambar opsi ${opsi.label}`}
+                                                            className="mt-2 max-h-40 max-w-full rounded-lg"
+                                                        />
+                                                    )}
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
 
-                        {/* TOMBOL SIMPAN SOAL BAWAH (HANYA MUNCUL DI SUBTES 1 SAMPAI 6) */}
-                        {!isSubtesTerakhir && (
+                        {/* SIMPAN SOAL: menyelesaikan subtes ini dan pindah ke subtes berikutnya (tidak ada di subtes terakhir) */}
+                        {!subtes.terakhir && (
                             <div className="mt-8 flex justify-center">
                                 <button
                                     type="button"
-                                    onClick={() => setShowModalSubtes(true)}
+                                    onClick={() => setModal('subtes')}
                                     className="w-full max-w-md rounded-2xl bg-[#4A8B3B] py-3 text-sm font-bold text-white shadow-md transition hover:bg-[#3d7330]"
                                 >
                                     Simpan Soal
@@ -192,12 +285,10 @@ export default function Kerjakan() {
 
                     {/* PANEL NAVIGASI & SUBTES (KANAN) */}
                     <aside className="w-80 space-y-4">
-                        {/* TIMER & SUBTES ACTIVE BADGE */}
+                        {/* TIMER & SUBTES AKTIF */}
                         <div className="flex items-center justify-between rounded-2xl bg-white p-4 shadow-xs border border-gray-100">
-                            <span className="text-xs font-bold text-[#1E293B] truncate max-w-[170px]">
-                                {subtesAktif.nama}
-                            </span>
-                            <span className="rounded-xl bg-[#D9534F] px-4 py-1.5 text-xs font-black text-white">
+                            <span className="text-xs font-bold text-[#1E293B] truncate max-w-[170px]">{subtes.nama}</span>
+                            <span role="timer" aria-label="Sisa waktu subtes" className="rounded-xl bg-[#D9534F] px-4 py-1.5 text-xs font-black text-white">
                                 {formatTime(timeLeft)}
                             </span>
                         </div>
@@ -207,12 +298,10 @@ export default function Kerjakan() {
                             <h3 className="text-xs font-bold text-gray-500">Navigasi Soal</h3>
 
                             <div className="grid grid-cols-5 gap-2.5">
-                                {Array.from({ length: 10 }).map((_, idx) => {
-                                    const num = idx + 1;
+                                {soalList.map((s, idx) => {
                                     const isCurrent = idx === indeksAktif;
-                                    const key = `${subtesIndex}_${num}`;
-                                    const isAnswered = !!jawabanUser[key];
-                                    const isDoubtful = !!raguRagu[key];
+                                    const isAnswered = !!draf.jawaban[s.id];
+                                    const isDoubtful = !!draf.ragu[s.id];
 
                                     let bgClass = 'bg-[#5C82E6] text-white border-[#5C82E6]';
                                     if (isDoubtful) bgClass = 'bg-amber-400 text-white border-amber-400';
@@ -220,25 +309,26 @@ export default function Kerjakan() {
 
                                     return (
                                         <button
-                                            key={idx}
+                                            key={s.id}
                                             type="button"
                                             onClick={() => setIndeksAktif(idx)}
+                                            aria-current={isCurrent ? 'step' : undefined}
                                             className={`flex h-10 w-10 items-center justify-center rounded-full border text-xs font-bold transition ${bgClass} ${
                                                 isCurrent ? 'ring-2 ring-[#2B4184] ring-offset-1' : ''
                                             }`}
                                         >
-                                            {num}
+                                            {idx + 1}
                                         </button>
                                     );
                                 })}
                             </div>
 
-                            {/* RAGU-RAGU BUTTON */}
+                            {/* RAGU-RAGU */}
                             <button
                                 type="button"
                                 onClick={toggleRaguRagu}
                                 className={`flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition border ${
-                                    raguRagu[currentKey]
+                                    draf.ragu[soal.id]
                                         ? 'bg-amber-500 text-white border-amber-500'
                                         : 'bg-amber-400 text-white border-amber-400 hover:bg-amber-500'
                                 }`}
@@ -247,7 +337,7 @@ export default function Kerjakan() {
                                 Ragu-ragu
                             </button>
 
-                            {/* PREV / NEXT */}
+                            {/* SEBELUMNYA / LANJUTKAN */}
                             <div className="flex gap-2">
                                 <button
                                     type="button"
@@ -259,7 +349,7 @@ export default function Kerjakan() {
                                 </button>
                                 <button
                                     type="button"
-                                    disabled={indeksAktif === 9}
+                                    disabled={indeksAktif === soalList.length - 1}
                                     onClick={() => setIndeksAktif((p) => p + 1)}
                                     className="flex-1 rounded-xl bg-[#5C82E6] py-2 text-xs font-bold text-white transition hover:bg-[#486ed6] disabled:opacity-50"
                                 >
@@ -267,17 +357,14 @@ export default function Kerjakan() {
                                 </button>
                             </div>
 
-                            {/* SIMPAN JAWABAN (MUNCULKAN MODAL SUBTES / SELESAI) */}
+                            {/* SIMPAN JAWABAN: hanya aktif di subtes terakhir; mengakhiri Try Out */}
                             <button
                                 type="button"
-                                onClick={() => {
-                                    if (isSubtesTerakhir) {
-                                        setShowModalSelesai(true);
-                                    } else {
-                                        setShowModalSubtes(true);
-                                    }
-                                }}
-                                className="w-full rounded-xl bg-[#4A8B3B] py-2.5 text-xs font-bold text-white transition hover:bg-[#3d7330]"
+                                disabled={!subtes.terakhir}
+                                onClick={() => setModal('selesai')}
+                                className={`w-full rounded-xl py-2.5 text-xs font-bold text-white transition ${
+                                    subtes.terakhir ? 'bg-[#4A8B3B] hover:bg-[#3d7330]' : 'cursor-not-allowed bg-gray-300'
+                                }`}
                             >
                                 Simpan Jawaban
                             </button>
@@ -286,28 +373,28 @@ export default function Kerjakan() {
                 </main>
             </div>
 
-            {/* POP UP 1: KONFIRMASI SIMPAN SUBTES (SUBTES 1-6) */}
-            {showModalSubtes && (
+            {/* POP UP KONFIRMASI */}
+            {modal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs">
                     <div className="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-2xl animate-in fade-in zoom-in duration-150">
-                        <h2 className="text-xl font-extrabold text-[#1E293B]">
-                            Yakin Menyimpan Jawaban?
-                        </h2>
+                        <h2 className="text-xl font-extrabold text-[#1E293B]">Yakin Menyimpan Jawaban?</h2>
                         <p className="mt-2 text-xs font-medium text-gray-500">
-                            Kamu akan lanjut ke subtest berikutnya
+                            {modal === 'subtes'
+                                ? 'Kamu akan lanjut ke subtest berikutnya'
+                                : 'Try Out akan diakhiri dan jawaban dikirim.'}
                         </p>
 
                         <div className="mt-6 flex justify-center gap-4">
                             <button
                                 type="button"
-                                onClick={handleLanjutSubtes}
+                                onClick={kirim}
                                 className="w-32 rounded-2xl bg-[#71C055] py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#62a84a]"
                             >
                                 IYA
                             </button>
                             <button
                                 type="button"
-                                onClick={() => setShowModalSubtes(false)}
+                                onClick={() => setModal(null)}
                                 className="w-32 rounded-2xl bg-[#F07171] py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#d85e5e]"
                             >
                                 TIDAK
@@ -317,33 +404,20 @@ export default function Kerjakan() {
                 </div>
             )}
 
-            {/* POP UP 2: KONFIRMASI AKHIR / SELESAI TRY OUT (SUBTES TERAKHIR) */}
-            {showModalSelesai && (
+            {/* WAKTU HABIS */}
+            {waktuHabis && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs">
-                    <div className="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-2xl animate-in fade-in zoom-in duration-150">
-                        <h2 className="text-xl font-extrabold text-[#1E293B]">
-                            Yakin Menyimpan Jawaban?
-                        </h2>
-                        <p className="mt-2 text-xs font-medium text-gray-500">
-                            Kamu telah menyelesaikan seluruh subtest tryout.
-                        </p>
-
-                        <div className="mt-6 flex justify-center gap-4">
-                            <button
-                                type="button"
-                                onClick={handleFinishTryout}
-                                className="w-32 rounded-2xl bg-[#71C055] py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#62a84a]"
-                            >
-                                IYA
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setShowModalSelesai(false)}
-                                className="w-32 rounded-2xl bg-[#F07171] py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#d85e5e]"
-                            >
-                                TIDAK
-                            </button>
-                        </div>
+                    <div className="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-2xl">
+                        <h2 className="text-xl font-extrabold text-[#1E293B]">Waktu habis</h2>
+                        <p className="mt-2 text-xs font-medium text-gray-500">Menyimpan jawaban…</p>
+                        {/* Jika koneksi terputus, kirim ulang secara manual. */}
+                        <button
+                            type="button"
+                            onClick={kirim}
+                            className="mt-6 rounded-2xl bg-[#5C82E6] px-6 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#486ed6]"
+                        >
+                            Kirim ulang
+                        </button>
                     </div>
                 </div>
             )}

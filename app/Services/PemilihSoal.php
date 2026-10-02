@@ -12,6 +12,7 @@ use Random\Randomizer;
  * Soal hanya muncul sekali per siswa: soal yang sudah pernah dijawab di sesi yang selesai, dalam mode apa pun,
  * tidak disajikan lagi di mode fleksibel maupun simulasi. Soal yang dijawab salah nanti dikerjakan ulang
  * lewat mode remedial. Soal yang tampil tetapi tidak dijawab tidak tercatat, jadi tetap bisa muncul lagi.
+ * Soal paket Try Out yang belum Ditutup tidak disajikan di latihan (RANCANGAN-tryout.md T9).
  */
 class PemilihSoal
 {
@@ -28,6 +29,24 @@ class PemilihSoal
         SQL;
 
     /**
+     * Syarat "bukan soal paket Try Out yang belum Ditutup" (RANCANGAN-tryout.md T9). Soal paket disembunyikan dari
+     * latihan sejak paket dibuat sampai selesai_at lewat, lalu kembali seperti soal biasa.
+     *
+     * @param  string  $kolomSoalId  kolom id soal di query pemanggil, mis. 'soal.id' atau 'q.id'
+     */
+    public static function bukanSoalTryOutAktif(string $kolomSoalId = 'soal.id'): string
+    {
+        return <<<SQL
+            not exists (
+                select 1 from try_out_soal ts
+                join try_out_subtes tos on tos.id = ts.try_out_subtes_id
+                join try_out t on t.id = tos.try_out_id
+                where ts.soal_id = {$kolomSoalId} and t.selesai_at > now()
+            )
+            SQL;
+    }
+
+    /**
      * Mode fleksibel: soal dari satu atau beberapa topik, sesuai tahap siswa di tiap topik.
      *
      * @param  string[]  $topikIds
@@ -42,8 +61,8 @@ class PemilihSoal
             select soal.id, soal.topik_id, soal.tingkat_kesulitan::text as tingkat,
                    (select pt.tahap from penguasaan_topik pt where pt.user_id = ? and pt.topik_id = soal.topik_id) as tahap
             from soal
-            where soal.topik_id in (%s) and %s
-            SQL, $tanda, self::BELUM_DIKERJAKAN), [$userId, ...$topikIds, $userId]);
+            where soal.topik_id in (%s) and %s and %s
+            SQL, $tanda, self::BELUM_DIKERJAKAN, self::bukanSoalTryOutAktif()), [$userId, ...$topikIds, $userId]);
 
         // Topik yang soalnya sudah habis tidak muncul di hasil query; tahapnya tidak berpengaruh.
         $tahap = array_fill_keys($topikIds, Penguasaan::TAHAP_AWAL);
@@ -65,21 +84,36 @@ class PemilihSoal
      */
     public function simulasi(string $userId, string $subtesId, int $jumlahSoal, ?int $seed = null): array
     {
-        $acak = new Randomizer($seed === null ? null : new Mt19937($seed));
-
         $baris = DB::select(sprintf(<<<'SQL'
             select soal.id, soal.topik_id, soal.tingkat_kesulitan::text as tingkat
             from soal
-            where soal.subtes_id = ? and %s
-            SQL, self::BELUM_DIKERJAKAN), [$subtesId, $userId]);
-
-        $kuota = DB::table('topik')->where('subtes_id', $subtesId)->pluck('jumlah_soal_simulasi', 'id')->all();
-
-        if (! self::kuotaLengkap($kuota, $jumlahSoal)) {
-            return self::simulasiRata($baris, $jumlahSoal, $acak);
-        }
+            where soal.subtes_id = ? and %s and %s
+            SQL, self::BELUM_DIKERJAKAN, self::bukanSoalTryOutAktif()), [$subtesId, $userId]);
 
         $kandidat = array_map(fn ($b) => ['id' => $b->id, 'topik_id' => $b->topik_id, 'tingkat' => $b->tingkat], $baris);
+        $kuota = DB::table('topik')->where('subtes_id', $subtesId)->pluck('jumlah_soal_simulasi', 'id')->all();
+
+        return self::susunSimulasi($kandidat, $kuota, $jumlahSoal, new Randomizer($seed === null ? null : new Mt19937($seed)));
+    }
+
+    /**
+     * Jatah simulasi tanpa database, dipakai mode simulasi dan paket Try Out (RANCANGAN-tryout.md 4.2).
+     * Kuota lengkap: jumlah_soal_simulasi per topik, lalu 30% mudah, 40% sedang, 30% sulit di dalam topik.
+     * Selain itu pembagian rata (simulasiRata()). Kandidat paket membawa 'dijawab', sehingga soal yang paling
+     * jarang dijawab didahulukan (acakBerprioritas()).
+     *
+     * @param  array<int, array{id: string, topik_id: string, tingkat: string, dijawab?: int}>  $kandidat
+     * @param  array<string, int|string|null>  $kuota  topik_id => jumlah_soal_simulasi
+     * @return string[] id soal dalam urutan tampil (acak)
+     */
+    public static function susunSimulasi(array $kandidat, array $kuota, int $jumlahSoal, ?Randomizer $acak = null): array
+    {
+        $acak ??= new Randomizer;
+
+        if (! self::kuotaLengkap($kuota, $jumlahSoal)) {
+            return self::simulasiRata($kandidat, $jumlahSoal, $acak);
+        }
+
         $jatah = array_map(fn ($n) => Penguasaan::bagiPorsi(self::PORSI_SIMULASI, (int) $n), $kuota);
 
         return self::susunJatah($kandidat, $jatah, $acak);
@@ -90,23 +124,23 @@ class PemilihSoal
      * bergiliran ke semua topik. Giliran berlanjut antar tingkat, jadi total per topik berselisih paling
      * banyak 1. Stok satu tingkat yang kurang diisi dari sisa tingkat lain.
      *
-     * @param  array<int, object>  $baris  soal yang belum pernah dikerjakan: id, topik_id, tingkat
+     * @param  array<int, array{id: string, topik_id: string, tingkat: string, dijawab?: int}>  $kandidat
      * @return string[] id soal dalam urutan tampil (acak)
      */
-    private static function simulasiRata(array $baris, int $jumlahSoal, Randomizer $acak): array
+    private static function simulasiRata(array $kandidat, int $jumlahSoal, Randomizer $acak): array
     {
-        // tingkat => topik_id => id soal (acak)
+        // tingkat => topik_id => kandidat (acak; yang paling jarang dijawab di depan)
         $stok = [];
-        foreach ($baris as $b) {
-            $stok[$b->tingkat][$b->topik_id][] = $b->id;
+        foreach ($kandidat as $k) {
+            $stok[$k['tingkat']][$k['topik_id']][] = $k;
         }
         foreach ($stok as $tingkat => $perTopik) {
             foreach ($perTopik as $topikId => $soal) {
-                $stok[$tingkat][$topikId] = $acak->shuffleArray($soal);
+                $stok[$tingkat][$topikId] = self::acakBerprioritas($soal, $acak);
             }
         }
 
-        $topikIds = array_values(array_unique(array_column($baris, 'topik_id')));
+        $topikIds = array_values(array_unique(array_column($kandidat, 'topik_id')));
         if ($topikIds === []) {
             return [];
         }
@@ -131,7 +165,7 @@ class PemilihSoal
                     continue;
                 }
 
-                $terpilih[] = array_shift($stok[$tingkat][$topikId]);
+                $terpilih[] = array_shift($stok[$tingkat][$topikId])['id'];
                 $diambil++;
                 $gagal = 0;
             }
@@ -147,7 +181,7 @@ class PemilihSoal
                 }
             }
 
-            array_push($terpilih, ...array_slice($sisa === [] ? [] : $acak->shuffleArray($sisa), 0, $kurang));
+            array_push($terpilih, ...array_column(array_slice(self::acakBerprioritas($sisa, $acak), 0, $kurang), 'id'));
         }
 
         return $terpilih === [] ? [] : $acak->shuffleArray($terpilih);
@@ -203,7 +237,7 @@ class PemilihSoal
         }
 
         if ($kurang > 0 && $cadangan !== []) {
-            array_push($terpilih, ...array_slice($acak->shuffleArray($cadangan), 0, $kurang));
+            array_push($terpilih, ...array_slice(self::acakBerprioritas($cadangan, $acak), 0, $kurang));
         }
 
         return array_column($terpilih === [] ? [] : $acak->shuffleArray($terpilih), 'id');
@@ -258,7 +292,7 @@ class PemilihSoal
         $antrean = [];
         foreach (array_keys($jatah) as $tingkat) {
             $kelompok = array_values(array_filter($kandidat, fn ($k) => $k['tingkat'] === $tingkat));
-            $antrean[$tingkat] = $kelompok === [] ? [] : $acak->shuffleArray($kelompok);
+            $antrean[$tingkat] = self::acakBerprioritas($kelompok, $acak);
         }
 
         $terpilih = [];
@@ -285,5 +319,25 @@ class PemilihSoal
         }
 
         return [$terpilih, array_merge(...array_values($antrean))];
+    }
+
+    /**
+     * Acak satu kelompok soal, lalu dahulukan yang paling jarang dijawab (kunci 'dijawab', paket Try Out).
+     * usort PHP 8 stabil, jadi soal dengan nilai 'dijawab' yang sama tetap dalam urutan acaknya. Kandidat latihan
+     * tidak membawa 'dijawab', sehingga hasilnya sama persis dengan shuffleArray().
+     *
+     * @param  array<int, array<string, mixed>>  $kelompok
+     * @return array<int, array<string, mixed>>
+     */
+    public static function acakBerprioritas(array $kelompok, Randomizer $acak): array
+    {
+        if ($kelompok === []) {
+            return [];
+        }
+
+        $hasil = $acak->shuffleArray($kelompok);
+        usort($hasil, fn ($a, $b) => ($a['dijawab'] ?? 0) <=> ($b['dijawab'] ?? 0));
+
+        return $hasil;
     }
 }
