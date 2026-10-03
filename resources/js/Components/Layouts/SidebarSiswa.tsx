@@ -37,7 +37,17 @@ export default function SidebarSiswa() {
 
             <nav className="mt-[26px] space-y-1 px-6">
                 {MENU_SIDEBAR.map((menu) => {
-                    const ikon = <img src={menu.ikon} alt="" className={`${menu.kelasIkon} shrink-0 object-contain`} />;
+                    // Ikon ditaruh di kotak selebar ikon terlebar (31px) dan di tengahnya, supaya semua label mulai di garis yang sama.
+                    const ikon = (
+                        <span className="flex w-[31px] shrink-0 justify-center">
+                            {/* Membesar sedikit saat baris di-hover (group di Link); menu nonaktif tidak punya group, jadi diam. */}
+                            <img
+                                src={menu.ikon}
+                                alt=""
+                                className={`${menu.kelasIkon} object-contain transition-transform duration-200 ease-out group-hover:scale-110 motion-reduce:transition-none`}
+                            />
+                        </span>
+                    );
 
                     if (!menu.rute) {
                         return (
@@ -57,14 +67,15 @@ export default function SidebarSiswa() {
                             // Data halaman tujuan diambil saat kursor diarahkan, supaya klik terasa cepat.
                             prefetch
                             aria-current={aktif ? 'page' : undefined}
-                            className={`${KELAS_BARIS} transition ${
+                            className={`group ${KELAS_BARIS} transition ${
                                 aktif
                                     ? 'bg-gradient-to-r from-siswa-nav-awal from-[3.846%] via-siswa-nav-tengah via-[41.346%] to-siswa-nav-akhir font-medium'
                                     : 'font-medium hover:bg-white/10'
                             }`}
                         >
                             {ikon}
-                            {menu.label}
+                            {/* origin-left: tulisan membesar ke kanan, tidak menabrak ikon. */}
+                            <span className="origin-left transition-transform duration-200 ease-out group-hover:scale-105 motion-reduce:transition-none">{menu.label}</span>
                         </Link>
                     );
                 })}

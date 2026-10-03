@@ -46,11 +46,24 @@ export function IkonHasil({ benar, padaWarna = true }: { benar: boolean; padaWar
     );
 }
 
-function Centang() {
+/**
+ * Bulatan centang yang sama dengan daftar Pilih Topik (BarisTopik): lingkaran bergaris saat kosong,
+ * biru penuh dengan ikon centang putih saat dipilih. Dipakai soal benar_salah di ujian, Try Out, dan pembahasan.
+ */
+export function BulatanCentang({ dipilih }: { dipilih: boolean }) {
     return (
-        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M5 12.5l4.5 4.5L19 7" />
-        </svg>
+        <span
+            aria-hidden="true"
+            className={`flex h-[22px] w-[22px] items-center justify-center rounded-full border-[0.755px] transition-colors duration-300 ease-out ${
+                dipilih ? 'border-siswa-centang bg-siswa-centang' : 'border-siswa-garis-halus bg-white group-hover:border-edvora-primary/50'
+            }`}
+        >
+            <img
+                src="/images/ikon/centang.png"
+                alt=""
+                className={`h-[15px] w-[15px] object-contain transition duration-300 ease-out ${dipilih ? 'scale-100 opacity-100' : 'scale-50 opacity-0'}`}
+            />
+        </span>
     );
 }
 
@@ -92,10 +105,8 @@ export default function TombolOpsi<T extends OpsiDasar>({
                     disabled ? '' : 'hover:-translate-y-0.5 hover:shadow-md'
                 }`}
             >
-                <span className="flex w-[46px] shrink-0 items-center justify-center border-r border-siswa-ujian-garis bg-white text-siswa-judul">
-                    <span className={`transition duration-200 ${dipilih ? 'scale-100 opacity-100' : 'scale-50 opacity-0'}`}>
-                        <Centang />
-                    </span>
+                <span className="flex w-[46px] shrink-0 items-center justify-center border-r border-siswa-ujian-garis bg-white">
+                    <BulatanCentang dipilih={dipilih} />
                 </span>
 
                 <span className={`flex flex-1 items-center justify-between gap-3 px-4 py-2.5 transition-colors duration-300 ${bilah}`}>

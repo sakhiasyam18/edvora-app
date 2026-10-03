@@ -3,7 +3,7 @@ import { useState } from 'react';
 import ArenaPengerjaan, { NavigasiSoal } from '@/Components/Ujian/ArenaPengerjaan';
 import KartuPembahasan, { StatusPembahasan } from '@/Components/Ujian/KartuPembahasan';
 import KartuSoal, { TeksMatematika } from '@/Components/Ujian/KartuSoal';
-import TombolOpsi, { IkonHasil, StatusOpsi } from '@/Components/Ujian/TombolOpsi';
+import TombolOpsi, { BulatanCentang, IkonHasil, StatusOpsi } from '@/Components/Ujian/TombolOpsi';
 import LatihanLayout from '@/Components/Layouts/LatihanLayout';
 import { ModeLatihan, OpsiJawaban, TipeSoal } from '@/types/latihan';
 
@@ -47,13 +47,9 @@ function OpsiBenarSalah({ opsi, dipilih }: { opsi: OpsiJawaban; dipilih: boolean
             <span
                 role="img"
                 aria-label={dipilih ? 'Dipilih' : 'Tidak dipilih'}
-                className="flex w-[46px] shrink-0 items-center justify-center border-r border-siswa-ujian-garis bg-white text-siswa-judul"
+                className="flex w-[46px] shrink-0 items-center justify-center border-r border-siswa-ujian-garis bg-white"
             >
-                {dipilih && (
-                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M5 12.5l4.5 4.5L19 7" />
-                    </svg>
-                )}
+                <BulatanCentang dipilih={dipilih} />
             </span>
 
             <div className={`flex flex-1 items-center justify-between gap-3 px-4 py-2.5 ${bilah}`}>
@@ -77,7 +73,11 @@ export default function Pembahasan({ pengerjaan, soalList }: PembahasanProps) {
 
     return (
         <LatihanLayout
-            breadcrumb={['Riwayat', namaMode ? `${pengerjaan.namaSubtes} (Mode ${namaMode})` : pengerjaan.namaSubtes, 'Pembahasan']}
+            breadcrumb={[
+                { label: 'Riwayat', href: route('riwayat.index') },
+                namaMode ? `${pengerjaan.namaSubtes} (Mode ${namaMode})` : pengerjaan.namaSubtes,
+                'Pembahasan',
+            ]}
             sidebar={
                 soalList.length > 0 && (
                     <NavigasiSoal

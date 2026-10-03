@@ -2,8 +2,11 @@ import { Link, usePage } from '@inertiajs/react';
 import { ReactNode } from 'react';
 import LambangEdvora from './LambangEdvora';
 
+// Satu langkah breadcrumb; href diisi bila langkah itu punya halaman yang bisa dibuka.
+export type LangkahBreadcrumb = string | { label: string; href?: string };
+
 interface LatihanLayoutProps {
-    breadcrumb?: string[];
+    breadcrumb?: LangkahBreadcrumb[];
     // Try Out: judul di tengah topbar menggantikan breadcrumb, tanpa tautan ke Beranda
     // (siswa tidak boleh meninggalkan Try Out lewat topbar).
     judulTengah?: string;
@@ -13,7 +16,7 @@ interface LatihanLayoutProps {
 }
 
 /**
- * Layout halaman pengerjaan (Figma node 669:7082): topbar penuh dengan lambang, breadcrumb di tengah,
+ * Layout halaman pengerjaan (Figma node 669:7082): topbar penuh dengan lambang, breadcrumb rata kiri di sampingnya,
  * dan avatar; tanpa sidebar menu supaya siswa fokus mengerjakan soal.
  */
 export default function LatihanLayout({ breadcrumb = [], judulTengah, sidebar, children }: LatihanLayoutProps) {
@@ -35,19 +38,28 @@ export default function LatihanLayout({ breadcrumb = [], judulTengah, sidebar, c
                 {judulTengah ? (
                     <h1 className="min-w-0 flex-1 truncate text-center text-sm font-medium text-siswa-teks md:text-[15px]">{judulTengah}</h1>
                 ) : (
-                    <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1 items-center justify-center gap-2 text-sm text-siswa-teks md:gap-3 md:text-[15px]">
+                    <nav aria-label="Breadcrumb" className="ml-2 flex min-w-0 flex-1 items-center gap-2 text-sm text-siswa-teks md:ml-4 md:gap-3 md:text-[15px]">
                         <Link href={route('dashboard')} aria-label="Beranda" className="shrink-0 transition hover:opacity-70">
                             <img src="/images/ikon/topbar-beranda.png" alt="" className="h-[33.939px] w-[33.939px] object-contain" />
                         </Link>
                         {breadcrumb.map((item, i) => {
                             const terakhir = i === breadcrumb.length - 1;
+                            const { label, href } = typeof item === 'string' ? { label: item, href: undefined } : item;
                             return (
                                 // Item selain yang terakhir disembunyikan di layar sempit supaya breadcrumb tidak terpotong.
                                 <span key={i} className={`min-w-0 items-center gap-2 md:gap-3 ${terakhir ? 'flex' : 'hidden sm:flex'}`}>
                                     <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                                         <path d="M9 6l6 6-6 6" />
                                     </svg>
-                                    <span className={`truncate ${terakhir ? 'font-medium text-siswa-judul/80' : ''}`}>{item}</span>
+                                    {href && !terakhir ? (
+                                        <Link href={href} className="truncate transition hover:text-edvora-primary">
+                                            {label}
+                                        </Link>
+                                    ) : (
+                                        <span aria-current={terakhir ? 'page' : undefined} className={`truncate ${terakhir ? 'font-medium text-siswa-judul/80' : ''}`}>
+                                            {label}
+                                        </span>
+                                    )}
                                 </span>
                             );
                         })}

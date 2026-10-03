@@ -201,7 +201,15 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
 
     return (
         <LatihanLayout
-            breadcrumb={['Latihan Soal', namaMode ? `${konfigurasi.namaSubtes} (Mode ${namaMode})` : konfigurasi.namaSubtes]}
+            breadcrumb={[
+                { label: 'Latihan Soal', href: route('latihan.index') },
+                // Subtes → halaman Pilih Mode subtes itu, langsung di tab mode yang sedang dikerjakan.
+                {
+                    label: konfigurasi.namaSubtes,
+                    href: subtes?.kode_subtes ? route('latihan.mode', { subtes: subtes.kode_subtes, tab: konfigurasi.mode }) : undefined,
+                },
+                ...(namaMode ? [`Mode ${namaMode}`] : []),
+            ]}
             sidebar={
                 <NavigasiSoal
                     judul={konfigurasi.namaSubtes}

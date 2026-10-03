@@ -94,7 +94,12 @@ export default function Hasil({ hasil = dummyHasilLatihan, pengerjaan, ringkasan
     const kelasGlif = 'h-4 w-4';
 
     return (
-        <LatihanLayout breadcrumb={['Latihan Soal', namaMode ? `Hasil Pengerjaan (Mode ${namaMode})` : 'Hasil Pengerjaan']}>
+        <LatihanLayout
+            breadcrumb={[
+                { label: 'Latihan Soal', href: route('latihan.index') },
+                namaMode ? `Hasil Pengerjaan (Mode ${namaMode})` : 'Hasil Pengerjaan',
+            ]}
+        >
             <Head title="Hasil Pengerjaan Soal" />
 
             <div className="mx-auto w-full max-w-[1150px] px-4 py-8 md:px-8 lg:py-[70px]">

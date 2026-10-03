@@ -10,7 +10,7 @@ interface IndexProps {
 }
 
 const gayaTombol =
-    'inline-flex h-11 items-center rounded-[14px] bg-ujian-biru px-6 text-sm font-semibold text-white shadow-panel transition duration-200 hover:-translate-y-0.5 hover:shadow-md md:h-[52px] md:px-10 md:text-lg';
+    'inline-flex h-9 items-center whitespace-nowrap rounded-[10px] bg-ujian-biru px-5 text-[13px] font-semibold text-white shadow-panel transition duration-200 hover:-translate-y-0.5 hover:shadow-md';
 
 // 195 → "195", 42.5 → "42,5"
 const formatMenit = (menit: number) => menit.toLocaleString('id-ID');
@@ -39,45 +39,43 @@ export default function Index({ paketList }: IndexProps) {
         <>
             <Head title="Try Out - EDVORA" />
 
-            {/* Sidebar dan header dari SiswaLayout (persistent layout di bawah). */}
-            <div className="animate-muncul-halus pt-4 font-poppins text-siswa-judul md:pt-6">
-                <div className="mb-5">
-                    <p className="text-sm font-medium uppercase text-siswa-teks">TRY OUT</p>
-                    <h1 className="text-2xl font-bold uppercase text-siswa-judul md:text-[28px]">SIMULASI UTBK</h1>
-                    <p className="mt-1 text-sm text-siswa-teks md:text-base">Kerjakan semua subtes secara berurutan dengan waktu yang ditentukan.</p>
-                </div>
+            {/* Sidebar dan header dari SiswaLayout (persistent layout di bawah).
+                Judul, ukuran huruf, dan jarak antar kartu disamakan dengan halaman Pilih Subtes. */}
+            <div className="w-full font-poppins">
+                <h1 className="pt-[15px] text-[24px] font-semibold leading-tight text-siswa-judul-seksi">Try Out Simulasi UTBK</h1>
+                <p className="mt-[9px] text-[15px] font-medium leading-tight text-siswa-teks">
+                    Kerjakan semua subtes secara berurutan dengan waktu yang ditentukan.
+                </p>
 
                 {pesanError && (
-                    <p role="alert" className="mb-4 max-w-[720px] rounded-[16px] border border-siswa-umpan-salah-teks/30 bg-siswa-umpan-salah p-4 text-sm font-medium text-siswa-umpan-salah-teks">
+                    <div role="alert" className="mt-4 rounded-lg border border-[#E86565] bg-[#FDECEC] px-4 py-3 text-sm font-medium text-[#8A2B2B]">
                         {pesanError}
-                    </p>
+                    </div>
                 )}
 
-                <div className="max-w-[720px] space-y-4">
+                <div className="mt-[23px] space-y-[21px]">
                     {paketList.length === 0 && (
-                        <div className="rounded-[16px] border border-siswa-ujian-garis bg-white p-6 text-sm font-medium text-siswa-teks shadow-kartu">
-                            Belum ada Try Out yang dibuka.
-                        </div>
+                        <div className="rounded-subtes bg-white px-[19px] py-5 text-[13px] font-medium text-siswa-teks shadow-kartu">Belum ada Try Out yang dibuka.</div>
                     )}
 
                     {paketList.map((to, i) => (
                         <div
                             key={to.id}
-                            className="animate-muncul-halus rounded-[16px] border border-siswa-ujian-garis bg-white p-5 shadow-kartu transition duration-300 [animation-fill-mode:both] hover:-translate-y-0.5 hover:shadow-lg md:px-5 md:py-6"
-                            style={{ animationDelay: `${i * 80}ms` }}
+                            className="flex animate-muncul-halus flex-wrap items-center gap-x-4 gap-y-3 rounded-subtes bg-white py-[14px] pl-[19px] pr-[15px] shadow-kartu transition duration-200 [animation-fill-mode:both] hover:-translate-y-1 hover:shadow-xl"
+                            style={{ animationDelay: `${i * 70}ms` }}
                         >
-                            <div className="flex items-start gap-4">
-                                <IkonPaket />
-                                <div className="min-w-0">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <h3 className="text-lg font-semibold text-siswa-judul md:text-xl">{to.judul}</h3>
-                                        <LencanaDibuka />
-                                    </div>
-                                    <InfoPaket paket={to} gaya="chip" />
+                            <IkonPaket />
+
+                            <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <h2 className="text-[16px] font-semibold leading-[22px] text-siswa-judul">{to.judul}</h2>
+                                    <LencanaDibuka />
                                 </div>
+                                <InfoPaket paket={to} gaya="chip" />
                             </div>
 
-                            <div className="mt-4 flex justify-end">
+                            {/* Di layar sempit tombol turun ke baris sendiri, rata kanan. */}
+                            <div className="ml-auto shrink-0">
                                 {to.statusPengerjaan === 'belum' && (
                                     <button type="button" onClick={() => setPaketDipilih(to)} className={gayaTombol}>
                                         Kerjakan &rarr;
@@ -99,46 +97,51 @@ export default function Index({ paketList }: IndexProps) {
                 </div>
             </div>
 
-            {/* POP UP PERATURAN (MODAL) */}
+            {/* POP UP PERATURAN (MODAL): ukuran huruf mengikuti kartu Try Out dan Pilih Subtes. */}
             <Modal
                 show={paketDipilih !== null}
-                maxWidth="2xl"
+                maxWidth="lg"
                 onClose={() => setPaketDipilih(null)}
                 backdropClassName="bg-siswa-judul/40 backdrop-blur-[2px]"
-                panelClassName="rounded-[32px]"
+                panelClassName="rounded-[24px]"
             >
                 {paketModal && (
-                    <div className="relative p-6 font-poppins text-siswa-judul md:px-[60px] md:py-12">
-                        <button
-                            type="button"
-                            onClick={() => setPaketDipilih(null)}
-                            aria-label="Tutup"
-                            className="absolute right-5 top-5 text-edvora-primary transition duration-200 hover:rotate-90 hover:text-edvora-primary-hover md:right-[60px] md:top-12"
-                        >
-                            <svg className="h-9 w-9 md:h-[50px] md:w-[50px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
-                                <circle cx="12" cy="12" r="10" />
-                                <path d="M8.5 8.5l7 7m0-7l-7 7" />
-                            </svg>
-                        </button>
+                    <div className="p-6 font-poppins md:p-8">
+                        <div className="flex items-start justify-between gap-4">
+                            <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <h2 className="text-[20px] font-semibold leading-tight text-siswa-judul">{paketModal.judul}</h2>
+                                    <LencanaDibuka />
+                                </div>
+                                <InfoPaket paket={paketModal} gaya="polos" />
+                            </div>
 
-                        <div className="flex flex-wrap items-center gap-3 pr-12">
-                            <h2 className="text-2xl font-semibold md:text-[38px] md:leading-tight">{paketModal.judul}</h2>
-                            <LencanaDibuka />
+                            <button
+                                type="button"
+                                onClick={() => setPaketDipilih(null)}
+                                aria-label="Tutup"
+                                className="-mr-1 -mt-1 shrink-0 rounded-full p-1 text-siswa-teks transition duration-200 hover:rotate-90 hover:bg-siswa-panel-fleksibel hover:text-edvora-primary"
+                            >
+                                <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
+                                    <path d="M6 6l12 12M18 6L6 18" />
+                                </svg>
+                            </button>
                         </div>
-                        <InfoPaket paket={paketModal} gaya="polos" />
 
-                        <div className="mt-6 rounded-[20px] border border-edvora-primary/40 bg-siswa-panel-fleksibel px-5 py-5 md:mt-8 md:px-8">
-                            <h3 className="text-center text-xl font-semibold uppercase text-siswa-judul md:text-[30px]">PERATURAN</h3>
-                            <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm leading-relaxed text-siswa-teks md:pl-14 md:text-base">
+                        <div className="mt-5 rounded-[14px] border border-siswa-garis-halus bg-siswa-panel-fleksibel px-5 py-4">
+                            <h3 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-siswa-judul">Peraturan</h3>
+                            <ol className="mt-2 list-decimal space-y-1.5 pl-4 text-[13px] leading-[19px] text-siswa-teks marker:text-siswa-teks-redup">
                                 {paketModal.peraturan.map((aturan, idx) => (
-                                    <li key={idx}>{aturan}</li>
+                                    <li key={idx} className="pl-1">
+                                        {aturan}
+                                    </li>
                                 ))}
                             </ol>
                         </div>
 
                         {/* Mulai tetap boleh, tetapi Try Out akan terpotong di akhir periode (T13). */}
                         {!paketModal.waktuCukup && (
-                            <p className="mt-4 rounded-[16px] border border-siswa-hint-garis bg-siswa-hint-latar p-4 text-sm font-medium text-siswa-hint-teks">
+                            <p className="mt-3 rounded-[14px] border border-siswa-hint-garis bg-siswa-hint-latar px-4 py-3 text-[13px] leading-[19px] text-siswa-hint-teks">
                                 Periode berakhir {formatWaktuWib(paketModal.selesaiAt)}. Jawaban dikirim otomatis saat periode berakhir walaupun waktu subtes
                                 masih tersisa.
                             </p>
@@ -148,7 +151,7 @@ export default function Index({ paketList }: IndexProps) {
                             type="button"
                             onClick={mulaiKerjakan}
                             disabled={memulai}
-                            className="mt-8 h-12 w-full rounded-[12px] bg-ujian-biru text-base font-semibold text-white shadow-panel transition duration-200 hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60 md:text-xl"
+                            className="mt-6 h-10 w-full rounded-[10px] bg-ujian-biru text-sm font-semibold text-white shadow-panel transition duration-200 hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
                         >
                             Mulai Kerjakan &rarr;
                         </button>
@@ -162,8 +165,8 @@ export default function Index({ paketList }: IndexProps) {
 // Lingkaran hijau muda dengan ikon dokumen (Figma: kartu Try Out).
 function IkonPaket() {
     return (
-        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-siswa-ikon-tryout md:h-[76px] md:w-[76px]">
-            <svg className="h-7 w-7 text-[#6BAF4E] md:h-9 md:w-9" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <span className="flex h-14 w-[57px] shrink-0 items-center justify-center rounded-full bg-siswa-ikon-tryout">
+            <svg className="h-7 w-7 text-[#6BAF4E]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm1 7V3.5L18.5 9H15zM8 13h8v1.6H8V13zm0 3.4h6V18H8v-1.6z" />
             </svg>
         </span>
@@ -172,7 +175,7 @@ function IkonPaket() {
 
 function LencanaDibuka() {
     return (
-        <span className="rounded-full border border-[#9BD27E] bg-siswa-ikon-tryout px-3 py-0.5 text-xs font-medium uppercase text-[#4C9A3A] md:text-sm">DIBUKA</span>
+        <span className="rounded-full border border-[#9BD27E] bg-siswa-ikon-tryout px-2.5 py-px text-[11px] font-medium uppercase leading-4 text-[#4C9A3A]">DIBUKA</span>
     );
 }
 
@@ -185,12 +188,12 @@ function InfoPaket({ paket, gaya }: { paket: PaketTryOut; gaya: 'chip' | 'polos'
     ];
 
     return (
-        <div className={`flex flex-wrap ${gaya === 'chip' ? 'mt-2 gap-2' : 'mt-3 gap-x-6 gap-y-2'}`}>
+        <div className={`flex flex-wrap ${gaya === 'chip' ? 'mt-1.5 gap-1.5' : 'mt-1.5 gap-x-4 gap-y-1'}`}>
             {butir.map(({ ikon, teks }) => (
                 <span
                     key={teks}
                     className={`flex items-center gap-1.5 text-siswa-teks ${
-                        gaya === 'chip' ? 'rounded-full border border-siswa-ujian-garis px-3 py-1 text-xs shadow-panel md:text-sm' : 'text-sm md:text-lg'
+                        gaya === 'chip' ? 'rounded-full border border-siswa-ujian-garis px-2.5 py-0.5 text-[13px] leading-[19px]' : 'text-[13px] leading-[19px]'
                     }`}
                 >
                     {ikon}
@@ -201,7 +204,7 @@ function InfoPaket({ paket, gaya }: { paket: PaketTryOut; gaya: 'chip' | 'polos'
     );
 }
 
-const kelasIkon = 'h-4 w-4 shrink-0 md:h-[1.1em] md:w-[1.1em]';
+const kelasIkon = 'h-[1.1em] w-[1.1em] shrink-0';
 
 function IkonBuku() {
     return (

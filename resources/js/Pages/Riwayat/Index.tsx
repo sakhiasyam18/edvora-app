@@ -1,8 +1,10 @@
+import { Listbox, ListboxButton, ListboxOption, ListboxOptions } from '@headlessui/react';
 import { Head, Link, router } from '@inertiajs/react';
 import { FormEvent, ReactNode, useState } from 'react';
 import SiswaLayout from '@/Components/Layouts/SiswaLayout';
+import Modal from '@/Components/Modal';
 
-// Pilihan panel filter; kode sama dengan FilterRiwayat::JENIS dan ::STATUS di backend.
+// Pilihan filter; kode sama dengan FilterRiwayat::JENIS dan ::STATUS di backend.
 const PILIHAN_JENIS = {
     fleksibel: 'Latihan Soal Fleksibel',
     simulasi: 'Latihan Simulasi',
@@ -11,16 +13,12 @@ const PILIHAN_JENIS = {
 } as const;
 
 const PILIHAN_STATUS = {
-    selesai: 'selesai',
-    belum_selesai: 'belum selesai',
+    selesai: 'Selesai',
+    belum_selesai: 'Belum Selesai',
 } as const;
 
 type JenisSesi = keyof typeof PILIHAN_JENIS;
 type StatusFilter = keyof typeof PILIHAN_STATUS;
-
-// Pilihan radio setelah Reset.
-const JENIS_DEFAULT: JenisSesi = 'fleksibel';
-const STATUS_DEFAULT: StatusFilter = 'selesai';
 
 // Tombol "Lanjut Kerjakan" disembunyikan sampai fitur simpan per soal selesai (RANCANGAN-dashboard-topik-remedial.md).
 // Saat itu, aktifkan lagi dan arahkan ke rute pengerjaan yang baru; cabang Ulangi di latihan.ujian sudah dihapus.
@@ -72,12 +70,12 @@ interface ModalInfoData {
     skor: number;
 }
 
-// Komponen Helper untuk Ikon & Warna Dinamis
+// Ikon dan warna per jenis sesi, dipakai di modal informasi. Warna latar mengikuti kartu menu Beranda.
 const getCardStyle = (tipe: string, mode_latihan?: string) => {
     if (tipe === 'try_out' || tipe === 'tryout') {
         return {
-            bgIcon: 'bg-[#D4E8D1]', // Hijau Try Out
-            textIcon: 'text-[#4CAF50]',
+            bgIcon: 'bg-siswa-ikon-tryout',
+            textIcon: 'text-[#4C9A3A]',
             icon: (
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2.41L17.59 9H13V4.41zM6 20V4h5v7h7v9H6zm2-8h8v2H8v-2zm0 4h5v2H8v-2z" />
@@ -88,8 +86,8 @@ const getCardStyle = (tipe: string, mode_latihan?: string) => {
 
     if (mode_latihan === 'remedial') {
         return {
-            bgIcon: 'bg-[#FDF0D5]', // Kuning Remedial
-            textIcon: 'text-[#F5A623]',
+            bgIcon: 'bg-siswa-ikon-hover-remedial',
+            textIcon: 'text-siswa-ubin-remedial',
             icon: (
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
                     <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
@@ -102,8 +100,8 @@ const getCardStyle = (tipe: string, mode_latihan?: string) => {
 
     if (mode_latihan === 'simulasi') {
         return {
-            bgIcon: 'bg-[#FAD9D9]', // Merah Simulasi
-            textIcon: 'text-[#E57373]',
+            bgIcon: 'bg-siswa-ikon-hover-simulasi',
+            textIcon: 'text-siswa-ubin-simulasi',
             icon: (
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
                     <circle cx="12" cy="12" r="8" />
@@ -116,8 +114,8 @@ const getCardStyle = (tipe: string, mode_latihan?: string) => {
 
     // Default: Fleksibel
     return {
-        bgIcon: 'bg-[#D2E4FF]', // Biru Fleksibel
-        textIcon: 'text-[#5B8DEF]',
+        bgIcon: 'bg-siswa-ikon-latihan',
+        textIcon: 'text-edvora-primary',
         icon: (
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6">
                 <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" />
@@ -126,23 +124,26 @@ const getCardStyle = (tipe: string, mode_latihan?: string) => {
     };
 };
 
-export default function Index({
-    title = 'Riwayat Pengerjaan',
-    riwayat,
-    filters,
-}: IndexProps) {
+// Tombol aksi di tiap baris; lebarnya sama supaya kolom aksi rapi.
+const KELAS_AKSI =
+    'flex h-9 w-full items-center justify-center rounded-[10px] px-4 text-[13px] font-semibold text-white shadow-panel transition duration-200 hover:-translate-y-0.5 hover:shadow-md md:w-[184px]';
+
+// Kolom tabel di tablet ke atas: Jenis Sesi, Nama Subtest, Status, Info, Aksi.
+// Status dan Info ikut mendapat bagian sisa ruang (fr) supaya jaraknya rata, tidak menumpuk setelah Nama Subtest.
+const KOLOM =
+    'md:grid md:grid-cols-[minmax(0,1.3fr)_minmax(0,1.3fr)_minmax(128px,1fr)_minmax(40px,0.5fr)_184px] md:items-center md:gap-4 lg:gap-6';
+
+export default function Index({ title = 'Riwayat Pengerjaan', riwayat, filters }: IndexProps) {
     const [cari, setCari] = useState(filters.cari);
-    const [panelFilter, setPanelFilter] = useState(false);
-    const [pilihanJenis, setPilihanJenis] = useState<JenisSesi>(filters.jenis ?? JENIS_DEFAULT);
-    const [pilihanStatus, setPilihanStatus] = useState<StatusFilter>(filters.status ?? STATUS_DEFAULT);
     const [selectedInfo, setSelectedInfo] = useState<ModalInfoData | null>(null);
     const [isLoadingInfo, setIsLoadingInfo] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
     const filterAktif = filters.jenis !== null || filters.status !== null;
     const adaPencarian = filters.cari !== '' || filterAktif;
+    const kosong = riwayat.data.length === 0;
 
-    // Satu request per pencarian: hanya saat tombol cari/Enter, Cari, atau Reset ditekan (bukan setiap ketikan).
+    // Satu request per pencarian: saat Enter / tombol cari, atau saat pilihan dropdown berubah (bukan setiap ketikan).
     const tampilkan = (params: { cari: string; jenis?: JenisSesi; status?: StatusFilter }) => {
         router.get(
             route('riwayat.index'),
@@ -156,18 +157,9 @@ export default function Index({
         tampilkan({ cari, jenis: filters.jenis ?? undefined, status: filters.status ?? undefined });
     };
 
-    const terapkanFilter = () => {
-        setPanelFilter(false);
-        tampilkan({ cari, jenis: pilihanJenis, status: pilihanStatus });
-    };
-
-    // Reset: filter dihapus sehingga semua riwayat tampil lagi; teks pencarian tetap.
-    const resetFilter = () => {
-        setPilihanJenis(JENIS_DEFAULT);
-        setPilihanStatus(STATUS_DEFAULT);
-        setPanelFilter(false);
-        tampilkan({ cari });
-    };
+    // null = "Semua": parameter dihapus sehingga filter itu tidak berlaku.
+    const ubahJenis = (jenis: JenisSesi | null) => tampilkan({ cari, jenis: jenis ?? undefined, status: filters.status ?? undefined });
+    const ubahStatus = (status: StatusFilter | null) => tampilkan({ cari, jenis: filters.jenis ?? undefined, status: status ?? undefined });
 
     const handleOpenInfo = async (pengerjaanId: string) => {
         setIsLoadingInfo(true);
@@ -183,189 +175,130 @@ export default function Index({
         }
     };
 
+    const gayaInfo = selectedInfo ? getCardStyle(selectedInfo.tipe, selectedInfo.mode_latihan) : null;
+
     return (
         <>
             <Head title={title} />
 
             {/* Sidebar dan header dari SiswaLayout (persistent), sama dengan halaman siswa lain. */}
-                        <div className="w-full max-w-6xl mx-auto">
-                            
-                            {/* Header Section (Banner & Search) */}
-                            <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                                {/* Banner Kiri */}
-                                <div className="rounded-2xl bg-gradient-to-r from-[#81A6E7] to-[#A8C7FA] px-8 py-5 text-white shadow-sm md:w-[45%]">
-                                    <h1 className="text-2xl font-bold md:text-3xl">Riwayat Pengerjaan</h1>
-                                    <p className="mt-1 text-sm font-medium opacity-90">Akses riwayat pengerjaan mu disini!</p>
-                                </div>
+            <div className="w-full space-y-4 font-poppins text-siswa-judul">
+                {/* Banner: gaya sama dengan banner sapaan Beranda. */}
+                <section className="flex min-h-[83px] animate-muncul-halus flex-col justify-center rounded-kartu bg-gradient-to-l from-siswa-banner-awal to-siswa-banner-akhir px-[26px] py-4 shadow-kartu">
+                    <h1 className="text-[24px] font-semibold leading-tight text-white">Riwayat Pengerjaan</h1>
+                    <p className="mt-1 text-[15px] leading-tight text-white">Akses riwayat pengerjaan mu disini!</p>
+                </section>
 
-                                {/* Search & Filter Kanan */}
-                                <div className="flex flex-1 items-center gap-4 md:justify-end">
-                                    {/* Pencarian: dikirim lewat tombol kaca pembesar atau Enter. */}
-                                    <form onSubmit={kirimPencarian} className="relative w-full md:max-w-md">
-                                        <input
-                                            type="text"
-                                            value={cari}
-                                            onChange={(e) => setCari(e.target.value)}
-                                            placeholder="Cari Sesi atau Subtest"
-                                            className="h-12 w-full rounded-full border border-gray-200 bg-white pl-5 pr-14 text-sm font-medium text-gray-700 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-[#5F8DDD] focus:ring-1 focus:ring-[#5F8DDD]"
-                                        />
-                                        <button
-                                            type="submit"
-                                            aria-label="Cari"
-                                            className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full text-[#2B4184] transition hover:bg-[#E6F2FF]"
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
-                                                <circle cx="11" cy="11" r="7" />
-                                                <path d="m20 20-3.5-3.5" />
-                                            </svg>
-                                        </button>
-                                    </form>
-
-                                    <div className="relative">
-                                        <button
-                                            type="button"
-                                            onClick={() => setPanelFilter((buka) => !buka)}
-                                            aria-expanded={panelFilter}
-                                            className={`flex h-12 items-center justify-center gap-2 whitespace-nowrap rounded-full border bg-white px-5 text-sm font-medium shadow-sm transition hover:bg-gray-50 ${
-                                                filterAktif ? 'border-[#5F8DDD] text-[#2B4184]' : 'border-gray-200 text-gray-600'
-                                            }`}
-                                        >
-                                            <span>Filter Pencarian</span>
-                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                                                <path d="M3 6h18M6 12h12m-9 6h6" />
-                                            </svg>
-                                        </button>
-
-                                        {/* Panel filter: pilihan baru berlaku setelah Cari; Reset menampilkan semua riwayat lagi. */}
-                                        {panelFilter && (
-                                            <div className="absolute right-0 z-30 mt-2 w-72 rounded-2xl border border-gray-100 bg-white p-5 shadow-xl">
-                                                <p className="text-sm font-bold text-[#1E293B]">Jenis sesi</p>
-                                                <div className="mt-2 space-y-2">
-                                                    {(Object.keys(PILIHAN_JENIS) as JenisSesi[]).map((kode) => (
-                                                        <label key={kode} className="flex cursor-pointer items-center gap-3 text-sm text-gray-700">
-                                                            <input
-                                                                type="radio"
-                                                                name="jenis"
-                                                                checked={pilihanJenis === kode}
-                                                                onChange={() => setPilihanJenis(kode)}
-                                                                className="text-[#5B8DEF] focus:ring-[#5B8DEF]"
-                                                            />
-                                                            {PILIHAN_JENIS[kode]}
-                                                        </label>
-                                                    ))}
-                                                </div>
-
-                                                <p className="mt-4 text-sm font-bold text-[#1E293B]">Status Pengerjaan</p>
-                                                <div className="mt-2 space-y-2">
-                                                    {(Object.keys(PILIHAN_STATUS) as StatusFilter[]).map((kode) => (
-                                                        <label key={kode} className="flex cursor-pointer items-center gap-3 text-sm text-gray-700">
-                                                            <input
-                                                                type="radio"
-                                                                name="status"
-                                                                checked={pilihanStatus === kode}
-                                                                onChange={() => setPilihanStatus(kode)}
-                                                                className="text-[#5B8DEF] focus:ring-[#5B8DEF]"
-                                                            />
-                                                            {PILIHAN_STATUS[kode]}
-                                                        </label>
-                                                    ))}
-                                                </div>
-
-                                                <div className="mt-5 flex gap-3">
-                                                    <button
-                                                        type="button"
-                                                        onClick={resetFilter}
-                                                        className="flex-1 rounded-full bg-[#E57373] py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#D85E5E]"
-                                                    >
-                                                        Reset
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={terapkanFilter}
-                                                        className="flex-1 rounded-full bg-[#5B8DEF] py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#4A7CDA]"
-                                                    >
-                                                        Cari
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
+                {kosong && !adaPencarian ? (
+                    // UCS3 2a: belum pernah mengerjakan apa pun.
+                    <div className="mx-auto flex min-h-[260px] max-w-[820px] animate-muncul-halus items-center justify-center rounded-kartu bg-siswa-umpan-salah px-6 text-center shadow-kartu [animation-delay:100ms] [animation-fill-mode:both] md:mt-16 md:min-h-[310px]">
+                        <p className="text-lg font-semibold text-siswa-umpan-salah-teks md:text-xl">Belum ada soal yang dikerjakan!</p>
+                    </div>
+                ) : (
+                    <>
+                        {/* Filter dan pencarian */}
+                        <section className="relative z-10 flex animate-muncul-halus flex-col gap-4 rounded-kartu bg-white px-[26px] py-5 shadow-kartu [animation-delay:80ms] [animation-fill-mode:both] md:flex-row md:items-end">
+                            <div className="grid flex-1 gap-4 sm:grid-cols-2 md:max-w-[480px]">
+                                <Dropdown
+                                    label="Jenis Sesi"
+                                    nilai={filters.jenis}
+                                    pilihan={PILIHAN_JENIS}
+                                    onUbah={(kode) => ubahJenis(kode as JenisSesi | null)}
+                                />
+                                <Dropdown
+                                    label="Status Pengerjaan"
+                                    nilai={filters.status}
+                                    pilihan={PILIHAN_STATUS}
+                                    onUbah={(kode) => ubahStatus(kode as StatusFilter | null)}
+                                />
                             </div>
 
-                            {/* Cards Grid */}
-                            {riwayat.data.length === 0 ? (
-                                <div className="flex min-h-[300px] flex-col items-center justify-center rounded-2xl bg-white p-8 text-center shadow-sm border border-gray-100">
-                                    {/* UCS3 2a dan 2b: belum pernah mengerjakan vs pencarian/filter tanpa hasil. */}
-                                    {adaPencarian ? (
-                                        <>
-                                            <p className="text-xl font-semibold text-gray-700">Data Tidak Ditemukan</p>
-                                            <p className="mt-2 text-sm text-gray-500">Coba kata kunci atau filter lain.</p>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <p className="text-xl font-semibold text-gray-700">Belum Ada Riwayat Pengerjaan</p>
-                                            <p className="mt-2 text-sm text-gray-500">Mulai latihan, simulasi, atau remedial untuk melihat riwayat kamu di sini.</p>
-                                        </>
-                                    )}
+                            {/* Pencarian: dikirim lewat tombol Cari atau Enter. */}
+                            <form onSubmit={kirimPencarian} className="flex w-full md:ml-auto md:max-w-[380px]">
+                                <input
+                                    type="text"
+                                    value={cari}
+                                    onChange={(e) => setCari(e.target.value)}
+                                    placeholder="Cari Jenis Sesi atau Nama Subtest"
+                                    aria-label="Cari Jenis Sesi atau Nama Subtest"
+                                    className="h-10 min-w-0 flex-1 rounded-l-[10px] border border-r-0 border-siswa-garis-halus bg-white px-3.5 text-sm text-siswa-judul transition placeholder:text-siswa-teks-redup focus:border-edvora-primary focus:ring-2 focus:ring-edvora-primary/20"
+                                />
+                                <button
+                                    type="submit"
+                                    className="flex h-10 shrink-0 items-center gap-2 rounded-r-[10px] bg-ujian-biru px-4 text-sm font-semibold text-white shadow-panel transition duration-200 hover:shadow-md hover:brightness-105 active:brightness-95"
+                                >
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px]" aria-hidden="true">
+                                        <circle cx="11" cy="11" r="7" />
+                                        <path d="m20 20-3.5-3.5" />
+                                    </svg>
+                                    Cari
+                                </button>
+                            </form>
+                        </section>
+
+                        {/* Tabel riwayat */}
+                        <section className="animate-muncul-halus overflow-hidden rounded-kartu bg-white shadow-kartu [animation-delay:160ms] [animation-fill-mode:both]">
+                            <div className={`hidden border-b border-siswa-garis-halus bg-siswa-panel-fleksibel px-[26px] py-4 text-[15px] font-semibold text-siswa-judul-seksi ${KOLOM}`}>
+                                {/* Kolom teks rata kiri seperti isinya; kolom label dan tombol rata tengah. */}
+                                <span>Jenis Sesi</span>
+                                <span>Nama Subtest</span>
+                                <span className="text-center">Status</span>
+                                <span className="text-center">Info</span>
+                                <span className="text-center">Aksi</span>
+                            </div>
+
+                            {kosong ? (
+                                // UCS3 2b: pencarian/filter tanpa hasil.
+                                <div className="animate-muncul-halus px-[26px] py-12 text-center">
+                                    <p className="text-lg font-semibold text-siswa-umpan-salah-teks">Data tidak ditemukan!</p>
+                                    <p className="mt-1 text-sm text-siswa-teks">Coba kata kunci atau filter lain.</p>
                                 </div>
                             ) : (
-                                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:gap-8">
-                                    {riwayat.data.map((item) => {
-                                        const style = getCardStyle(item.tipe, item.mode_latihan);
-                                        return (
-                                            <div key={item.id} className="relative flex flex-col justify-between rounded-3xl bg-white p-6 shadow-sm border border-gray-100 transition hover:shadow-md">
-                                                
-                                                {/* Top Row: Badge & Info Icon */}
-                                                <div className="flex items-center justify-between mb-4">
-                                                    <div>
-                                                        {item.status === 'berjalan' && (
-                                                            <span className="inline-block rounded-full bg-[#FF7B7B] px-4 py-1.5 text-xs font-semibold text-white shadow-sm">
-                                                                Belum Selesai
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <button
-                                                        onClick={() => handleOpenInfo(item.id)}
-                                                        className="flex h-8 w-8 items-center justify-center rounded-full bg-[#5B8DEF] text-white shadow-sm transition hover:bg-[#4A7CDA]"
-                                                        title="Informasi Pengerjaan"
-                                                    >
-                                                        <span className="font-serif text-sm font-bold italic">i</span>
-                                                    </button>
-                                                </div>
+                                <ul className="divide-y divide-siswa-garis-halus">
+                                    {riwayat.data.map((item, i) => (
+                                        <li
+                                            key={item.id}
+                                            className={`grid animate-muncul-halus grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2 px-[26px] py-4 text-[15px] text-siswa-judul-seksi transition-colors duration-200 [animation-fill-mode:both] even:bg-siswa-laman-awal hover:bg-siswa-panel-fleksibel md:py-3 ${KOLOM}`}
+                                            style={{ animationDelay: `${200 + i * 40}ms` }}
+                                        >
+                                            <span className="font-medium">{item.jenis_pengerjaan}</span>
+                                            <span className="col-span-2 row-start-2 md:col-span-1 md:row-start-auto">
+                                                {item.nama_materi || '–'}
+                                            </span>
 
-                                                {/* Content Title */}
-                                                <div className="mb-8 flex items-center gap-5">
-                                                    <div className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full ${style.bgIcon} ${style.textIcon}`}>
-                                                        {style.icon}
-                                                    </div>
-                                                    <div className="flex flex-col">
-                                                        <h3 className="text-lg font-bold text-[#344A91] leading-tight">
-                                                            {item.jenis_pengerjaan}
-                                                        </h3>
-                                                        {item.nama_materi && (
-                                                            <p className="text-lg font-semibold text-gray-800 leading-tight">
-                                                                {item.nama_materi}
-                                                            </p>
-                                                        )}
-                                                    </div>
-                                                </div>
+                                            <span
+                                                className={`justify-self-end rounded-full px-3 py-0.5 text-center text-xs font-semibold text-white shadow-panel md:w-[128px] md:justify-self-center ${
+                                                    item.status === 'berjalan' ? 'bg-ujian-merah' : 'bg-ujian-hijau'
+                                                }`}
+                                            >
+                                                {item.status === 'berjalan' ? 'Belum Selesai' : 'Selesai'}
+                                            </span>
 
-                                                {/* Action Button */}
-                                                <div>
+                                            <div className="col-span-2 flex items-center gap-3 md:contents">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleOpenInfo(item.id)}
+                                                    aria-label={`Informasi ${item.jenis_pengerjaan} ${item.nama_materi}`}
+                                                    title="Informasi Pengerjaan"
+                                                    className="flex h-[29px] w-[29px] shrink-0 items-center justify-center rounded-full bg-edvora-primary text-white shadow-panel transition duration-200 hover:scale-110 hover:bg-edvora-primary-hover md:justify-self-center"
+                                                >
+                                                    <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4" aria-hidden="true">
+                                                        <circle cx="12" cy="6.5" r="1.8" />
+                                                        <rect x="10.4" y="10" width="3.2" height="9" rx="1.2" />
+                                                    </svg>
+                                                </button>
+
+                                                <div className="flex-1 md:flex-none">
                                                     {item.status === 'berjalan' ? (
                                                         item.try_out_id ? (
-                                                            <Link
-                                                                href={route('tryout.kerjakan', item.try_out_id)}
-                                                                className="flex w-full items-center justify-center rounded-2xl bg-[#4CAF50] py-3 text-base font-semibold text-white shadow-sm transition hover:bg-[#43A047]"
-                                                            >
+                                                            <Link href={route('tryout.kerjakan', item.try_out_id)} className={`${KELAS_AKSI} bg-ujian-hijau`}>
                                                                 Lanjut Kerjakan
                                                             </Link>
                                                         ) : (
                                                             LANJUT_KERJAKAN_TERSEDIA && (
                                                                 <Link
                                                                     href={route('latihan.ujian', { subtesId: item.subtes_id, pengerjaanId: item.id })}
-                                                                    className="flex w-full items-center justify-center rounded-2xl bg-[#4CAF50] py-3 text-base font-semibold text-white shadow-sm transition hover:bg-[#43A047]"
+                                                                    className={`${KELAS_AKSI} bg-ujian-hijau`}
                                                                 >
                                                                     Lanjut Kerjakan
                                                                 </Link>
@@ -374,112 +307,128 @@ export default function Index({
                                                     ) : (
                                                         <Link
                                                             href={item.try_out_id ? route('tryout.hasil', item.try_out_id) : route('riwayat.detail', item.id)}
-                                                            className="flex w-full items-center justify-center rounded-2xl bg-[#5B8DEF] py-3 text-base font-semibold text-white shadow-sm transition hover:bg-[#4A7CDA]"
+                                                            className={`${KELAS_AKSI} bg-ujian-biru`}
                                                         >
                                                             Lihat Hasil Pengerjaan
                                                         </Link>
                                                     )}
                                                 </div>
                                             </div>
-                                        );
-                                    })}
-                                </div>
+                                        </li>
+                                    ))}
+                                </ul>
                             )}
+                        </section>
 
-                            {/* Pagination 10 per halaman; tautannya sudah membawa pencarian dan filter (withQueryString). */}
-                            {riwayat.last_page > 1 && (
-                                <nav aria-label="Halaman riwayat" className="mt-8 flex flex-wrap items-center justify-center gap-2">
-                                    {riwayat.links.map((link, i) => {
-                                        const label = i === 0 ? '← Sebelumnya' : i === riwayat.links.length - 1 ? 'Berikutnya →' : link.label;
-                                        const gaya = `flex h-10 min-w-10 items-center justify-center rounded-full px-4 text-sm font-semibold shadow-sm transition ${
-                                            link.active ? 'bg-[#5B8DEF] text-white' : 'border border-gray-200 bg-white text-gray-600'
-                                        }`;
+                        {/* Pagination 10 per halaman; tautannya sudah membawa pencarian dan filter (withQueryString). */}
+                        {riwayat.last_page > 1 && (
+                            <nav aria-label="Halaman riwayat" className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                                {riwayat.links.map((link, i) => {
+                                    const label = i === 0 ? '← Sebelumnya' : i === riwayat.links.length - 1 ? 'Berikutnya →' : link.label;
+                                    const gaya = `flex h-9 min-w-9 items-center justify-center rounded-[10px] px-3 text-sm font-semibold shadow-panel transition duration-200 ${
+                                        link.active ? 'bg-ujian-biru text-white' : 'bg-white text-siswa-judul'
+                                    }`;
 
-                                        return link.url ? (
-                                            <Link
-                                                key={i}
-                                                href={link.url}
-                                                preserveState
-                                                aria-current={link.active ? 'page' : undefined}
-                                                className={`${gaya} ${link.active ? '' : 'hover:bg-gray-50'}`}
-                                            >
-                                                {label}
-                                            </Link>
-                                        ) : (
-                                            <span key={i} className={`${gaya} cursor-not-allowed opacity-50`}>
-                                                {label}
-                                            </span>
-                                        );
-                                    })}
-                                </nav>
-                            )}
-                        </div>
+                                    return link.url ? (
+                                        <Link
+                                            key={i}
+                                            href={link.url}
+                                            preserveState
+                                            aria-current={link.active ? 'page' : undefined}
+                                            className={`${gaya} ${link.active ? '' : 'hover:-translate-y-0.5 hover:bg-siswa-panel-fleksibel'}`}
+                                        >
+                                            {label}
+                                        </Link>
+                                    ) : (
+                                        <span key={i} className={`${gaya} cursor-not-allowed opacity-50`}>
+                                            {label}
+                                        </span>
+                                    );
+                                })}
+                            </nav>
+                        )}
+                    </>
+                )}
+            </div>
 
             {/* Modal Info Pengerjaan */}
-            {isModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                    {/* Latar Belakang Gelap (Klik untuk menutup) */}
-                    <div 
-                        className="absolute inset-0 bg-black/20 backdrop-blur-sm transition-opacity" 
-                        onClick={() => setIsModalOpen(false)}
-                    ></div>
+            <Modal show={isModalOpen} maxWidth="lg" onClose={() => setIsModalOpen(false)} backdropClassName="bg-siswa-judul/30 backdrop-blur-[2px]" panelClassName="rounded-kartu">
+                <div className="p-5 font-poppins md:p-6">
+                    {isLoadingInfo ? (
+                        <div className="py-6 text-center text-sm font-medium text-siswa-teks">Memuat informasi...</div>
+                    ) : selectedInfo && gayaInfo ? (
+                        <div className="flex flex-col items-start gap-4 md:flex-row md:gap-5">
+                            {/* Ikon kiri: warna mengikuti jenis sesi */}
+                            <div className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full ${gayaInfo.bgIcon} ${gayaInfo.textIcon}`}>{gayaInfo.icon}</div>
 
-                    {/* Card Modal Utama dengan Border Biru Terang */}
-                    <div className="relative z-10 w-full max-w-lg rounded-2xl border-[3px] border-[#2596F8] bg-white p-5 shadow-2xl transition-all md:p-6">
-                        
-                        {isLoadingInfo ? (
-                            <div className="py-6 text-center text-sm font-medium text-gray-500">
-                                Memuat informasi...
-                            </div>
-                        ) : selectedInfo ? (
-                            <div className="flex flex-col items-start gap-4 md:flex-row md:gap-5">
-                                {/* Ikon Kiri (Warna dinamis mengikuti getCardStyle) */}
-                                <div className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full ${getCardStyle(selectedInfo.tipe, selectedInfo.mode_latihan).bgIcon} ${getCardStyle(selectedInfo.tipe, selectedInfo.mode_latihan).textIcon}`}>
-                                    {getCardStyle(selectedInfo.tipe, selectedInfo.mode_latihan).icon}
-                                </div>
+                            <div className="flex-1 pt-1">
+                                <h3 className="text-xl font-semibold leading-tight text-siswa-judul">{selectedInfo.judul}</h3>
 
-                                {/* Konten Kanan */}
-                                <div className="flex-1 pt-1">
-                                    <h3 className="text-xl font-bold text-[#1F2D5C] leading-tight">
-                                        {selectedInfo.judul}
-                                    </h3>
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                    <span className={KELAS_CHIP}>
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
+                                            <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
+                                        </svg>
+                                        {selectedInfo.total_dijawab} / {selectedInfo.jumlah_soal} soal terjawab
+                                    </span>
 
-                                    {/* Baris Tag/Pill */}
-                                    <div className="mt-3 flex flex-wrap gap-2">
-                                        
-                                        {/* Tag Jumlah Soal */}
-                                        <div className="flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 shadow-sm">
-                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
-                                                <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
-                                            </svg>
-                                            {selectedInfo.total_dijawab} / {selectedInfo.jumlah_soal} soal terjawab
-                                        </div>
-
-                                        {/* Tag Waktu Mulai */}
-                                        <div className="flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 shadow-sm">
-                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
-                                                <circle cx="12" cy="12" r="10" />
-                                                <polyline points="12 6 12 12 16 14" />
-                                            </svg>
-                                            Mulai {selectedInfo.started_at}
-                                        </div>
-
-                                        {/* Tag Status / Skor */}
-                                        <div className="flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 shadow-sm">
-                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className={`h-3.5 w-3.5 ${selectedInfo.status === 'selesai' ? 'text-[#F5A623]' : 'text-gray-400'}`}>
-                                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                                            </svg>
-                                            {selectedInfo.status === 'selesai' ? `Skor: ${selectedInfo.skor}` : 'Belum Selesai'}
-                                        </div>
-
-                                    </div>
+                                    <span className={KELAS_CHIP}>
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
+                                            <circle cx="12" cy="12" r="10" />
+                                            <polyline points="12 6 12 12 16 14" />
+                                        </svg>
+                                        Mulai {selectedInfo.started_at}
+                                    </span>
                                 </div>
                             </div>
-                        ) : null}
-                    </div>
+                        </div>
+                    ) : null}
                 </div>
-            )}
+            </Modal>
         </>
+    );
+}
+
+const KELAS_CHIP = 'flex items-center gap-1.5 rounded-full border border-siswa-garis-halus px-3 py-1.5 text-xs font-medium text-siswa-teks shadow-panel';
+
+// Dropdown filter (Figma: Riwayat). Pilihan pertama selalu "Semua" (= tanpa filter).
+function Dropdown({
+    label,
+    nilai,
+    pilihan,
+    onUbah,
+}: {
+    label: string;
+    nilai: string | null;
+    pilihan: Record<string, string>;
+    onUbah: (kode: string | null) => void;
+}) {
+    return (
+        <Listbox value={nilai} onChange={onUbah}>
+            <div className="relative">
+                <p className="mb-1.5 text-[15px] font-semibold text-siswa-judul">{label}</p>
+                <ListboxButton className="group flex h-10 w-full items-center justify-between rounded-[10px] border border-siswa-garis-halus bg-white px-3.5 text-left text-sm transition hover:border-edvora-primary/60 focus:outline-none data-[open]:border-edvora-primary">
+                    <span className={nilai ? 'text-siswa-judul' : 'text-siswa-teks-redup'}>{nilai ? pilihan[nilai] : 'Semua'}</span>
+                    <svg className="h-4 w-4 text-siswa-judul transition-transform duration-200 group-data-[open]:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M6 9l6 6 6-6" />
+                    </svg>
+                </ListboxButton>
+                <ListboxOptions
+                    transition
+                    className="absolute z-20 mt-1 w-full origin-top rounded-[10px] border border-siswa-garis-halus bg-white py-1 text-sm shadow-kartu transition duration-150 ease-out focus:outline-none data-[closed]:scale-95 data-[closed]:opacity-0"
+                >
+                    {[[null, 'Semua'] as const, ...Object.entries(pilihan)].map(([kode, teks]) => (
+                        <ListboxOption
+                            key={kode ?? 'semua'}
+                            value={kode}
+                            className="cursor-pointer px-3.5 py-2 text-siswa-teks data-[selected]:text-siswa-judul data-[focus]:bg-siswa-panel-fleksibel data-[selected]:font-semibold"
+                        >
+                            {teks}
+                        </ListboxOption>
+                    ))}
+                </ListboxOptions>
+            </div>
+        </Listbox>
     );
 }
 
