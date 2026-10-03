@@ -9,7 +9,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Paket Try Out. Statusnya dihitung dari periode, tidak disimpan (RANCANGAN-tryout.md T4).
+ * Paket Try Out. Statusnya dihitung dari periode, tidak disimpan (RANCANGAN-tryout.md T4). dinilai_at terisi
+ * setelah skor IRT paket ini tersimpan (RANCANGAN-irt.md I9).
  */
 class TryOut extends Model
 {
@@ -33,11 +34,13 @@ class TryOut extends Model
         'dibuat_oleh',
         'mulai_at',
         'selesai_at',
+        'dinilai_at',
     ];
 
     protected $casts = [
         'mulai_at' => 'datetime',
         'selesai_at' => 'datetime',
+        'dinilai_at' => 'datetime',
     ];
 
     // Draft sebelum mulai_at, Dibuka sampai sebelum selesai_at, Ditutup sejak selesai_at.

@@ -24,8 +24,9 @@ function singkatan(nama: string): string {
         .join('');
 }
 
-// Satu kartu subtes di bagian Rincian (Figma: Hasil Try Out). Skor IRT per subtes belum dikirim server,
-// jadi angka dan bilahnya memakai jumlah benar dari jumlah soal. Warna lencana sama dengan kartu Pilih Subtes.
+// Satu kartu subtes di bagian Rincian (Figma: Hasil Try Out). Angka dan bilahnya memakai jumlah benar dari jumlah
+// soal; skor IRT subtes tampil sebagai teks setelah paket dinilai (RANCANGAN-irt.md 5.6). Warna lencana sama dengan
+// kartu Pilih Subtes.
 function KartuSubtes({ subtes, urutan }: { subtes: HasilSubtesTryOut; urutan: number }) {
     const kode = singkatan(subtes.nama);
     const persen = subtes.jumlahSoal > 0 ? (subtes.benar / subtes.jumlahSoal) * 100 : 0;
@@ -56,6 +57,7 @@ function KartuSubtes({ subtes, urutan }: { subtes: HasilSubtesTryOut; urutan: nu
                 <span className="text-siswa-umpan-salah-teks">{subtes.salah} Salah</span>
                 <span className="text-siswa-teks"> · {subtes.kosong} Kosong</span>
             </p>
+            {subtes.skor !== null && <p className="mt-1 text-[11px] leading-4 text-siswa-teks">Skor IRT: {subtes.skor.toLocaleString('id-ID')}</p>}
         </div>
     );
 }

@@ -50,4 +50,5 @@ export interface HasilSubtesTryOut {
     benar: number;
     salah: number;
     kosong: number;
+    skor: number | null; // skor IRT subtes (0–1000), null sampai paket dinilai
 }

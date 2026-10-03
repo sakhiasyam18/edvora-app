@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Pengerjaan;
 use App\Models\TryOut;
 use Carbon\CarbonImmutable;
+use LogicException;
 
 /**
  * Posisi siswa di Try Out: subtes aktif, batas waktunya, dan subtes yang sudah ditutup (RANCANGAN-tryout.md 5.3–5.6).
@@ -132,6 +133,22 @@ class SesiTryOut
             ->where('status', 'berjalan')
             ->get()
             ->each(fn (Pengerjaan $p) => $this->rapikan($p));
+    }
+
+    /**
+     * Penutupan saat paket dinilai (RANCANGAN-irt.md 5.4). Proses batch tidak bisa membaca session siswa, jadi
+     * pengerjaan diselesaikan dengan catatan kosong, sama dengan jalur session hilang (T14).
+     */
+    public function tutupTanpaSesi(Pengerjaan $pengerjaan): void
+    {
+        [$subtesList, $mulai, $selesaiAt] = $this->konteks($pengerjaan);
+        $posisi = self::posisi($subtesList, [], $mulai, $selesaiAt, CarbonImmutable::now());
+
+        if (! $posisi['selesai']) {
+            throw new LogicException("Pengerjaan {$pengerjaan->id} belum bisa ditutup: periode paket belum berakhir.");
+        }
+
+        $this->selesaikan->jalankan($pengerjaan, $posisi['catatan'], $posisi['waktuSelesai']);
     }
 
     /**

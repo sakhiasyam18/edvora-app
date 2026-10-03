@@ -204,12 +204,17 @@ class TryOutController extends Controller
             ->get()
             ->keyBy('try_out_subtes_id');
 
+        // Skor IRT per subtes (RANCANGAN-irt.md 5.6); NULL sampai paket dinilai.
+        $skorSubtes = DB::table('pengerjaan_subtes')
+            ->where('pengerjaan_id', $pengerjaan->id)
+            ->pluck('skor_subtes', 'try_out_subtes_id');
+
         return Inertia::render('TryOut/Hasil', [
             'paket' => ['id' => $tryOut->id, 'judul' => $tryOut->judul, 'selesaiAt' => $tryOut->selesai_at->toIso8601String()],
             'ditutup' => $tryOut->status() === TryOut::DITUTUP,
             // NULL sampai skor IRT dihitung setelah paket ditutup.
             'skorTotal' => $pengerjaan->total_skor === null ? null : (float) $pengerjaan->total_skor,
-            'perSubtes' => $subtesPaket->map(function ($s) use ($rekap) {
+            'perSubtes' => $subtesPaket->map(function ($s) use ($rekap, $skorSubtes) {
                 $benar = (int) ($rekap[$s->id]->benar ?? 0);
                 $salah = (int) ($rekap[$s->id]->salah ?? 0);
 
@@ -220,6 +225,8 @@ class TryOutController extends Controller
                     'benar' => $benar,
                     'salah' => $salah,
                     'kosong' => max(0, $s->jumlah_soal - $benar - $salah),
+                    // numeric Postgres dibaca PDO sebagai string.
+                    'skor' => isset($skorSubtes[$s->id]) ? (float) $skorSubtes[$s->id] : null,
                 ];
             })->values(),
             // XP dan poin dibaca dari catatan saat diberikan (K12).
