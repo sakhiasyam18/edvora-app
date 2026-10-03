@@ -66,7 +66,7 @@ export default function TabelMajemuk({ kolom, pernyataan, pilihan, onPilih, terk
                                 })}
                                 {terkunci && (
                                     <td className="px-2 py-2">
-                                        <IkonHasil benar={dipilih === opsi.kunci_kolom} />
+                                        <IkonHasil benar={dipilih === opsi.kunci_kolom} padaWarna={false} />
                                     </td>
                                 )}
                             </tr>

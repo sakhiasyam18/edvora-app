@@ -41,8 +41,9 @@ export default function TimerMundur({ durasiMenit, onHabis }: TimerMundurProps) 
         <div
             role="timer"
             aria-label="Sisa waktu pengerjaan"
-            className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 font-semibold tabular-nums text-white shadow-md transition-colors ${
-                hampirHabis ? 'bg-[#D64545]' : 'bg-[#1F2D5C]'
+            // Figma: pil navy di kanan judul "Soal 3 dari 5"; berubah merah dan berdenyut pelan di menit terakhir.
+            className={`inline-flex items-center gap-2 rounded-[10px] px-3.5 py-1.5 text-[15px] font-medium tabular-nums text-white shadow-panel transition-colors duration-500 ${
+                hampirHabis ? 'animate-pulse bg-ujian-merah' : 'bg-siswa-judul'
             }`}
         >
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">

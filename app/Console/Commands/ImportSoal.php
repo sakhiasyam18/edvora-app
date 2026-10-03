@@ -58,13 +58,16 @@ class ImportSoal extends Command
             return self::FAILURE;
         }
 
-        if ($jumlahSoal === 0) {
-            $this->warn('Tidak ada soal di file ini.');
+        if ($jumlahSoal === 0 && $hasil['topik'] === []) {
+            $this->warn('Tidak ada soal maupun topik di file ini.');
 
             return self::SUCCESS;
         }
 
-        $this->tampilkanRingkasan($hasil['soal']);
+        // File boleh hanya berisi sheet Topik, mis. untuk mengisi Jumlah Soal Simulasi topik yang sudah ada.
+        if ($jumlahSoal > 0) {
+            $this->tampilkanRingkasan($hasil['soal']);
+        }
 
         if ($tujuan = $this->option('pratinjau')) {
             if (file_put_contents($tujuan, $pratinjau->html($hasil['soal'], basename($path))) === false) {

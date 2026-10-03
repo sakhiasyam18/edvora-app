@@ -78,16 +78,18 @@ class PenguasaanTest extends TestCase
         $this->assertSame(1, Penguasaan::tahapBerikutnya(1, $skor));
     }
 
-    public function test_naik_bila_skor_mencapai_75(): void
+    public function test_naik_bila_skor_di_atas_75(): void
     {
-        $this->assertSame(2, Penguasaan::tahapBerikutnya(1, $this->skor('mudah', 20, benar: 15)));
-        $this->assertSame(1, Penguasaan::tahapBerikutnya(1, $this->skor('mudah', 20, benar: 14)));
+        $this->assertSame(2, Penguasaan::tahapBerikutnya(1, $this->skor('mudah', 20, benar: 16)));
+        // Tepat 75 belum naik (SDD 5.3.1.2: syaratnya > 75).
+        $this->assertSame(1, Penguasaan::tahapBerikutnya(1, $this->skor('mudah', 20, benar: 15)));
     }
 
-    public function test_turun_bila_skor_di_bawah_35(): void
+    public function test_turun_bila_skor_di_bawah_30(): void
     {
-        $this->assertSame(1, Penguasaan::tahapBerikutnya(2, $this->skor('sedang', 20, benar: 6)));
-        $this->assertSame(2, Penguasaan::tahapBerikutnya(2, $this->skor('sedang', 20, benar: 7)));
+        // 5 dari 20 sedang = 25, turun; 6 dari 20 = 30, tetap.
+        $this->assertSame(1, Penguasaan::tahapBerikutnya(2, $this->skor('sedang', 20, benar: 5)));
+        $this->assertSame(2, Penguasaan::tahapBerikutnya(2, $this->skor('sedang', 20, benar: 6)));
     }
 
     public function test_tahap_1_tidak_bisa_turun(): void
@@ -95,13 +97,22 @@ class PenguasaanTest extends TestCase
         $this->assertSame(1, Penguasaan::tahapBerikutnya(1, $this->skor('mudah', 20, benar: 0)));
     }
 
-    public function test_tahap_3_dengan_skor_75_berarti_dikuasai(): void
+    public function test_tahap_3_dikuasai_bila_skor_di_atas_75(): void
     {
-        $skor = $this->skor('sulit', 20, benar: 15);
+        $skor = $this->skor('sulit', 20, benar: 16);
 
         $this->assertSame(3, Penguasaan::tahapBerikutnya(3, $skor));
         $this->assertTrue(Penguasaan::dikuasai(3, $skor));
         $this->assertSame('dikuasai', Penguasaan::label(3, $skor));
+    }
+
+    public function test_skor_tepat_75_mengisi_lingkaran_tetapi_belum_dikuasai(): void
+    {
+        // Akibat gabungan keputusan #2 dan #3 (RANCANGAN-penyesuaian-sdd.md bagian 3).
+        $skor = $this->skor('sulit', 20, benar: 15);
+
+        $this->assertFalse(Penguasaan::dikuasai(3, $skor));
+        $this->assertSame('berkembang', Penguasaan::label(3, $skor));
         $this->assertSame(1.0, Penguasaan::isiLingkaran($skor));
     }
 
@@ -164,8 +175,8 @@ class PenguasaanTest extends TestCase
     }
 
     /**
-     * Jejak lima sesi 10 soal dengan porsi tahap: tahap 1 semua mudah, tahap 2 4 mudah + 6 sedang,
-     * tahap 3 2 mudah + 3 sedang + 5 sulit. Jendela tidak dikosongkan, jadi sesi 3 langsung naik lagi.
+     * Jejak lima sesi 10 soal dengan data tetap. Jendela tidak dikosongkan, jadi sesi 3 langsung naik lagi,
+     * dan sesi 5 turun karena skornya di bawah 30.
      */
     public function test_jejak_lima_sesi(): void
     {
@@ -202,17 +213,17 @@ class PenguasaanTest extends TestCase
     {
         $this->assertSame(['mudah' => 10], Penguasaan::jatahSoal(1, 10));
         $this->assertSame(['mudah' => 4, 'sedang' => 6], Penguasaan::jatahSoal(2, 10));
-        $this->assertSame(['mudah' => 2, 'sedang' => 3, 'sulit' => 5], Penguasaan::jatahSoal(3, 10));
+        $this->assertSame(['mudah' => 3, 'sedang' => 4, 'sulit' => 3], Penguasaan::jatahSoal(3, 10));
     }
 
     public function test_sisa_pembulatan_jatah_ke_pecahan_terbesar_lalu_tingkat_tersulit(): void
     {
-        // 2,2 / 3,3 / 5,5: sisa satu soal ke sulit (pecahan 0,5).
-        $this->assertSame(['mudah' => 2, 'sedang' => 3, 'sulit' => 6], Penguasaan::jatahSoal(3, 11));
+        // 3,3 / 4,4 / 3,3: sisa satu soal ke sedang (pecahan 0,4).
+        $this->assertSame(['mudah' => 3, 'sedang' => 5, 'sulit' => 3], Penguasaan::jatahSoal(3, 11));
         // 4,8 / 7,2: sisa satu soal ke mudah (pecahan 0,8).
         $this->assertSame(['mudah' => 5, 'sedang' => 7], Penguasaan::jatahSoal(2, 12));
-        // 3 / 4,5 / 7,5: pecahan sedang dan sulit sama, sulit didahulukan.
-        $this->assertSame(['mudah' => 3, 'sedang' => 4, 'sulit' => 8], Penguasaan::jatahSoal(3, 15));
+        // 4,5 / 6 / 4,5: pecahan mudah dan sulit sama, sulit didahulukan.
+        $this->assertSame(['mudah' => 4, 'sedang' => 6, 'sulit' => 5], Penguasaan::jatahSoal(3, 15));
     }
 
     public function test_jumlah_jatah_selalu_sama_dengan_jumlah_soal(): void
@@ -227,34 +238,56 @@ class PenguasaanTest extends TestCase
     public function test_soal_di_tahap_bertambah_tiap_sesi_dan_kembali_nol_saat_tahap_berubah(): void
     {
         $sesi1 = Penguasaan::setelahSesi(1, $this->jawaban('mudah', 10, benar: 10), 10);
-        $this->assertSame(['tahap' => 1, 'skor' => null, 'n_jendela' => 10, 'n_di_tahap' => 10, 'berubah' => false], $sesi1);
+        $this->assertSame(['tahap' => 1, 'skor' => null, 'skor_sementara' => 100.0, 'n_jendela' => 10, 'n_di_tahap' => 10, 'berubah' => false], $sesi1);
 
         $sesi2 = Penguasaan::setelahSesi(1, $this->jawaban('mudah', 20, benar: 20), 20);
-        $this->assertSame(['tahap' => 2, 'skor' => 100.0, 'n_jendela' => 20, 'n_di_tahap' => 0, 'berubah' => true], $sesi2);
+        $this->assertSame(['tahap' => 2, 'skor' => 100.0, 'skor_sementara' => 100.0, 'n_jendela' => 20, 'n_di_tahap' => 0, 'berubah' => true], $sesi2);
     }
 
-    public function test_topik_prioritas_bila_belum_dikuasai_setelah_60_soal_di_tahap_yang_sama(): void
+    public function test_skor_sementara_dihitung_sebelum_jendela_penuh(): void
     {
-        $skor = $this->skor('mudah', 20, benar: 10);
+        // 3 mudah benar, 2 sedang salah: 100 × 3 / 7.
+        $jendela = [...$this->jawaban('mudah', 3, benar: 3), ...$this->jawaban('sedang', 2, benar: 0)];
 
-        $this->assertTrue(Penguasaan::prioritas(1, $skor, 60));
-        $this->assertFalse(Penguasaan::prioritas(1, $skor, 59));
-        // Belum cukup data tetap bisa jadi prioritas bila soalnya sudah banyak.
-        $this->assertTrue(Penguasaan::prioritas(1, null, 60));
-        $this->assertFalse(Penguasaan::prioritas(3, $this->skor('sulit', 20, benar: 16), 80));
+        $hasil = Penguasaan::setelahSesi(1, $jendela, 5);
+
+        $this->assertNull($hasil['skor']);
+        $this->assertSame(42.86, $hasil['skor_sementara']);
+        $this->assertSame(1, $hasil['tahap']);
     }
 
-    public function test_rekomendasi_prioritas_dulu_lalu_tahap_lalu_skor(): void
+    public function test_skor_sementara_kosong_bila_jendela_kosong(): void
     {
-        $urut = Penguasaan::urutkanRekomendasi([
-            ['topik' => 'A', 'tahap' => 2, 'skor' => 40.0, 'prioritas' => false],
-            ['topik' => 'B', 'tahap' => 1, 'skor' => null, 'prioritas' => false],
-            ['topik' => 'C', 'tahap' => 2, 'skor' => 60.0, 'prioritas' => true],
-            ['topik' => 'D', 'tahap' => 1, 'skor' => 55.0, 'prioritas' => false],
-            ['topik' => 'E', 'tahap' => 2, 'skor' => 38.0, 'prioritas' => false],
-        ]);
+        $this->assertNull(Penguasaan::setelahSesi(1, [], 0)['skor_sementara']);
+    }
 
-        $this->assertSame(['C', 'D', 'B', 'E', 'A'], array_column($urut, 'topik'));
+    public function test_persen_subtes_rata_rata_topik_yang_punya_soal(): void
+    {
+        $topikList = [
+            ['adaSoal' => true, 'tahap' => 3, 'skor' => 90.0],   // dikuasai: 100
+            ['adaSoal' => true, 'tahap' => 1, 'skor' => null],   // belum cukup data: 0
+            ['adaSoal' => true, 'tahap' => 1, 'skor' => null],
+            ['adaSoal' => false, 'tahap' => 3, 'skor' => 90.0],  // tanpa soal: tidak dihitung
+        ];
+
+        // 100 / 3 = 33,33, dibulatkan 1 desimal. Bila topik tanpa soal ikut dihitung, hasilnya 50.
+        $this->assertSame(['persen' => 33.3, 'adaData' => true], Penguasaan::persenSubtes($topikList));
+    }
+
+    public function test_persen_subtes_nol_tanpa_topik_bersoal(): void
+    {
+        $this->assertSame(['persen' => 0.0, 'adaData' => false], Penguasaan::persenSubtes([]));
+        $this->assertSame(['persen' => 0.0, 'adaData' => false], Penguasaan::persenSubtes([
+            ['adaSoal' => false, 'tahap' => 2, 'skor' => 50.0],
+        ]));
+    }
+
+    public function test_persen_subtes_belum_ada_data_bila_semua_topik_belum_cukup_data(): void
+    {
+        $this->assertSame(['persen' => 0.0, 'adaData' => false], Penguasaan::persenSubtes([
+            ['adaSoal' => true, 'tahap' => 1, 'skor' => null],
+            ['adaSoal' => true, 'tahap' => 1, 'skor' => null],
+        ]));
     }
 
     private function skor(string $tingkat, int $jumlah, int $benar): ?float

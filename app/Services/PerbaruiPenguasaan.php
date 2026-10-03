@@ -8,7 +8,7 @@ use DateTimeInterface;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Memperbarui skor dan tahap topik-topik yang dikerjakan di satu sesi fleksibel.
+ * Memperbarui skor dan tahap topik-topik yang dikerjakan di satu sesi fleksibel atau remedial.
  *
  * Jendela diambil dari log jawaban setiap kali, jadi hasilnya selalu bisa dihitung ulang;
  * yang tidak bisa diturunkan dari log hanya tahap dan tahap_sejak. Aturannya ada di Penguasaan.
@@ -20,7 +20,7 @@ class PerbaruiPenguasaan
      * Berapa pun jumlah topiknya, cukup tiga query: membaca jendela, upsert penguasaan, dan insert riwayat.
      *
      * @param  string[]  $topikIds  topik yang punya jawaban di sesi ini
-     * @return array<string, array{tahap_lama: int, tahap: int, skor: ?float, n_jendela: int, n_di_tahap: int, berubah: bool}> topik_id => hasil
+     * @return array<string, array{tahap_lama: int, tahap: int, skor: ?float, skor_sementara: ?float, n_jendela: int, n_di_tahap: int, berubah: bool}> topik_id => hasil
      */
     public function setelahSesi(string $userId, array $topikIds, string $pengerjaanId, DateTimeInterface $selesai): array
     {
@@ -31,7 +31,7 @@ class PerbaruiPenguasaan
         $tanda = implode(', ', array_fill(0, count($topikIds), '?'));
 
         // Per topik: 20 jawaban terakhir (satu per soal, dari yang terbaru masuk), keadaan yang tersimpan,
-        // dan jumlah soal yang dikerjakan sejak tahap terakhir berubah (dasar topik prioritas).
+        // dan jumlah soal yang dikerjakan sejak tahap terakhir berubah.
         $baris = DB::select(sprintf(<<<'SQL'
             with keadaan as (
                 select topik_id, tahap, tahap_sejak from penguasaan_topik where user_id = ? and topik_id in (%1$s)
@@ -41,7 +41,7 @@ class PerbaruiPenguasaan
                 from jawaban_pengerjaan j
                 join pengerjaan p on p.id = j.pengerjaan_id
                 join soal q on q.id = j.soal_id
-                where p.user_id = ? and q.topik_id in (%1$s) and p.status = 'selesai' and p.mode_latihan = 'fleksibel'
+                where p.user_id = ? and q.topik_id in (%1$s) and p.status = 'selesai' and p.mode_latihan in ('fleksibel', 'remedial')
             ),
             terbaru as (
                 select distinct on (soal_id) * from jawaban order by soal_id, finished_at desc, id desc
@@ -92,6 +92,7 @@ class PerbaruiPenguasaan
                 'user_id' => $userId,
                 'topik_id' => $topikId,
                 'skor' => $h['skor'],
+                'skor_sementara' => $h['skor_sementara'],
                 'n_jendela' => $h['n_jendela'],
                 'n_di_tahap' => $h['n_di_tahap'],
                 'tahap' => $h['tahap'],
@@ -115,7 +116,7 @@ class PerbaruiPenguasaan
         }
 
         if ($penguasaan !== []) {
-            PenguasaanTopik::upsert($penguasaan, ['user_id', 'topik_id'], ['skor', 'n_jendela', 'n_di_tahap', 'tahap', 'tahap_sejak', 'updated_at']);
+            PenguasaanTopik::upsert($penguasaan, ['user_id', 'topik_id'], ['skor', 'skor_sementara', 'n_jendela', 'n_di_tahap', 'tahap', 'tahap_sejak', 'updated_at']);
         }
 
         if ($riwayat !== []) {

@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Hasil hitung skor dan tahap per siswa × topik (mode fleksibel). Aturannya ada di App\Services\Penguasaan.
+ * Hasil hitung skor dan tahap per siswa × topik (mode fleksibel dan remedial). Aturannya ada di App\Services\Penguasaan.
  */
 class PenguasaanTopik extends Model
 {
@@ -26,6 +26,7 @@ class PenguasaanTopik extends Model
         'user_id',
         'topik_id',
         'skor',
+        'skor_sementara',
         'n_jendela',
         'n_di_tahap',
         'tahap',
@@ -35,6 +36,7 @@ class PenguasaanTopik extends Model
 
     protected $casts = [
         'skor' => 'float',
+        'skor_sementara' => 'float',
         'tahap_sejak' => 'datetime',
         'updated_at' => 'datetime',
     ];

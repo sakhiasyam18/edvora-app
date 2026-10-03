@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\PastikanBiodataLengkap;
+use App\Http\Middleware\PastikanPeran;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -22,6 +23,8 @@ return Application::configure(basePath: dirname(__DIR__))
         // Dipasang di rute setelah form Biodata frontend terhubung (rancangan 10.6).
         $middleware->alias([
             'biodata.lengkap' => PastikanBiodataLengkap::class,
+            // Membatasi rute per role, mis. 'peran:admin,admin_editor'.
+            'peran' => PastikanPeran::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

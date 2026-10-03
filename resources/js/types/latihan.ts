@@ -1,6 +1,6 @@
 // resources/js/types/latihan.ts
 
-export type ModeLatihan = 'fleksibel' | 'simulasi';
+export type ModeLatihan = 'fleksibel' | 'simulasi' | 'remedial';
 export type TipeSoal = 'pilihan_ganda' | 'isian_singkat' | 'benar_salah' | 'majemuk_tabel';
 
 export interface OpsiJawaban {
@@ -34,7 +34,7 @@ export interface KonfigurasiSesiLatihan {
   mode: ModeLatihan;
   jumlahSoal: number;
   waktuPengerjaanMenit?: number;  // dipakai kalau mode === 'simulasi'
-  iceBreakingAktif?: boolean;     // dipakai kalau mode === 'fleksibel'
+  iceBreakingAktif?: boolean;     // dipakai kalau mode bukan simulasi
 }
 
 // Dibaca dari tahap, bukan dari skor saja: skor 80 di tahap 1 (soal mudah) belum berarti dikuasai.
@@ -47,11 +47,12 @@ export interface TopikPenguasaan {
   adaSoal: boolean;
   tahap: 1 | 2 | 3;               // 1 mudah, 2 sedang, 3 sulit
   skor: number | null;            // null sampai 20 soal terakhir di topik ini terkumpul
+  skorSementara: number | null;   // skor dari jawaban yang sudah ada; hanya untuk urutan rekomendasi
+  proporsi: number;               // porsi topik di UTBK (0–1); 0 bila belum ditentukan
   nJendela: number;               // 0–20 soal terakhir yang dihitung
   nDiTahap: number;               // soal yang dikerjakan sejak tahap terakhir berubah
   isiLingkaran: number | null;    // 0–1 menuju batas naik tahap; null selama skor belum ada
   label: LabelPenguasaan;
-  prioritas: boolean;             // belum dikuasai padahal sudah 60 soal di tahap yang sama
 }
 
 export interface RingkasanTopikHasil extends TopikPenguasaan {

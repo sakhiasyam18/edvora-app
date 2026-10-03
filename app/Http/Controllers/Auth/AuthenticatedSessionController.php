@@ -33,7 +33,14 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        // Admin (UCS6) dan editor (UCS7-9) punya halaman sendiri; siswa ke Beranda.
+        $tujuan = match ($request->user()->role) {
+            'admin' => route('admin.index', absolute: false),
+            'admin_editor' => route('editor.soal.index', absolute: false),
+            default => route('dashboard', absolute: false),
+        };
+
+        return redirect()->intended($tujuan);
     }
 
     /**
