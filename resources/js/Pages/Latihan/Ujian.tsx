@@ -219,14 +219,25 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
                     statusJawaban={simulasi ? undefined : statusJawabanSoal}
                     onPilih={setIndeksAktif}
                     aksiBawah={
-                        // Desain Figma menampilkan Keluar Halaman di semua mode, termasuk simulasi.
-                        <button
-                            type="button"
-                            onClick={() => setModal('keluar')}
-                            className="h-10 w-full rounded-lg bg-ujian-merah text-[13px] font-semibold text-white shadow-panel transition duration-200 hover:-translate-y-0.5 hover:shadow-md active:translate-y-0"
-                        >
-                            ← Keluar Halaman
-                        </button>
+                        // Simulasi tidak punya Keluar Halaman (UCS1 4b.3); Simpan Jawaban di tempatnya mengakhiri sesi (4b.4–4b.6).
+                        simulasi ? (
+                            <button
+                                type="button"
+                                onClick={() => setModal('selesai')}
+                                disabled={form.processing}
+                                className="h-10 w-full rounded-lg bg-ujian-hijau text-[13px] font-semibold text-white shadow-panel transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:shadow-md enabled:active:translate-y-0 disabled:opacity-60"
+                            >
+                                Simpan Jawaban
+                            </button>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={() => setModal('keluar')}
+                                className="h-10 w-full rounded-lg bg-ujian-merah text-[13px] font-semibold text-white shadow-panel transition duration-200 hover:-translate-y-0.5 hover:shadow-md active:translate-y-0"
+                            >
+                                ← Keluar Halaman
+                            </button>
+                        )
                     }
                 />
             }
@@ -257,11 +268,8 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
                     )
                 }
                 footerKanan={
-                    simulasi ? (
-                        <button type="button" onClick={() => setModal('selesai')} disabled={form.processing} className={`${tombolBesar} bg-ujian-hijau text-white disabled:opacity-60`}>
-                            Selesaikan Sekarang
-                        </button>
-                    ) : !terkunci ? (
+                    // Simulasi diakhiri lewat Simpan Jawaban di panel Navigasi Soal, jadi footer-nya kosong.
+                    simulasi ? null : !terkunci ? (
                         <button
                             type="button"
                             onClick={() => {
@@ -400,13 +408,16 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
 
             <Modal show={modal === 'selesai'} maxWidth="md" onClose={() => setModal(null)} {...kelasModal}>
                 <div className="p-6 font-poppins md:px-8 md:py-7">
-                    <h3 className="text-xl font-semibold text-siswa-umpan-benar-teks">Selesaikan Sekarang</h3>
+                    {/* Simulasi memakai teks konfirmasi UCS1 4b.5: "Yakin Menyimpan Jawaban?" dengan Iya/Tidak. */}
+                    <h3 className="text-xl font-semibold text-siswa-umpan-benar-teks">{simulasi ? 'Yakin Menyimpan Jawaban?' : 'Selesaikan Sekarang'}</h3>
                     <p className="mt-2 text-[15px] font-medium leading-relaxed text-siswa-teks">
-                        Anda akan menyelesaikan latihan soal dan jawaban yang sudah diisi tidak dapat diubah kembali.
+                        {simulasi
+                            ? 'Jawaban akan dikirim dan sesi simulasi berakhir. Soal yang belum dijawab dihitung kosong.'
+                            : 'Anda akan menyelesaikan latihan soal dan jawaban yang sudah diisi tidak dapat diubah kembali.'}
                     </p>
                     <div className="mt-5 flex justify-end gap-2">
                         <button type="button" onClick={() => setModal(null)} className={`${tombolModal} border border-siswa-teks/40 bg-white text-siswa-judul`}>
-                            Batal
+                            {simulasi ? 'Tidak' : 'Batal'}
                         </button>
                         <button
                             type="button"
@@ -414,7 +425,7 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
                             disabled={form.processing}
                             className={`${tombolModal} bg-ujian-hijau text-white shadow-panel`}
                         >
-                            Selesaikan
+                            {simulasi ? 'Iya' : 'Selesaikan'}
                         </button>
                     </div>
                 </div>
