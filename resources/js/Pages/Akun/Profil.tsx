@@ -1,6 +1,7 @@
 import { FormEventHandler, ReactNode, useEffect, useRef, useState } from 'react';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import SiswaLayout from '@/Components/Layouts/SiswaLayout';
+import Modal from '@/Components/Modal';
 
 interface ProgramStudi {
     id: string;
@@ -322,32 +323,20 @@ export default function Profil({ title = 'Edit Biodata', user, siswa, universita
                 </div>
             </div>
 
-            {/* Pop-up berhasil: hanya bisa ditutup lewat OK, yang menuju Akun Pribadi. */}
-            {pesanSukses && (
-                <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] transition-opacity p-4">
-                    <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-sm w-full text-center shadow-2xl transform transition-all animate-in fade-in zoom-in-95 duration-200">
-                        {/* Circle Green Icon */}
-                        <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <div className="w-12 h-12 bg-emerald-100/80 rounded-full flex items-center justify-center">
-                                <svg className="w-7 h-7 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                                </svg>
-                            </div>
-                        </div>
-
-                        <h3 className="text-xl font-bold text-emerald-500 mb-1">Berhasil!</h3>
-                        <p className="text-sm text-gray-500 mb-6">{pesanSukses}</p>
-
-                        <button
-                            type="button"
-                            onClick={() => router.visit(route('akun.profil.utama'))}
-                            className="w-28 py-2.5 bg-[#4285F4] hover:bg-blue-600 active:scale-95 text-white font-medium text-sm rounded-lg shadow-md transition-all duration-200 mx-auto block"
-                        >
-                            OK
-                        </button>
-                    </div>
+            {/* Pop-up berhasil: hanya bisa ditutup lewat OK, yang menuju Akun Pribadi. Desain menyusul. */}
+            <Modal show={pesanSukses !== null} maxWidth="sm" closeable={false}>
+                <div className="p-6 text-center text-[#26355D]">
+                    <h3 className="text-xl font-bold">Berhasil!</h3>
+                    <p className="mt-2 text-sm">{pesanSukses}</p>
+                    <button
+                        type="button"
+                        onClick={() => router.visit(route('akun.profil.utama'))}
+                        className="mt-5 rounded-lg bg-[#5B88DD] px-8 py-2 font-medium text-white"
+                    >
+                        OK
+                    </button>
                 </div>
-            )}
+            </Modal>
         </>
     );
 }
