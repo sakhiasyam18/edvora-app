@@ -1,503 +1,332 @@
-import { FormEventHandler, ReactNode, useEffect, useState } from 'react';
-import { Head, Link, router, usePage } from '@inertiajs/react';
-
-import SiswaLayout from '@/Components/Layouts/SiswaLayout';
-
-interface Universitas {
-    id: string;
-    nama: string;
-    prodi: ProgramStudi[];
-}
+import React, { useState, useEffect, useRef, ReactNode } from 'react';
+import { useForm } from '@inertiajs/react';
+import SiswaLayout from '../../Components/Layouts/SiswaLayout';
 
 interface ProgramStudi {
-    id: string;
+    id: string | number;
     nama: string;
     jenjang?: string | null;
 }
 
-interface PilihanKelas {
-    nilai: string;
+interface Universitas {
+    id: string | number;
+    nama: string;
+    prodi?: ProgramStudi[];
+}
+
+interface Option {
     label: string;
+    value: string | number;
 }
 
-interface UserData {
-    id: string;
-    name: string;
+interface SearchableDropdownProps {
+    label: string;
+    options: Option[];
+    value: string | number;
+    onChange: (val: string | number) => void;
+    placeholder: string;
+    searchPlaceholder: string;
+    disabled?: boolean;
+}
+
+interface User {
+    nama_lengkap?: string;
     email: string;
-}
-
-interface SiswaData {
-    namaLengkap: string;
-    kelas: string | null;
-    jenisKelamin: string | null;
-    xp: number;
-    point: number;
-    universitasTujuanId: string | null;
-    prodiTujuanId: string | null;
-    universitas: {
-        id: string;
-        nama: string;
-    } | null;
-    prodi: {
-        id: string;
-        nama: string;
-        jenjang?: string | null;
-    } | null;
+    kelas?: string;
+    jenis_kelamin?: string;
+    universitas_id?: string | number;
+    prodi_id?: string | number;
 }
 
 interface ProfilProps {
-    title?: string;
-
-    user: UserData;
-
-    siswa: SiswaData;
-
-    universitasList: Universitas[];
-
-    pilihanKelas: PilihanKelas[];
-
-    errors?: {
-        namaLengkap?: string;
-        kelas?: string;
-        jenisKelamin?: string;
-        universitasTujuanId?: string;
-        prodiTujuanId?: string;
-        [key: string]: string | undefined;
-    };
+    user: User;
+    universitasList?: Universitas[];
 }
 
-// Edit Biodata dari Akun Pribadi. Simpan berhasil → server mengarahkan kembali ke Akun Pribadi.
-export default function Profil({
-    title = 'Edit Biodata',
-    user,
-    siswa,
-    universitasList,
-    pilihanKelas,
-    errors = {},
-}: ProfilProps) {
-    const { auth } = usePage<any>().props;
+const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
+    label,
+    options,
+    value,
+    onChange,
+    placeholder,
+    searchPlaceholder,
+    disabled = false,
+}) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [search, setSearch] = useState('');
+    const dropdownRef = useRef<HTMLDivElement>(null);
 
-    /*
-    |--------------------------------------------------------------------------
-    | State Form
-    |--------------------------------------------------------------------------
-    */
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
-    const [namaLengkap, setNamaLengkap] = useState(
-        siswa?.namaLengkap || user?.name || auth?.user?.name || ''
+    const filteredOptions = options.filter((opt) =>
+        opt.label.toLowerCase().includes(search.toLowerCase())
     );
 
-    const [kelas, setKelas] = useState(
-        siswa?.kelas || ''
+    const selectedOption = options.find((opt) => String(opt.value) === String(value));
+    const selectedLabel = selectedOption ? selectedOption.label : placeholder;
+
+    return (
+        <div className="relative w-full" ref={dropdownRef}>
+            <label className="block text-sm font-semibold text-gray-800 mb-2">{label}</label>
+            <div
+                onClick={() => !disabled && setIsOpen(!isOpen)}
+                className={`w-full p-3 border border-gray-200 rounded-lg flex justify-between items-center bg-white transition-all duration-300 ease-in-out ${
+                    disabled
+                        ? 'bg-gray-100 cursor-not-allowed opacity-60'
+                        : 'cursor-pointer hover:border-blue-400 focus:ring-2 focus:ring-blue-100'
+                }`}
+            >
+                <span className={value ? 'text-gray-900' : 'text-gray-400'}>{selectedLabel}</span>
+                <svg
+                    className={`w-4 h-4 text-gray-500 transition-transform duration-300 ${
+                        isOpen ? 'rotate-180' : ''
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                </svg>
+            </div>
+
+            {isOpen && !disabled && (
+                <div className="absolute z-20 w-full mt-2 bg-white border border-gray-100 rounded-lg shadow-lg overflow-hidden transition-all duration-300 origin-top">
+                    <div className="p-2 border-b border-gray-50">
+                        <div className="relative">
+                            <svg className="absolute left-3 top-3 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            <input
+                                type="text"
+                                className="w-full pl-9 p-2 text-sm border-none bg-gray-50 rounded-md focus:ring-0 focus:outline-none text-gray-800"
+                                placeholder={searchPlaceholder}
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                    <ul className="max-h-60 overflow-y-auto">
+                        {filteredOptions.length > 0 ? (
+                            filteredOptions.map((opt) => (
+                                <li
+                                    key={opt.value}
+                                    onClick={() => {
+                                        onChange(opt.value);
+                                        setIsOpen(false);
+                                        setSearch('');
+                                    }}
+                                    className="p-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer transition-colors duration-200"
+                                >
+                                    {opt.label}
+                                </li>
+                            ))
+                        ) : (
+                            <li className="p-3 text-sm text-gray-500 text-center">Tidak ditemukan</li>
+                        )}
+                    </ul>
+                </div>
+            )}
+        </div>
     );
+};
 
-    const [jenisKelamin, setJenisKelamin] = useState(
-        siswa?.jenisKelamin || ''
-    );
+export default function Profil({ user, universitasList = [] }: ProfilProps) {
+    const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-    const [universitasId, setUniversitasId] = useState(
-        siswa?.universitasTujuanId || ''
-    );
-
-    const [prodiId, setProdiId] = useState(
-        siswa?.prodiTujuanId || ''
-    );
-
-    const [isSubmitting, setIsSubmitting] = useState(false);
-
-    /*
-    |--------------------------------------------------------------------------
-    | Universitas yang sedang dipilih
-    |--------------------------------------------------------------------------
-    */
+    const { data, setData, patch, processing } = useForm({
+        nama_lengkap: user?.nama_lengkap || '',
+        kelas: user?.kelas || '',
+        jenis_kelamin: user?.jenis_kelamin || '',
+        universitas_id: user?.universitas_id || '',
+        prodi_id: user?.prodi_id || '',
+    });
 
     const universitasTerpilih = universitasList.find(
-        (universitas) => String(universitas.id) === String(universitasId)
+        (u) => String(u.id) === String(data.universitas_id)
     );
-
-    /*
-    |--------------------------------------------------------------------------
-    | Daftar Program Studi berdasarkan Universitas
-    |--------------------------------------------------------------------------
-    */
 
     const daftarProdi = universitasTerpilih?.prodi ?? [];
 
-    /*
-    |--------------------------------------------------------------------------
-    | Jika Universitas berubah
-    |--------------------------------------------------------------------------
-    |
-    | Pastikan prodi yang sebelumnya dipilih masih tersedia di universitas
-    | yang baru. Jika tidak tersedia, kosongkan pilihan prodi.
-    |
-    */
-
     useEffect(() => {
-        if (!universitasId) {
-            setProdiId('');
+        if (!data.universitas_id) {
+            setData('prodi_id', '');
             return;
         }
-
-        const prodiMasihTersedia = daftarProdi.some(
-            (prodi) => String(prodi.id) === String(prodiId)
-        );
-
-        if (!prodiMasihTersedia) {
-            setProdiId('');
+        const prodiTersedia = daftarProdi.some((p) => String(p.id) === String(data.prodi_id));
+        if (!prodiTersedia) {
+            setData('prodi_id', '');
         }
-    }, [universitasId]);
+    }, [data.universitas_id]);
 
-    /*
-    |--------------------------------------------------------------------------
-    | Submit Form
-    |--------------------------------------------------------------------------
-    |
-    | Email tidak ikut dikirim karena tidak bisa diubah. Jika valid, server
-    | mengarahkan ke Akun Pribadi; jika tidak, pesan error tampil di bawah field.
-    |
-    */
-
-    const handleSubmit: FormEventHandler = (e) => {
+    const submit = (e: React.FormEvent) => {
         e.preventDefault();
-
-        router.patch(
-            route('akun.profil.update'),
-            {
-                namaLengkap,
-                kelas,
-                jenisKelamin,
-                universitasTujuanId: universitasId || null,
-                prodiTujuanId: prodiId || null,
+        const options = {
+            preserveScroll: true,
+            onSuccess: () => {
+                setShowSuccessModal(true);
             },
-            {
-                preserveScroll: true,
-                onStart: () => setIsSubmitting(true),
-                onFinish: () => setIsSubmitting(false),
-            }
-        );
+        };
+
+        // @ts-ignore
+        if (typeof route !== 'undefined') {
+            // @ts-ignore
+            patch(route('akun.profil.update'), options);
+        } else {
+            patch('/akun/profil', options);
+        }
     };
 
-    /*
-    |--------------------------------------------------------------------------
-    | Render
-    |--------------------------------------------------------------------------
-    */
-
     return (
-        <>
-            <Head title={title} />
+        <div className="max-w-4xl mx-auto p-6">
+            <div className="bg-white rounded-2xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07)] p-8">
+                <h2 className="text-xl font-bold text-gray-900 mb-8">Biodata</h2>
 
-            <div className="max-w-3xl mx-auto py-4">
-
-                {/* Center Card Container */}
-                <div className="w-full bg-[#CAE9FD] rounded-lg shadow-[0_20px_48px_-8px_rgba(38,53,93,0.22)] p-space-md sm:p-space-xl relative overflow-hidden">
-
-                    {/* Subtle Decorative Top Edge Glow */}
-                    <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-secondary-container via-primary-container to-secondary-container opacity-60">
+                <form onSubmit={submit} className="space-y-6">
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-800 mb-2">Nama Lengkap</label>
+                        <input
+                            type="text"
+                            value={data.nama_lengkap}
+                            onChange={(e) => setData('nama_lengkap', e.target.value)}
+                            className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all duration-300 outline-none text-gray-900"
+                            placeholder="Masukkan nama lengkap"
+                        />
                     </div>
 
-                    {/* Card Header */}
-                    <div className="flex items-center justify-between pb-space-md">
-                        <h2 className="font-headline-xl text-headline-xl tracking-tight text-[#26355D] font-extrabold mt-0.5">
-                            Biodata
-                        </h2>
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-800 mb-2">Email</label>
+                        <input
+                            type="email"
+                            value={user?.email || ''}
+                            disabled
+                            className="w-full p-3 border border-gray-100 bg-gray-50 text-gray-400 rounded-lg cursor-not-allowed outline-none"
+                        />
+                        <p className="mt-1.5 text-xs text-gray-400 font-medium">Email tidak dapat diubah.</p>
                     </div>
 
-                    {/* Form Container */}
-                    <form
-                        className="space-y-space-md mt-space-xs"
-                        id="biodata-form"
-                        onSubmit={handleSubmit}
-                    >
-
-                        {/* 1. Nama Lengkap */}
-                        <div className="flex flex-col gap-1.5">
-
-                            <label
-                                className="font-label-md text-label-md text-[#26355D] font-semibold flex items-center gap-1.5"
-                                htmlFor="nama-lengkap"
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-800 mb-2">Kelas</label>
+                            <select
+                                value={data.kelas}
+                                onChange={(e) => setData('kelas', e.target.value)}
+                                className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all duration-300 outline-none bg-white text-gray-900"
                             >
-                                Nama Lengkap
-                            </label>
-
-                            <div className="relative">
-
-                                <input
-                                    className="w-full h-12 px-space-md rounded-DEFAULT bg-[#E6F2FF] text-[#26355D] placeholder-[#26355D]/45 font-body-md text-body-md focus:outline-none focus:bg-surface-container-lowest focus:shadow-[0_0_0_2px_#5B88DD] transition-all shadow-[inset_0_1px_3px_rgba(38,53,93,0.06)]"
-                                    id="nama-lengkap"
-                                    placeholder="Masukkan Nama Lengkap"
-                                    required
-                                    maxLength={50}
-                                    type="text"
-                                    value={namaLengkap}
-                                    onChange={(e) => setNamaLengkap(e.target.value)}
-                                />
-
-                            </div>
-
-                            {errors.namaLengkap && (
-                                <span className="text-sm text-red-600">
-                                    {errors.namaLengkap}
-                                </span>
-                            )}
+                                <option value="" disabled>Pilih Kelas</option>
+                                <option value="10_sma">Kelas 10 (SMA)</option>
+                                <option value="11_sma">Kelas 11 (SMA)</option>
+                                <option value="12_sma">Kelas 12 (SMA)</option>
+                            </select>
                         </div>
-
-                        {/* 2. Email (tidak bisa diubah) */}
-                        <div className="flex flex-col gap-1.5">
-
-                            <label
-                                className="font-label-md text-label-md text-[#26355D] font-semibold flex items-center gap-1.5"
-                                htmlFor="email"
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-800 mb-2">Jenis Kelamin</label>
+                            <select
+                                value={data.jenis_kelamin}
+                                onChange={(e) => setData('jenis_kelamin', e.target.value)}
+                                className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all duration-300 outline-none bg-white text-gray-900"
                             >
-                                Email
-                            </label>
-
-                            <input
-                                className="w-full h-12 px-space-md rounded-DEFAULT bg-[#E6F2FF]/60 text-[#26355D]/60 font-body-md text-body-md cursor-not-allowed"
-                                id="email"
-                                type="email"
-                                value={user.email}
-                                disabled
-                                readOnly
-                            />
-
-                            <span className="text-xs text-[#26355D]/60">
-                                Email tidak dapat diubah.
-                            </span>
+                                <option value="" disabled>Pilih Jenis Kelamin</option>
+                                <option value="Laki-laki">Laki-laki</option>
+                                <option value="Perempuan">Perempuan</option>
+                            </select>
                         </div>
+                    </div>
 
-                        {/* 3. Two-Column Grid: Kelas & Jenis Kelamin */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-space-md">
+                    <SearchableDropdown
+                        label="Universitas"
+                        placeholder="Pilih Universitas"
+                        searchPlaceholder="Cari universitas..."
+                        options={universitasList.map((u) => ({ label: u.nama, value: u.id }))}
+                        value={data.universitas_id}
+                        onChange={(val) => setData('universitas_id', val)}
+                    />
 
-                            {/* Kelas */}
-                            <div className="flex flex-col gap-1.5">
+                    <SearchableDropdown
+                        label="Prodi"
+                        placeholder={
+                            data.universitas_id
+                                ? 'Pilih Program Studi'
+                                : 'Pilih Universitas Terlebih Dahulu'
+                        }
+                        searchPlaceholder="Cari program studi..."
+                        options={daftarProdi.map((p) => ({
+                            label: `${p.nama}${p.jenjang ? ` (${p.jenjang})` : ''}`,
+                            value: p.id,
+                        }))}
+                        value={data.prodi_id}
+                        onChange={(val) => setData('prodi_id', val)}
+                        disabled={!data.universitas_id || daftarProdi.length === 0}
+                    />
 
-                                <label
-                                    className="font-label-md text-label-md text-[#26355D] font-semibold flex items-center gap-1.5"
-                                    htmlFor="kelas-select"
-                                >
-                                    Kelas
-                                </label>
-
-                                <div className="relative">
-
-                                    <select
-                                        className="w-full h-12 pl-space-md pr-10 rounded-DEFAULT bg-[#E6F2FF] text-[#26355D] font-body-md text-body-md appearance-none cursor-pointer focus:outline-none focus:bg-surface-container-lowest focus:shadow-[0_0_0_2px_#5B88DD] transition-all shadow-[inset_0_1px_3px_rgba(38,53,93,0.06)]"
-                                        id="kelas-select"
-                                        required
-                                        value={kelas}
-                                        onChange={(e) => setKelas(e.target.value)}
-                                    >
-
-                                        <option
-                                            className="text-[#26355D]/45"
-                                            disabled
-                                            value=""
-                                        >
-                                            Pilih Kelas
-                                        </option>
-
-                                        {pilihanKelas.map((item) => (
-                                            <option
-                                                key={item.nilai}
-                                                value={item.nilai}
-                                            >
-                                                {item.label}
-                                            </option>
-                                        ))}
-
-                                    </select>
-
-                                </div>
-
-                                {errors.kelas && (
-                                    <span className="text-sm text-red-600">
-                                        {errors.kelas}
-                                    </span>
-                                )}
-                            </div>
-
-                            {/* Jenis Kelamin */}
-                            <div className="flex flex-col gap-1.5">
-
-                                <label
-                                    className="font-label-md text-label-md text-[#26355D] font-semibold flex items-center gap-1.5"
-                                    htmlFor="gender-select"
-                                >
-                                    Jenis Kelamin
-                                </label>
-
-                                <div className="relative">
-
-                                    <select
-                                        className="w-full h-12 pl-space-md pr-10 rounded-DEFAULT bg-[#E6F2FF] text-[#26355D] font-body-md text-body-md appearance-none cursor-pointer focus:outline-none focus:bg-surface-container-lowest focus:shadow-[0_0_0_2px_#5B88DD] transition-all shadow-[inset_0_1px_3px_rgba(38,53,93,0.06)]"
-                                        id="gender-select"
-                                        required
-                                        value={jenisKelamin}
-                                        onChange={(e) => setJenisKelamin(e.target.value)}
-                                    >
-
-                                        <option
-                                            className="text-[#26355D]/45"
-                                            disabled
-                                            value=""
-                                        >
-                                            Pilih Jenis Kelamin
-                                        </option>
-
-                                        <option value="laki-laki">
-                                            Laki-laki
-                                        </option>
-
-                                        <option value="perempuan">
-                                            Perempuan
-                                        </option>
-
-                                    </select>
-
-                                </div>
-
-                                {errors.jenisKelamin && (
-                                    <span className="text-sm text-red-600">
-                                        {errors.jenisKelamin}
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* 4. Universitas */}
-                        <div className="flex flex-col gap-1.5">
-
-                            <label
-                                className="font-label-md text-label-md text-[#26355D] font-semibold flex items-center gap-1.5"
-                                htmlFor="institusi-select"
-                            >
-                                Universitas
-                            </label>
-
-                            <div className="relative">
-
-                                <select
-                                    className="w-full h-12 pl-space-md pr-10 rounded-DEFAULT bg-[#E6F2FF] text-[#26355D] font-body-md text-body-md appearance-none cursor-pointer focus:outline-none focus:bg-surface-container-lowest focus:shadow-[0_0_0_2px_#5B88DD] transition-all shadow-[inset_0_1px_3px_rgba(38,53,93,0.06)]"
-                                    id="institusi-select"
-                                    required
-                                    value={universitasId}
-                                    onChange={(e) => {
-                                        setUniversitasId(e.target.value);
-                                    }}
-                                >
-
-                                    <option
-                                        className="text-[#26355D]/45"
-                                        disabled
-                                        value=""
-                                    >
-                                        Pilih Universitas
-                                    </option>
-
-                                    {universitasList.map((universitas) => (
-                                        <option
-                                            key={universitas.id}
-                                            value={universitas.id}
-                                        >
-                                            {universitas.nama}
-                                        </option>
-                                    ))}
-
-                                </select>
-
-                            </div>
-
-                            {errors.universitasTujuanId && (
-                                <span className="text-sm text-red-600">
-                                    {errors.universitasTujuanId}
-                                </span>
-                            )}
-                        </div>
-
-                        {/* 5. Program Studi */}
-                        <div className="flex flex-col gap-1.5">
-
-                            <label
-                                className="font-label-md text-label-md text-[#26355D] font-semibold flex items-center gap-1.5"
-                                htmlFor="prodi-select"
-                            >
-                                Program Studi
-                            </label>
-
-                            <div className="relative">
-
-                                <select
-                                    className="w-full h-12 pl-space-md pr-10 rounded-DEFAULT bg-[#E6F2FF] text-[#26355D] font-body-md text-body-md appearance-none cursor-pointer focus:outline-none focus:bg-surface-container-lowest focus:shadow-[0_0_0_2px_#5B88DD] transition-all shadow-[inset_0_1px_3px_rgba(38,53,93,0.06)] disabled:opacity-60 disabled:cursor-not-allowed"
-                                    id="prodi-select"
-                                    required
-                                    value={prodiId}
-                                    disabled={!universitasId || daftarProdi.length === 0}
-                                    onChange={(e) => setProdiId(e.target.value)}
-                                >
-
-                                    <option
-                                        className="text-[#26355D]/45"
-                                        disabled
-                                        value=""
-                                    >
-                                        {universitasId
-                                            ? 'Pilih Program Studi'
-                                            : 'Pilih Universitas Terlebih Dahulu'}
-                                    </option>
-
-                                    {daftarProdi.map((prodi) => (
-                                        <option
-                                            key={prodi.id}
-                                            value={prodi.id}
-                                        >
-                                            {prodi.nama}
-                                            {prodi.jenjang
-                                                ? ` (${prodi.jenjang})`
-                                                : ''}
-                                        </option>
-                                    ))}
-
-                                </select>
-
-                            </div>
-
-                            {errors.prodiTujuanId && (
-                                <span className="text-sm text-red-600">
-                                    {errors.prodiTujuanId}
-                                </span>
-                            )}
-                        </div>
-
-                        {/* Tombol: Batal kembali ke Akun Pribadi tanpa menyimpan */}
-                        <div className="flex justify-end gap-3 border-t border-[#26355D]/10 pt-space-sm">
-
-                            <Link
-                                href={route('akun.profil.utama')}
-                                className="rounded-lg border border-[#26355D]/20 bg-white px-5 py-2 font-medium text-[#26355D]"
-                            >
-                                Batal
-                            </Link>
-
-                            <button
-                                className="rounded-lg bg-[#5B88DD] px-5 py-2 font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
-                                disabled={isSubmitting}
-                                id="btn-simpan"
-                                type="submit"
-                            >
-                                {isSubmitting ? 'Menyimpan...' : 'Simpan'}
-                            </button>
-
-                        </div>
-
-                    </form>
-
-                </div>
+                    <div className="flex justify-end gap-3 pt-6 mt-2 border-t border-gray-100">
+                        <button
+                            type="button"
+                            className="px-6 py-2.5 text-sm font-semibold text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 active:scale-95 transition-all duration-200"
+                            onClick={() => window.history.back()}
+                        >
+                            Batal
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={processing}
+                            className={`px-6 py-2.5 text-sm font-semibold text-white bg-[#4285F4] rounded-lg hover:bg-blue-600 active:scale-95 transition-all duration-200 shadow-sm shadow-blue-200 ${
+                                processing ? 'opacity-70 cursor-wait' : ''
+                            }`}
+                        >
+                            {processing ? 'Menyimpan...' : 'Simpan'}
+                        </button>
+                    </div>
+                </form>
             </div>
-        </>
+
+            {/* Modal Pop-up Berhasil */}
+            {showSuccessModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] transition-opacity p-4">
+                    <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-sm w-full text-center shadow-2xl transform transition-all animate-in fade-in zoom-in-95 duration-200">
+                        {/* Circle Green Icon */}
+                        <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <div className="w-12 h-12 bg-emerald-100/80 rounded-full flex items-center justify-center">
+                                <svg
+                                    className="w-7 h-7 text-emerald-500"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth="3"
+                                        d="M5 13l4 4L19 7"
+                                    />
+                                </svg>
+                            </div>
+                        </div>
+
+                        {/* Title & Description */}
+                        <h3 className="text-xl font-bold text-emerald-500 mb-1">Berhasil!</h3>
+                        <p className="text-sm text-gray-500 mb-6">Biodata anda berhasil diperbarui</p>
+
+                        {/* Button OK */}
+                        <button
+                            type="button"
+                            onClick={() => setShowSuccessModal(false)}
+                            className="w-28 py-2.5 bg-[#4285F4] hover:bg-blue-600 active:scale-95 text-white font-medium text-sm rounded-lg shadow-md transition-all duration-200 mx-auto block"
+                        >
+                            OK
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
     );
 }
 
-// Persistent layout: sidebar tidak dirender ulang saat pindah dari/ke Akun Pribadi.
 Profil.layout = (page: ReactNode) => <SiswaLayout>{page}</SiswaLayout>;
