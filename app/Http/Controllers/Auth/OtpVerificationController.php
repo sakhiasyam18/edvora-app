@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 
@@ -12,21 +13,24 @@ class OtpVerificationController extends Controller
     {
         $request->validate(['otp' => 'required|string|size:6']);
         $user = $request->user();
-        $cachedOtp = Cache::get('otp_' . $user->id);
+        $cachedOtp = Cache::get('otp_'.$user->id);
 
-        if (!$cachedOtp) {
-            return back()->withErrors(['otp' => 'Kode OTP sudah kedaluwarsa. Silakan kirim ulang.']);
+        if (! $cachedOtp) {
+            // back() membuka lagi halaman verifikasi, yang langsung mengirim kode baru (EmailVerificationPromptController).
+            return back()->withErrors(['otp' => 'Kode OTP sudah kedaluwarsa.']);
         }
         if ($request->otp !== $cachedOtp) {
             return back()->withErrors(['otp' => 'Kode OTP salah.']);
         }
 
         if ($user->markEmailAsVerified()) {
-            event(new \Illuminate\Auth\Events\Verified($user));
+            event(new Verified($user));
         }
-        Cache::forget('otp_' . $user->id);
+        Cache::forget('otp_'.$user->id);
 
-        return redirect()->route('biodata')->with('status', 'Email berhasil diverifikasi.');
+        // intended(): pakai URL yang disimpan middleware verified (Redirect::guest), supaya tidak tertinggal di session
+        // dan membelokkan redirect()->intended() berikutnya di BiodataController::simpan ke /biodata lagi.
+        return redirect()->intended(route('biodata', absolute: false))->with('status', 'Email berhasil diverifikasi.');
     }
 
     public function resend(Request $request)
@@ -36,6 +40,7 @@ class OtpVerificationController extends Controller
             return redirect()->route('biodata');
         }
         $user->sendEmailVerificationNotification();
+
         return back()->with('status', 'Kode OTP baru telah dikirim ke email Anda.');
     }
 }
