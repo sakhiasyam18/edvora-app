@@ -188,7 +188,7 @@ Tim UI/UX dapat menjalankan `npm run dev` dan melihat pratinjau halaman melalui 
 - [`/battle/hasil`](http://localhost:8000/battle/hasil) $\rightarrow$ Hasil Head-to-head
 - [`/profile`](http://localhost:8000/profile) $\rightarrow$ Profil Akun & Lencana
 - [`/jadwal`](http://localhost:8000/jadwal) $\rightarrow$ Jadwal Belajar
-- [`/admin/kelola-soal`](http://localhost:8000/admin/kelola-soal) $\rightarrow$ Halaman Tambah Soal (Admin)
+- [`/editor/kelola-soal`](http://localhost:8000/editor/kelola-soal) $\rightarrow$ Halaman Tambah Soal (Editor)
 
 
 ### 🧠 2. Tim Logika & Backend 

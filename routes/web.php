@@ -97,10 +97,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('/simpan', [JadwalController::class, 'simpan'])->name('jadwal.simpan');
         });
 
-        // Rute Admin
-        Route::prefix('admin')->group(function () {
-            Route::get('/kelola-soal', [AdminSoalController::class, 'index'])->name('admin.soal.index');
-            Route::post('/kelola-soal', [AdminSoalController::class, 'simpan'])->name('admin.soal.simpan');
+        // Rute Admin (UCS6 Mengelola User): hanya role admin; role lain mendapat 403.
+        Route::prefix('admin')->middleware('peran:admin')->group(function () {
+            // Kelola User menyusul, dengan nama rute admin.user.*
+        });
+
+        // Rute Editor (UCS7 Bank Soal, UCS8 Paket Try Out, UCS9 Dashboard Analitik): hanya role admin_editor.
+        Route::prefix('editor')->middleware('peran:admin_editor')->group(function () {
+            Route::get('/kelola-soal', [AdminSoalController::class, 'index'])->name('editor.soal.index');
+            Route::post('/kelola-soal', [AdminSoalController::class, 'simpan'])->name('editor.soal.simpan');
         });
 
         // Rute Try Out (RANCANGAN-tryout.md 5.1). whereUuid: id yang bukan UUID langsung 404, bukan error query Postgres.
