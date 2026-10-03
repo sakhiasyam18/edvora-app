@@ -99,6 +99,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         // Rute Admin (UCS6 Mengelola User): hanya role admin; role lain mendapat 403.
         Route::prefix('admin')->middleware('peran:admin')->group(function () {
+            // Halaman template tujuan setelah admin login; belum butuh data dari server.
+            Route::inertia('/', 'Dashboard/Admin')->name('admin.index');
             // Kelola User menyusul, dengan nama rute admin.user.*
         });
 
