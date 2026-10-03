@@ -2,6 +2,7 @@ import { FormEventHandler, ReactNode, useEffect, useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 
 import SiswaLayout from '@/Components/Layouts/SiswaLayout';
+import Modal from '@/Components/Modal';
 
 interface Universitas {
     id: string;
@@ -66,7 +67,7 @@ interface ProfilProps {
     };
 }
 
-// Edit Biodata dari Akun Pribadi. Simpan berhasil → server mengarahkan kembali ke Akun Pribadi.
+// Edit Biodata dari Akun Pribadi. Simpan berhasil → pop-up "Berhasil!", lalu OK menuju Akun Pribadi.
 export default function Profil({
     title = 'Edit Biodata',
     user,
@@ -76,6 +77,10 @@ export default function Profil({
     errors = {},
 }: ProfilProps) {
     const { auth } = usePage<any>().props;
+
+    // Pesan sekali tampil dari ProfileController::updateBiodata; ada = biodata baru saja tersimpan.
+    const { flash } = usePage();
+    const pesanSukses = typeof flash.sukses === 'string' ? flash.sukses : null;
 
     /*
     |--------------------------------------------------------------------------
@@ -154,7 +159,8 @@ export default function Profil({
     |--------------------------------------------------------------------------
     |
     | Email tidak ikut dikirim karena tidak bisa diubah. Jika valid, server
-    | mengarahkan ke Akun Pribadi; jika tidak, pesan error tampil di bawah field.
+    | kembali ke halaman ini dengan pop-up berhasil; jika tidak, pesan error
+    | tampil di bawah field.
     |
     */
 
@@ -495,6 +501,21 @@ export default function Profil({
 
                 </div>
             </div>
+
+            {/* Pop-up berhasil: hanya bisa ditutup lewat OK, yang menuju Akun Pribadi. Desain menyusul. */}
+            <Modal show={pesanSukses !== null} maxWidth="sm" closeable={false}>
+                <div className="p-6 text-center text-[#26355D]">
+                    <h3 className="text-xl font-bold">Berhasil!</h3>
+                    <p className="mt-2 text-sm">{pesanSukses}</p>
+                    <button
+                        type="button"
+                        onClick={() => router.visit(route('akun.profil.utama'))}
+                        className="mt-5 rounded-lg bg-[#5B88DD] px-8 py-2 font-medium text-white"
+                    >
+                        OK
+                    </button>
+                </div>
+            </Modal>
         </>
     );
 }

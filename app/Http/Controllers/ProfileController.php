@@ -179,10 +179,10 @@ class ProfileController extends Controller
             ]);
         });
 
-        // Kembali ke Akun Pribadi, yang langsung menampilkan data terbaru dari database.
-        Inertia::flash('sukses', 'Biodata berhasil disimpan.');
+        // Kembali ke halaman Edit Biodata, yang menampilkan pop-up berhasil; tombol OK-nya menuju Akun Pribadi.
+        Inertia::flash('sukses', 'Biodata anda sudah diperbarui');
 
-        return redirect()->route('akun.profil.utama');
+        return redirect()->route('akun.profil');
     }
 
     /**

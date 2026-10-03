@@ -1,4 +1,4 @@
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import { ReactNode } from 'react';
 import SiswaLayout from '@/Components/Layouts/SiswaLayout';
 
@@ -46,21 +46,12 @@ export default function ProfilUtama({ user, siswa, bergabung, level }: ProfilUta
         ? new Date(bergabung).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
         : '-';
     const angka = (n: number) => n.toLocaleString('id-ID');
-    // Pesan sekali tampil setelah biodata disimpan (Inertia::flash di ProfileController::updateBiodata).
-    const { flash } = usePage();
-    const pesanSukses = typeof flash.sukses === 'string' ? flash.sukses : null;
 
     return (
         <>
             <Head title="Akun Pribadi" />
 
             <div className="w-full max-w-[1000px] space-y-5 text-[#1F2D5C]">
-                {pesanSukses && (
-                    <div role="status" className="rounded-lg border border-[#34C759] bg-[#E8F8EC] px-4 py-3 text-sm font-medium text-[#1E6B33]">
-                        {pesanSukses}
-                    </div>
-                )}
-
                 {/* Kartu profil: inisial, nama, kelas, tanggal bergabung, level, XP, dan poin */}
                 <section className="flex flex-wrap items-center gap-5 rounded-xl bg-white px-6 py-5 shadow-md">
                     <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-[#5B86DB] text-3xl font-semibold text-white">
