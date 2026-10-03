@@ -1,12 +1,13 @@
 import { Head, Link } from '@inertiajs/react';
 import { useState } from 'react';
-import ArenaPengerjaan, { NavigasiSoal, TombolNavigasiSoal } from '@/Components/Ujian/ArenaPengerjaan';
+import ArenaPengerjaan, { NavigasiSoal } from '@/Components/Ujian/ArenaPengerjaan';
+import KartuPembahasan, { StatusPembahasan } from '@/Components/Ujian/KartuPembahasan';
 import KartuSoal, { TeksMatematika } from '@/Components/Ujian/KartuSoal';
-import TombolOpsi, { StatusOpsi } from '@/Components/Ujian/TombolOpsi';
+import TombolOpsi, { IkonHasil, StatusOpsi } from '@/Components/Ujian/TombolOpsi';
 import LatihanLayout from '@/Components/Layouts/LatihanLayout';
 import { ModeLatihan, OpsiJawaban, TipeSoal } from '@/types/latihan';
 
-type StatusSoal = 'benar' | 'salah' | 'kosong';
+type StatusSoal = StatusPembahasan;
 
 // Satu soal dari PembahasanPengerjaan di backend.
 interface SoalPembahasan {
@@ -26,22 +27,6 @@ interface PembahasanProps {
     soalList: SoalPembahasan[];
 }
 
-const GLIF: Record<StatusSoal, string> = {
-    benar: 'M7.5 12.4l3 3 6-6.4',
-    salah: 'M8.5 8.5l7 7m0-7l-7 7',
-    kosong: 'M7.5 12h9',
-};
-
-// Lingkaran berwarna dengan glif putih; warna dipakai sebagai fill SVG, jadi berupa hex.
-function IkonBulat({ status, warna }: { status: StatusSoal; warna: string }) {
-    return (
-        <svg className="h-6 w-6 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
-            <circle cx="12" cy="12" r="10" fill={warna} />
-            <path d={GLIF[status]} fill="none" stroke="#fff" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-    );
-}
-
 // Pilihan ganda: kunci selalu hijau; pilihan siswa yang salah merah; opsi lain tetap putih.
 function statusOpsiPilihanGanda(opsi: OpsiJawaban, dipilih: boolean): StatusOpsi {
     if (opsi.is_kunci) return 'benar';
@@ -53,38 +38,30 @@ function statusOpsiPilihanGanda(opsi: OpsiJawaban, dipilih: boolean): StatusOpsi
  * sedangkan label kanan menunjukkan nilai kebenaran pernyataan itu sendiri.
  */
 function OpsiBenarSalah({ opsi, dipilih }: { opsi: OpsiJawaban; dipilih: boolean }) {
-    const bilah = !dipilih
-        ? 'border-gray-200 bg-white text-[#1F2D5C]'
-        : opsi.is_kunci
-          ? 'border-[#2AA94B] bg-[#34C759] text-[#26355D]'
-          : 'border-[#E05B5B] bg-[#F07676] text-[#26355D]';
-    // Di bilah berwarna label memakai navy seperti halaman ujian; di bilah putih memakai warna nilai kebenarannya.
-    const [warnaLabel, teksLabel] = dipilih
-        ? ['#26355D', 'text-[#26355D]']
-        : opsi.is_kunci
-          ? ['#2F9E44', 'text-[#2F9E44]']
-          : ['#D64545', 'text-[#D64545]'];
+    const bilah = !dipilih ? 'bg-white text-siswa-judul' : opsi.is_kunci ? 'bg-ujian-hijau text-white' : 'bg-ujian-merah text-white';
+    // Di bilah berwarna label putih; di bilah putih label memakai warna nilai kebenarannya.
+    const teksLabel = dipilih ? '' : opsi.is_kunci ? 'text-siswa-umpan-benar-teks' : 'text-siswa-umpan-salah-teks';
 
     return (
-        <div className="flex items-stretch gap-2">
+        <div className="flex min-h-11 overflow-hidden rounded-[10px] text-[13px] font-semibold shadow-panel">
             <span
                 role="img"
                 aria-label={dipilih ? 'Dipilih' : 'Tidak dipilih'}
-                className="flex w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-[#2E3F85] shadow-sm"
+                className="flex w-[46px] shrink-0 items-center justify-center border-r border-siswa-ujian-garis bg-white text-siswa-judul"
             >
                 {dipilih && (
-                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round">
                         <path d="M5 12.5l4.5 4.5L19 7" />
                     </svg>
                 )}
             </span>
 
-            <div className={`flex flex-1 items-center justify-between gap-3 rounded-lg border px-4 py-2 shadow-sm ${bilah}`}>
+            <div className={`flex flex-1 items-center justify-between gap-3 px-4 py-2.5 ${bilah}`}>
                 <span>
                     <TeksMatematika teks={opsi.teks_opsi} />
                 </span>
-                <span className={`flex shrink-0 items-center gap-2 font-medium ${teksLabel}`}>
-                    <IkonBulat status={opsi.is_kunci ? 'benar' : 'salah'} warna={warnaLabel} />
+                <span className={`flex shrink-0 items-center gap-1.5 font-medium ${teksLabel}`}>
+                    <IkonHasil benar={opsi.is_kunci} padaWarna={dipilih} />
                     {opsi.is_kunci ? 'Benar' : 'Salah'}
                 </span>
             </div>
@@ -92,50 +69,19 @@ function OpsiBenarSalah({ opsi, dipilih }: { opsi: OpsiJawaban; dipilih: boolean
     );
 }
 
-const KARTU: Record<StatusSoal, { judul: string; latar: string; teks: string; warna: string }> = {
-    benar: { judul: 'Jawaban Benar', latar: 'bg-[#E4F6DA]', teks: 'text-[#2F9E44]', warna: '#2F9E44' },
-    salah: { judul: 'Jawaban Salah', latar: 'bg-[#FDE3E3]', teks: 'text-[#D64545]', warna: '#D64545' },
-    kosong: { judul: 'Tidak Dijawab', latar: 'bg-[#EEF0F3]', teks: 'text-[#5B6472]', warna: '#5B6472' },
-};
-
-function KartuPembahasan({ soal }: { soal: SoalPembahasan }) {
-    const kartu = KARTU[soal.status];
-
-    return (
-        <section className={`mt-8 rounded-lg px-5 py-4 shadow-sm ${kartu.latar}`}>
-            <h3 className={`flex items-center gap-3 text-lg font-bold ${kartu.teks}`}>
-                <IkonBulat status={soal.status} warna={kartu.warna} />
-                {kartu.judul}
-            </h3>
-
-            <div className="pl-9 text-sm text-[#1F2D5C]">
-                <p className="mt-1">
-                    Kunci Jawaban:{' '}
-                    <span className="font-semibold">
-                        <TeksMatematika teks={soal.kunci} />
-                    </span>
-                </p>
-
-                <h4 className="mt-4 font-semibold">Pembahasan</h4>
-                <p className="mt-1 leading-relaxed">
-                    <TeksMatematika teks={soal.pembahasan} />
-                </p>
-            </div>
-        </section>
-    );
-}
-
 // Pembahasan satu pengerjaan dengan gaya halaman ujian: satu soal per tampilan, sidebar nomor soal berwarna.
 export default function Pembahasan({ pengerjaan, soalList }: PembahasanProps) {
     const [indeksAktif, setIndeksAktif] = useState(0);
     const soal = soalList[indeksAktif];
+    const namaMode = pengerjaan.mode ? { fleksibel: 'Fleksibel', simulasi: 'Simulasi', remedial: 'Remedial' }[pengerjaan.mode] : null;
 
     return (
         <LatihanLayout
-            breadcrumb={['Riwayat', pengerjaan.namaSubtes, 'Pembahasan']}
+            breadcrumb={['Riwayat', namaMode ? `${pengerjaan.namaSubtes} (Mode ${namaMode})` : pengerjaan.namaSubtes, 'Pembahasan']}
             sidebar={
                 soalList.length > 0 && (
                     <NavigasiSoal
+                        judul={pengerjaan.namaSubtes}
                         jumlahSoal={soalList.length}
                         indeksAktif={indeksAktif}
                         // Soal kosong = bulatan putih, sama seperti soal yang belum dijawab di halaman ujian.
@@ -145,9 +91,9 @@ export default function Pembahasan({ pengerjaan, soalList }: PembahasanProps) {
                         aksiBawah={
                             <Link
                                 href={route('riwayat.index')}
-                                className="rounded-md bg-white px-4 py-1.5 text-xs font-medium text-[#1F2D5C] shadow transition hover:bg-gray-50"
+                                className="flex h-10 w-full items-center justify-center rounded-lg border border-siswa-ujian-garis bg-white text-[13px] font-semibold text-siswa-judul shadow-panel transition duration-200 hover:-translate-y-0.5 hover:shadow-md"
                             >
-                                Kembali ke Riwayat
+                                ← Kembali ke Riwayat
                             </Link>
                         }
                     />
@@ -157,44 +103,40 @@ export default function Pembahasan({ pengerjaan, soalList }: PembahasanProps) {
             <Head title={`Pembahasan ${pengerjaan.namaSubtes}`} />
 
             {soal ? (
-                <ArenaPengerjaan
-                    judul={pengerjaan.namaSubtes}
-                    footerKanan={
-                        <div className="flex gap-2">
-                            <TombolNavigasiSoal jumlahSoal={soalList.length} indeksAktif={indeksAktif} onPilih={setIndeksAktif} />
-                        </div>
-                    }
-                >
-                    <KartuSoal nomor={indeksAktif + 1} teksSoal={soal.teks_soal} gambarUrl={soal.gambar_soal} />
+                <ArenaPengerjaan judul={`Soal ${indeksAktif + 1} dari ${soalList.length}`}>
+                    {/* key: isi soal muncul pelan setiap pindah nomor. */}
+                    <div key={soal.id} className="animate-muncul-halus">
+                        <KartuSoal nomor={indeksAktif + 1} teksSoal={soal.teks_soal} gambarUrl={soal.gambar_soal} />
 
-                    {soal.tipe === 'isian_singkat' ? (
-                        <div className="mt-4 rounded-lg border border-gray-200 bg-white px-4 py-3 text-lg text-[#1F2D5C] shadow-sm">
-                            {soal.jawaban.isian ? (
-                                <span className="break-all">{soal.jawaban.isian}</span>
-                            ) : (
-                                <span className="italic text-gray-500">Tidak dijawab</span>
-                            )}
-                        </div>
-                    ) : (
-                        <div className="mt-4 space-y-2.5">
-                            {soal.opsi_jawaban.map((opsi) => {
-                                const dipilih = soal.jawaban.opsiIds.includes(String(opsi.id));
-
-                                return soal.tipe === 'benar_salah' ? (
-                                    <OpsiBenarSalah key={opsi.id} opsi={opsi} dipilih={dipilih} />
+                        {soal.tipe === 'isian_singkat' ? (
+                            <div className="mt-3 flex min-h-11 items-center rounded-[10px] bg-white px-4 py-2.5 text-sm font-semibold text-siswa-judul shadow-panel">
+                                {soal.jawaban.isian ? (
+                                    <span className="break-all">{soal.jawaban.isian}</span>
                                 ) : (
-                                    <TombolOpsi key={opsi.id} opsi={opsi} status={statusOpsiPilihanGanda(opsi, dipilih)} disabled redup={false} />
-                                );
-                            })}
-                        </div>
-                    )}
+                                    <span className="font-medium italic text-siswa-teks">Tidak dijawab</span>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="mt-3 space-y-2.5">
+                                {soal.opsi_jawaban.map((opsi) => {
+                                    const dipilih = soal.jawaban.opsiIds.includes(String(opsi.id));
 
-                    <KartuPembahasan soal={soal} />
+                                    return soal.tipe === 'benar_salah' ? (
+                                        <OpsiBenarSalah key={opsi.id} opsi={opsi} dipilih={dipilih} />
+                                    ) : (
+                                        <TombolOpsi key={opsi.id} opsi={opsi} status={statusOpsiPilihanGanda(opsi, dipilih)} disabled redup={false} />
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        <KartuPembahasan status={soal.status} kunci={soal.kunci} pembahasan={soal.pembahasan} />
+                    </div>
                 </ArenaPengerjaan>
             ) : (
-                <div className="px-8 py-6 text-[#1F2D5C]">
+                <div className="px-8 py-6 text-siswa-judul">
                     <p>Belum ada soal yang bisa ditampilkan untuk pengerjaan ini.</p>
-                    <Link href={route('riwayat.index')} className="mt-3 inline-block text-sm font-medium text-[#2E3F85] underline">
+                    <Link href={route('riwayat.index')} className="mt-3 inline-block text-sm font-medium text-edvora-primary underline">
                         Kembali ke Riwayat
                     </Link>
                 </div>

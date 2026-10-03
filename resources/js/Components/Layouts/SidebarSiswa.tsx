@@ -1,4 +1,5 @@
 import { Link } from '@inertiajs/react';
+import LambangEdvora from './LambangEdvora';
 
 interface MenuSidebar {
     label: string;
@@ -30,14 +31,7 @@ export default function SidebarSiswa() {
     return (
         <aside className="hidden w-sidebar shrink-0 flex-col bg-gradient-to-b from-siswa-sidebar-awal via-siswa-sidebar-tengah via-[41.674%] to-siswa-sidebar-akhir font-poppins md:sticky md:top-0 md:flex md:h-screen md:overflow-y-auto">
             <Link href={route('dashboard')} className="flex flex-col items-center pt-[18px]" aria-label="Beranda">
-                {/* Berkas logo memuat lambang beserta tulisan EDVORA; desain hanya memakai lambangnya, jadi dipotong seperti di Figma. */}
-                <div className="relative h-[45px] w-[38px] overflow-hidden">
-                    <img
-                        src="/images/ikon/logo-edvora.png"
-                        alt=""
-                        className="absolute left-[-48.38%] top-0 h-[126.6%] w-[197.18%] max-w-none"
-                    />
-                </div>
+                <LambangEdvora />
                 <span className="mt-[1px] text-[24px] font-extrabold tracking-[3.6px] text-white">EDVORA</span>
             </Link>
 

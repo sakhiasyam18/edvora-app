@@ -3,7 +3,8 @@ import axios from 'axios';
 import { useMemo, useState } from 'react';
 import LatihanLayout from '@/Components/Layouts/LatihanLayout';
 import Modal from '@/Components/Modal';
-import ArenaPengerjaan, { NavigasiSoal, StatusJawabanSoal, TombolNavigasiSoal } from '@/Components/Ujian/ArenaPengerjaan';
+import ArenaPengerjaan, { NavigasiSoal, StatusJawabanSoal } from '@/Components/Ujian/ArenaPengerjaan';
+import KartuPembahasan from '@/Components/Ujian/KartuPembahasan';
 import KartuSoal, { TeksMatematika } from '@/Components/Ujian/KartuSoal';
 import TimerMundur from '@/Components/Ujian/TimerMundur';
 import TombolOpsi, { IkonHasil, StatusOpsi } from '@/Components/Ujian/TombolOpsi';
@@ -174,24 +175,50 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
         form.post(route('latihan.simpan'));
     };
 
-    const tombolKecil = 'rounded-md px-4 py-1.5 text-xs font-medium shadow transition disabled:opacity-50';
+    // Teks "Kunci Jawaban" di kartu umpan balik; formatnya sama dengan PembahasanPengerjaan::teksKunci di backend.
+    const teksKunci = (): string | null => {
+        if (isian) {
+            const hasil = hasilIsian[soal.id];
+            // Server hanya mengirim kunci saat salah; saat benar, jawaban siswa itulah kuncinya.
+            return hasil?.kunciJawaban ?? (hasil?.benar ? teksIsian : null);
+        }
+        const kunci = soal.opsi_jawaban.filter((o: any) => o.is_kunci);
+        if (kunci.length === 0) return null;
+        if (soal.tipe !== 'benar_salah') return `${kunci[0].label}. ${kunci[0].teks_opsi}`;
+        const teks = kunci.map((o: any) => o.teks_opsi);
+        const terakhir = teks.pop();
+        return teks.length === 0 ? terakhir : `${teks.join(', ')} dan ${terakhir}`;
+    };
+
+    const namaMode = { fleksibel: 'Fleksibel', simulasi: 'Simulasi', remedial: 'Remedial' }[konfigurasi.mode as string] ?? '';
+    const statusAktif = terkunci ? statusJawabanSoal(indeksAktif) : null;
+
+    // Tombol besar di bawah opsi (Simpan Jawaban, Selesaikan) dan tombol di modal.
+    const tombolBesar =
+        'h-11 min-w-[200px] rounded-[10px] px-6 text-sm font-semibold shadow-panel transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:shadow-md enabled:active:translate-y-0 md:min-w-[240px] lg:min-w-[300px]';
+    const tombolModal = 'h-9 min-w-[100px] rounded-[10px] px-5 text-sm font-semibold transition duration-200 hover:-translate-y-0.5 disabled:opacity-50';
+    const kelasModal = { backdropClassName: 'bg-siswa-laman-akhir/70 backdrop-blur-[2px]', panelClassName: 'rounded-[24px]' };
 
     return (
         <LatihanLayout
-            breadcrumb={['Latihan Soal', konfigurasi.namaSubtes, ...(konfigurasi.namaTopik ? [konfigurasi.namaTopik] : [])]}
+            breadcrumb={['Latihan Soal', namaMode ? `${konfigurasi.namaSubtes} (Mode ${namaMode})` : konfigurasi.namaSubtes]}
             sidebar={
                 <NavigasiSoal
+                    judul={konfigurasi.namaSubtes}
                     jumlahSoal={soalList.length}
                     indeksAktif={indeksAktif}
                     sudahDijawab={(i) => cariJawaban(soalList[i].id) !== undefined}
                     statusJawaban={simulasi ? undefined : statusJawabanSoal}
                     onPilih={setIndeksAktif}
                     aksiBawah={
-                        !simulasi && (
-                            <button type="button" onClick={() => setModal('keluar')} className={`${tombolKecil} bg-[#F07B7B] text-white hover:bg-[#E86565]`}>
-                                Keluar
-                            </button>
-                        )
+                        // Desain Figma menampilkan Keluar Halaman di semua mode, termasuk simulasi.
+                        <button
+                            type="button"
+                            onClick={() => setModal('keluar')}
+                            className="h-10 w-full rounded-lg bg-ujian-merah text-[13px] font-semibold text-white shadow-panel transition duration-200 hover:-translate-y-0.5 hover:shadow-md active:translate-y-0"
+                        >
+                            ← Keluar Halaman
+                        </button>
                     }
                 />
             }
@@ -199,7 +226,7 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
             <Head title={`Latihan ${konfigurasi.namaSubtes}`} />
 
             <ArenaPengerjaan
-                judul={konfigurasi.namaSubtes}
+                judul={`Soal ${indeksAktif + 1} dari ${soalList.length}`}
                 aksiHeader={
                     simulasi && konfigurasi.waktuPengerjaanMenit ? (
                         <TimerMundur durasiMenit={konfigurasi.waktuPengerjaanMenit} onHabis={() => kirimJawaban(route('latihan.hasil', { ...konfigurasi }))} />
@@ -215,148 +242,124 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
                             }}
                             disabled={!soal.ada_hint}
                             title={soal.ada_hint ? undefined : 'Soal ini belum punya hint'}
-                            className={`${tombolKecil} flex items-center gap-1 border border-[#E5D98A] bg-[#FBF1B8] text-[#6B5B12]`}
+                            className="flex h-11 items-center gap-1.5 rounded-[10px] border border-siswa-hint-garis bg-siswa-hint-latar px-5 text-sm font-semibold text-siswa-hint-teks shadow-panel transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:shadow-md disabled:opacity-50"
                         >
-                            <IkonLampu className="h-3.5 w-3.5" /> Hint
+                            <IkonLampu className="h-[18px] w-[18px]" /> Hint
                         </button>
                     )
                 }
                 footerKanan={
-                    <div className="flex gap-2">
-                        <TombolNavigasiSoal jumlahSoal={soalList.length} indeksAktif={indeksAktif} onPilih={setIndeksAktif} />
-
-                        {simulasi ? (
-                            <button type="button" onClick={() => setModal('selesai')} disabled={form.processing} className={`${tombolKecil} bg-[#C5EBA8] text-[#2F5E1A] hover:bg-[#B5E194]`}>
-                                Selesaikan Sekarang
-                            </button>
-                        ) : !terkunci ? (
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    if (belumDiisi || mengecek) return;
-                                    if (isian) cekIsian();
-                                    else simpanJawaban(soal.id, opsiTerpilih, teksIsian);
-                                }}
-                                disabled={belumDiisi || mengecek}
-                                className={`${tombolKecil} bg-[#C5EBA8] text-[#2F5E1A] hover:bg-[#B5E194]`}
-                            >
-                                {mengecek ? 'Memeriksa…' : 'Simpan Jawaban'}
-                            </button>
-                        ) : (
-                            <button
-                                type="button"
-                                onClick={() => setModal('selesai')}
-                                className={`${tombolKecil} bg-[#5B86DB] text-white hover:bg-[#4673CD]`}
-                            >
-                                Selesaikan Latihan
-                            </button>
-                        )}
-                    </div>
+                    simulasi ? (
+                        <button type="button" onClick={() => setModal('selesai')} disabled={form.processing} className={`${tombolBesar} bg-ujian-hijau text-white disabled:opacity-60`}>
+                            Selesaikan Sekarang
+                        </button>
+                    ) : !terkunci ? (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (belumDiisi || mengecek) return;
+                                if (isian) cekIsian();
+                                else simpanJawaban(soal.id, opsiTerpilih, teksIsian);
+                            }}
+                            disabled={belumDiisi || mengecek}
+                            className={`${tombolBesar} ${belumDiisi ? 'bg-siswa-ujian-redup text-white/80 shadow-none' : 'bg-ujian-hijau text-white'}`}
+                        >
+                            {mengecek ? 'Memeriksa…' : 'Simpan Jawaban'}
+                        </button>
+                    ) : (
+                        <button type="button" onClick={() => setModal('selesai')} className={`${tombolBesar} bg-ujian-biru text-white`}>
+                            Selesaikan Latihan
+                        </button>
+                    )
                 }
             >
-                <KartuSoal nomor={indeksAktif + 1} teksSoal={soal.teks_soal} gambarUrl={soal.gambar_soal} />
+                {/* key: isi soal muncul pelan setiap pindah nomor. */}
+                <div key={soal.id} className="animate-muncul-halus">
+                    <KartuSoal nomor={indeksAktif + 1} teksSoal={soal.teks_soal} gambarUrl={soal.gambar_soal} />
 
-                <div className="mt-4 space-y-2.5">
-                    {soal.opsi_jawaban.map((opsi: any) => (
-                        <TombolOpsi
-                            key={opsi.id}
-                            opsi={opsi}
-                            status={statusOpsi(opsi)}
-                            disabled={terkunci}
-                            onPilih={pilihOpsi}
-                            kotakCentang={soal.tipe === 'benar_salah'}
-                            dipilih={opsiTerpilih.includes(opsi.id)}
+                    <div className="mt-3 space-y-2.5">
+                        {soal.opsi_jawaban.map((opsi: any) => (
+                            <TombolOpsi
+                                key={opsi.id}
+                                opsi={opsi}
+                                status={statusOpsi(opsi)}
+                                disabled={terkunci}
+                                onPilih={pilihOpsi}
+                                kotakCentang={soal.tipe === 'benar_salah'}
+                                dipilih={opsiTerpilih.includes(opsi.id)}
+                            />
+                        ))}
+                    </div>
+
+                    {/* Sebelum dikunci: field isian. Batas 100 karakter mengikuti validasi backend. */}
+                    {isian && !hasilIsian[soal.id] && (
+                        <input
+                            type="text"
+                            value={teksIsian}
+                            onChange={(e) => ubahIsian(e.target.value)}
+                            disabled={terkunci || mengecek}
+                            maxLength={100}
+                            placeholder="Tulis Jawabanmu Disini..."
+                            aria-label="Jawaban isian singkat"
+                            className="mt-3 h-11 w-full rounded-[10px] border-transparent bg-white px-4 text-sm font-medium text-siswa-judul shadow-panel transition duration-200 placeholder:text-siswa-teks-redup focus:border-edvora-primary focus:ring-2 focus:ring-edvora-primary/30 disabled:opacity-60"
                         />
-                    ))}
-                </div>
+                    )}
 
-                {/* Sebelum dikunci: field isian. Batas 100 karakter mengikuti validasi backend. */}
-                {isian && !hasilIsian[soal.id] && (
-                    <input
-                        type="text"
-                        value={teksIsian}
-                        onChange={(e) => ubahIsian(e.target.value)}
-                        disabled={terkunci || mengecek}
-                        maxLength={100}
-                        placeholder="Tulis jawaban"
-                        aria-label="Jawaban isian singkat"
-                        className="mt-4 w-full rounded border border-gray-300 px-3 py-2"
-                    />
-                )}
-
-                {/* Setelah dikunci: jawaban siswa diganti bilah hasil dari latihan.cek. */}
-                {isian && hasilIsian[soal.id] && (
-                    <>
+                    {/* Setelah dikunci: jawaban siswa diganti bilah hasil dari latihan.cek. */}
+                    {isian && hasilIsian[soal.id] && (
                         <div
-                            className={`mt-5 flex items-center justify-between gap-3 rounded-lg px-4 py-3 text-lg shadow-sm ${
-                                hasilIsian[soal.id].benar ? 'bg-[#C5EBA8] text-[#1F2D5C]' : 'bg-[#F07676] text-white'
+                            className={`mt-3 flex min-h-11 animate-muncul-halus items-center justify-between gap-3 rounded-[10px] px-4 py-2.5 text-sm font-semibold text-white shadow-panel ${
+                                hasilIsian[soal.id].benar ? 'bg-ujian-hijau' : 'bg-ujian-merah'
                             }`}
                         >
                             <span className="break-all">{teksIsian}</span>
-                            <span className="flex shrink-0 items-center gap-2 font-medium">
+                            <span className="flex shrink-0 items-center gap-1.5 font-medium">
                                 <IkonHasil benar={hasilIsian[soal.id].benar} />
                                 {hasilIsian[soal.id].benar ? 'Benar' : 'Salah'}
                             </span>
                         </div>
+                    )}
+                    {isian && pesanCek && pesanCek.soalId === soal.id && (
+                        <p role="alert" className="mt-2 text-sm text-siswa-umpan-salah-teks">
+                            {pesanCek.pesan}
+                        </p>
+                    )}
 
-                        {/* Kunci hanya dikirim server saat jawaban salah. */}
-                        {hasilIsian[soal.id].kunciJawaban && (
-                            <div className="relative mt-7">
-                                <span className="absolute -top-3 left-4 rounded-md bg-[#2E3F85] px-3 py-1 text-sm font-medium text-white shadow">
-                                    Jawaban yang benar
-                                </span>
-                                <div className="rounded-lg bg-[#C5EBA8] px-4 pb-3 pt-6 text-lg text-[#1F2D5C] shadow-sm">
-                                    {hasilIsian[soal.id].kunciJawaban}
-                                </div>
-                            </div>
-                        )}
-                    </>
-                )}
-                {isian && pesanCek && pesanCek.soalId === soal.id && (
-                    <p role="alert" className="mt-2 text-sm text-[#B94040]">
-                        {pesanCek.pesan}
-                    </p>
-                )}
-
-                {terkunci && (
-                    <div className="relative mt-8">
-                        <span className="absolute -top-3 left-4 rounded-md bg-[#2E3F85] px-3 py-1 text-sm font-medium text-white shadow">Pembahasan</span>
-                        <div className="rounded-lg bg-white px-4 pb-4 pt-6 text-sm leading-relaxed text-[#1F2D5C] shadow">
-                            <TeksMatematika teks={soal.pembahasan} />
-                        </div>
-                    </div>
-                )}
+                    {terkunci && <KartuPembahasan status={statusAktif ?? 'kosong'} kunci={teksKunci()} pembahasan={soal.pembahasan} />}
+                </div>
             </ArenaPengerjaan>
 
-            <Modal show={modal === 'hint'} maxWidth="md" onClose={() => setModal(null)}>
-                <div className="p-5 font-['Poppins',sans-serif] text-[#1F2D5C]">
-                    <h3 className="flex items-center gap-2 text-lg font-semibold">
-                        <IkonLampu className="h-5 w-5 text-[#D4A017]" /> Hint
+            <Modal show={modal === 'hint'} maxWidth="md" onClose={() => setModal(null)} {...kelasModal}>
+                <div className="p-6 font-poppins text-siswa-judul md:px-8 md:py-7">
+                    <h3 className="flex items-center gap-2 text-xl font-semibold">
+                        <IkonLampu className="h-6 w-6 text-[#D4A017]" /> Hint
                     </h3>
                     {hintTerbuka[soal.id] !== undefined ? (
-                        <div className="mt-2 text-sm leading-relaxed text-gray-700">
+                        <div className="mt-2 text-[15px] font-medium leading-relaxed text-siswa-teks">
                             <TeksMatematika teks={hintTerbuka[soal.id]} />
                         </div>
                     ) : (
                         // Siswa diberi tahu dulu, karena begitu dibuka nilainya langsung tercatat di server.
-                        <p className="mt-2 text-sm text-gray-700">Kalau jawabanmu benar setelah membuka hint, XP dan poin soal ini dihitung setengah, begitu juga nilainya untuk skor topik.</p>
+                        <p className="mt-2 text-[15px] font-medium leading-relaxed text-siswa-teks">
+                            Kalau jawabanmu benar setelah membuka hint, XP dan poin soal ini dihitung setengah, begitu juga nilainya untuk skor topik.
+                        </p>
                     )}
                     {pesanHint && (
-                        <p role="alert" className="mt-2 text-sm text-[#B94040]">
+                        <p role="alert" className="mt-2 text-sm text-siswa-umpan-salah-teks">
                             {pesanHint}
                         </p>
                     )}
-                    <div className="mt-4 flex justify-end gap-2">
+                    <div className="mt-5 flex justify-end gap-2">
                         {hintTerbuka[soal.id] !== undefined ? (
-                            <button type="button" onClick={() => setModal(null)} className={`${tombolKecil} bg-[#5B86DB] text-sm text-white`}>
+                            <button type="button" onClick={() => setModal(null)} className={`${tombolModal} bg-ujian-biru text-white shadow-panel`}>
                                 Kembali
                             </button>
                         ) : (
                             <>
-                                <button type="button" onClick={() => setModal(null)} className={`${tombolKecil} border border-gray-300 bg-white text-sm`}>
+                                <button type="button" onClick={() => setModal(null)} className={`${tombolModal} border border-siswa-teks/40 bg-white text-siswa-judul`}>
                                     Batal
                                 </button>
-                                <button type="button" onClick={bukaHint} disabled={memuatHint} className={`${tombolKecil} bg-[#5B86DB] text-sm text-white`}>
+                                <button type="button" onClick={bukaHint} disabled={memuatHint} className={`${tombolModal} bg-ujian-biru text-white shadow-panel`}>
                                     {memuatHint ? 'Membuka…' : 'Buka Hint'}
                                 </button>
                             </>
@@ -365,19 +368,21 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
                 </div>
             </Modal>
 
-            <Modal show={modal === 'keluar'} maxWidth="md" onClose={() => setModal(null)}>
-                <div className="p-5 font-['Poppins',sans-serif] text-[#1F2D5C]">
-                    <h3 className="text-lg font-semibold">Keluar</h3>
-                    <p className="mt-1 text-sm text-gray-700">Anda akan meninggalkan halaman latihan soal. Jawaban anda akan disimpan oleh sistem.</p>
-                    <div className="mt-4 flex justify-end gap-2">
-                        <button type="button" onClick={() => setModal(null)} className={`${tombolKecil} border border-gray-300 bg-white text-sm`}>
+            <Modal show={modal === 'keluar'} maxWidth="md" onClose={() => setModal(null)} {...kelasModal}>
+                <div className="p-6 font-poppins md:px-8 md:py-7">
+                    <h3 className="text-xl font-semibold text-siswa-umpan-salah-teks">Keluar</h3>
+                    <p className="mt-2 text-[15px] font-medium leading-relaxed text-siswa-teks">
+                        Anda akan meninggalkan halaman latihan soal dan jawaban anda akan disimpan oleh sistem.
+                    </p>
+                    <div className="mt-5 flex justify-end gap-2">
+                        <button type="button" onClick={() => setModal(null)} className={`${tombolModal} border border-siswa-teks/40 bg-white text-siswa-judul`}>
                             Batal
                         </button>
                         <button
                             type="button"
                             onClick={() => kirimJawaban(route('dashboard'))}
                             disabled={form.processing}
-                            className={`${tombolKecil} bg-[#F07B7B] text-sm text-white`}
+                            className={`${tombolModal} bg-ujian-merah text-white shadow-panel`}
                         >
                             Keluar
                         </button>
@@ -385,21 +390,23 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
                 </div>
             </Modal>
 
-            <Modal show={modal === 'selesai'} maxWidth="md" onClose={() => setModal(null)}>
-                <div className="p-5 font-['Poppins',sans-serif] text-[#1F2D5C]">
-                    <h3 className="text-lg font-semibold">Selesaikan Sekarang</h3>
-                    <p className="mt-1 text-sm text-gray-700">Anda yakin ingin menyimpan jawaban?</p>
-                    <div className="mt-6 flex justify-end gap-2">
-                        <button type="button" onClick={() => setModal(null)} className={`${tombolKecil} bg-[#F07B7B] text-sm text-white`}>
-                            Tidak
+            <Modal show={modal === 'selesai'} maxWidth="md" onClose={() => setModal(null)} {...kelasModal}>
+                <div className="p-6 font-poppins md:px-8 md:py-7">
+                    <h3 className="text-xl font-semibold text-siswa-umpan-benar-teks">Selesaikan Sekarang</h3>
+                    <p className="mt-2 text-[15px] font-medium leading-relaxed text-siswa-teks">
+                        Anda akan menyelesaikan latihan soal dan jawaban yang sudah diisi tidak dapat diubah kembali.
+                    </p>
+                    <div className="mt-5 flex justify-end gap-2">
+                        <button type="button" onClick={() => setModal(null)} className={`${tombolModal} border border-siswa-teks/40 bg-white text-siswa-judul`}>
+                            Batal
                         </button>
                         <button
                             type="button"
                             onClick={() => kirimJawaban(route('latihan.hasil', { ...konfigurasi }))}
                             disabled={form.processing}
-                            className={`${tombolKecil} bg-[#C5EBA8] text-sm text-[#2F5E1A]`}
+                            className={`${tombolModal} bg-ujian-hijau text-white shadow-panel`}
                         >
-                            Ya
+                            Selesaikan
                         </button>
                     </div>
                 </div>

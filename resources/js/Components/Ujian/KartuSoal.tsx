@@ -25,18 +25,15 @@ interface KartuSoalProps {
     gambarUrl?: Soal['gambar_soal'] | null;
 }
 
+// Kartu putih berisi teks soal; nomor soal ditampilkan di judul ArenaPengerjaan ("Soal 3 dari 5").
 export default function KartuSoal({ nomor, teksSoal, gambarUrl }: KartuSoalProps) {
     return (
-        <div>
-            <span className="inline-block rounded-lg border border-gray-300 bg-white px-3 py-1 text-lg font-medium text-[#1F2D5C] shadow-sm">
-                Soal Nomor {nomor}
-            </span>
-
+        <div className="rounded-[14px] bg-white px-5 py-4 shadow-kartu md:px-6 md:py-5">
             {gambarUrl && (
-                <img src={gambarUrl} alt={`Ilustrasi soal nomor ${nomor}`} className="mt-4 max-h-72 max-w-full rounded-lg border border-gray-200 bg-white" />
+                <img src={gambarUrl} alt={`Ilustrasi soal nomor ${nomor}`} className="mb-4 max-h-72 max-w-full rounded-lg border border-siswa-ujian-garis bg-white" />
             )}
 
-            <p className="mt-3 text-lg font-semibold leading-relaxed text-[#1F2D5C]">
+            <p className="text-[13px] leading-[26px] text-siswa-judul md:text-sm md:leading-7">
                 <TeksMatematika teks={teksSoal} />
             </p>
         </div>
