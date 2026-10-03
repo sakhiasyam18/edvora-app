@@ -11,6 +11,8 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RiwayatController;
 use App\Http\Controllers\TryOutController;
 use App\Http\Controllers\WelcomeController;
+use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\UserController;
 use Illuminate\Support\Facades\Route;
 
 // ==========================================
@@ -99,9 +101,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         // Rute Admin (UCS6 Mengelola User): hanya role admin; role lain mendapat 403.
         Route::prefix('admin')->middleware('peran:admin')->group(function () {
-            // Halaman template tujuan setelah admin login; belum butuh data dari server.
-            Route::inertia('/', 'Dashboard/Admin')->name('admin.index');
-            // Kelola User menyusul, dengan nama rute admin.user.*
+            // Dashboard Admin
+            Route::get('/', [DashboardController::class, 'index'])->name('admin.index');
+
+            // Kelola User
+            Route::prefix('users')->name('admin.user.')->group(function () {
+                Route::get('/', [UserController::class, 'index'])->name('index');
+                Route::post('/editor', [UserController::class, 'storeEditor'])->name('storeEditor');
+                Route::put('/{user}/reset-password', [UserController::class, 'resetPassword'])->name('resetPassword');
+                Route::put('/{user}/toggle-status', [UserController::class, 'toggleStatus'])->name('toggleStatus');
+                Route::delete('/{user}', [UserController::class, 'destroy'])->name('destroy');
+            });
         });
 
         // Rute Editor (UCS7 Bank Soal, UCS8 Paket Try Out, UCS9 Dashboard Analitik): hanya role admin_editor.
@@ -122,4 +132,4 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 });
 
-require __DIR__.'/auth.php';
+require __DIR__ . '/auth.php';
