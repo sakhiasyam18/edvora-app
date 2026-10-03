@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Services\ImportSoalExcel;
 use App\Services\Penguasaan;
+use App\Services\PratinjauSoal;
 use Illuminate\Console\Command;
 use Throwable;
 
@@ -11,11 +12,12 @@ class ImportSoal extends Command
 {
     protected $signature = 'edvora:import-soal
         {file : Path file Excel (.xlsx) berisi soal}
-        {--dry-run : Hanya memeriksa file, tidak menyimpan apa pun ke database}';
+        {--dry-run : Hanya memeriksa file, tidak menyimpan apa pun ke database}
+        {--pratinjau= : Tulis laporan HTML semua soal (gambar dan rumus dirender) ke file ini, untuk dicek editor}';
 
     protected $description = 'Import soal dari file Excel (upsert berdasarkan Kode Soal)';
 
-    public function handle(ImportSoalExcel $importer): int
+    public function handle(ImportSoalExcel $importer, PratinjauSoal $pratinjau): int
     {
         $path = $this->argument('file');
 
@@ -39,10 +41,18 @@ class ImportSoal extends Command
 
         $jumlahSoal = count($hasil['soal']);
         $barisError = collect($hasil['error'])->pluck('baris')->filter()->unique()->count();
-        $this->line("Sheet: {$hasil['sheet']} | baris soal: ".($jumlahSoal + $barisError)." | baris kosong dilewati: {$hasil['dilewati']}");
+        $this->line("Sheet: {$hasil['sheet']} | baris soal: ".($jumlahSoal + $barisError)
+            ." | baris kosong dilewati: {$hasil['dilewati']} | link gambar diperiksa: {$hasil['jumlah_gambar']}"
+            ." | rumus diperiksa: {$hasil['jumlah_rumus']}");
+
+        // Peringatan tidak menghalangi import, tetapi perlu dicek editor (mis. nama file gambar tidak cocok dengan kode soal).
+        if ($hasil['peringatan_baris']) {
+            $this->warn('Peringatan (tidak menghalangi import):');
+            $this->tampilkanTabel($hasil['peringatan_baris']);
+        }
 
         if ($hasil['error']) {
-            $this->tampilkanError($hasil['error']);
+            $this->tampilkanTabel($hasil['error']);
             $this->error(count($hasil['error'])." masalah di {$barisError} baris. Tidak ada soal yang disimpan.");
 
             return self::FAILURE;
@@ -55,6 +65,17 @@ class ImportSoal extends Command
         }
 
         $this->tampilkanRingkasan($hasil['soal']);
+
+        if ($tujuan = $this->option('pratinjau')) {
+            if (file_put_contents($tujuan, $pratinjau->html($hasil['soal'], basename($path))) === false) {
+                $this->error("Pratinjau tidak bisa ditulis ke {$tujuan}.");
+
+                return self::FAILURE;
+            }
+
+            $this->info('Pratinjau: '.count($hasil['soal']).' soal ('.count(PratinjauSoal::bergambar($hasil['soal']))
+                ." bergambar) ditulis ke {$tujuan}.");
+        }
 
         if ($this->option('dry-run')) {
             $this->info("Dry-run: {$jumlahSoal} soal dan ".count($hasil['topik']).' topik di sheet Topik valid. Tidak ada yang disimpan.');
@@ -82,10 +103,10 @@ class ImportSoal extends Command
         return self::SUCCESS;
     }
 
-    // Kelompokkan error yang sama agar laporan tetap ringkas, mis. "Wajib diisi" di baris 3–40.
-    private function tampilkanError(array $error): void
+    // Kelompokkan error atau peringatan yang sama agar laporan tetap ringkas, mis. "Wajib diisi" di baris 3–40.
+    private function tampilkanTabel(array $daftar): void
     {
-        $baris = collect($error)
+        $baris = collect($daftar)
             ->groupBy(fn ($e) => $e['kolom']."\0".$e['pesan'])
             ->map(fn ($grup) => [
                 'kolom' => $grup[0]['kolom'] ?? '-',

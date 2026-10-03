@@ -33,6 +33,28 @@ const gayaStatusKotak: Record<StatusOpsi, string> = {
     salah: 'bg-[#F07676] text-white border-[#E05B5B]',
 };
 
+// Teks opsi beserta gambarnya bila ada; opsi boleh hanya berisi gambar. Tampilan dasar, belum didesain.
+// TeksMatematika dibungkus satu span agar potongan teks dan rumusnya tetap sebaris. Dipakai juga oleh TabelMajemuk.
+export function IsiOpsi({ opsi }: { opsi: OpsiJawaban }) {
+    return (
+        <span className="flex flex-col gap-2">
+            {opsi.teks_opsi && (
+                <span>
+                    <TeksMatematika teks={opsi.teks_opsi} />
+                </span>
+            )}
+            {opsi.gambar_opsi && (
+                <img
+                    src={opsi.gambar_opsi}
+                    alt={`Gambar opsi ${opsi.label}`}
+                    loading="lazy"
+                    className="max-h-48 max-w-full rounded border border-gray-200 bg-white"
+                />
+            )}
+        </span>
+    );
+}
+
 // Lingkaran navy dengan glif putih; dipakai di bilah opsi benar_salah dan di bilah hasil isian.
 export function IkonHasil({ benar }: { benar: boolean }) {
     return (
@@ -84,7 +106,7 @@ export default function TombolOpsi({
                     </span>
 
                     <span className="flex-1">
-                        <TeksMatematika teks={opsi.teks_opsi} />
+                        <IsiOpsi opsi={opsi} />
                     </span>
 
                     {hasil && (
@@ -112,9 +134,7 @@ export default function TombolOpsi({
                 {opsi.label}
             </span>
             <span className={`flex flex-1 items-center justify-between gap-3 rounded-lg border px-4 py-2 shadow-sm transition ${gaya}`}>
-                <span>
-                    <TeksMatematika teks={opsi.teks_opsi} />
-                </span>
+                <IsiOpsi opsi={opsi} />
                 {status === 'benar' && (
                     <svg className="h-5 w-5 shrink-0 text-[#26355D]" viewBox="0 0 24 24" fill="currentColor" aria-label="Jawaban benar">
                         <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm-1.5 14.5l-4-4 1.4-1.4 2.6 2.6 5.6-5.6 1.4 1.4-7 7z" />

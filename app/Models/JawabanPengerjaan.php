@@ -30,6 +30,12 @@ class JawabanPengerjaan extends Model
         'skor',
         'waktu_menjawab',
         'pakai_hint',
+        'pilihan_kolom',
+    ];
+
+    protected $casts = [
+        // Soal majemuk_tabel: {id opsi: nomor kolom pilihan siswa}.
+        'pilihan_kolom' => 'array',
     ];
 
     // Postgres mengirim uuid[] sebagai teks "{a,b}"; cast 'array' Laravel mengharapkan JSON.

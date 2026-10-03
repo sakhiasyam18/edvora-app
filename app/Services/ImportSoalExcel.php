@@ -9,6 +9,7 @@ use App\Models\Topik;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\RichText\RichText;
@@ -23,6 +24,9 @@ use RuntimeException;
  *
  * Setiap soal wajib punya topik. Topik baru didaftarkan di sheet "Topik" pada file yang sama
  * (Nama Subtes, Nama Topik, Urutan); topik yang sudah ada di database cukup ditulis namanya.
+ *
+ * Gambar tidak disisipkan di Excel. Editor mengunggahnya dulu ke bucket gambar soal di Supabase Storage,
+ * lalu menulis link-nya di kolom gambar. Yang disimpan ke database hanya link itu.
  */
 class ImportSoalExcel
 {
@@ -30,11 +34,14 @@ class ImportSoalExcel
 
     public const NAMA_SHEET_TOPIK = 'Topik';
 
+    private const PESAN_GAMBAR_SISIPAN = 'Gambar disisipkan langsung di Excel. Unggah gambarnya ke Storage, lalu tulis link-nya di kolom gambar.';
+
     // Label di kolom Tipe Soal (sama dengan dropdown di Excel) => nilai enum tipe_soal.
     public const TIPE_SOAL = [
         'pilihan_ganda' => 'pilihan_ganda',
         'benar_salah' => 'benar_salah',
         'isian_singkat' => 'isian_singkat',
+        'majemuk_tabel' => 'majemuk_tabel',
     ];
 
     public const TINGKAT_KESULITAN = ['mudah', 'sedang', 'sulit'];
@@ -46,24 +53,45 @@ class ImportSoalExcel
 
     private const KOLOM_TEKS_MATEMATIKA = ['teks_soal', 'hint', 'pembahasan'];
 
+    // Kolom yang ditambahkan belakangan. File dari template lama tanpa kolom ini tetap diterima; isinya dianggap kosong.
+    private const KOLOM_OPSIONAL = ['gambar_pembahasan', 'kolom_tabel'];
+
+    // Bila kolom ini tidak ada di file, isinya di soal yang sudah ada tidak diubah.
+    private const KOLOM_DIPERTAHANKAN = ['gambar_pembahasan'];
+
     // Kolom tabel soal yang diisi dari Excel (selain kode_soal).
     private const KOLOM_SOAL = [
-        'subtes_id', 'topik_id', 'tipe', 'teks_soal', 'gambar_soal', 'kunci_jawaban', 'hint', 'pembahasan', 'tingkat_kesulitan',
+        'subtes_id', 'topik_id', 'tipe', 'teks_soal', 'gambar_soal', 'kunci_jawaban', 'hint', 'pembahasan',
+        'gambar_pembahasan', 'kolom_tabel', 'tingkat_kesulitan',
     ];
 
+    public function __construct(
+        private PemeriksaLinkGambar $pemeriksaLink,
+        private PemeriksaRumus $pemeriksaRumus,
+    ) {}
+
     /**
+     * Link gambar ikut diperiksa di sini (diunduh), jadi butuh koneksi internet. Rumus LaTeX diperiksa dengan
+     * KaTeX lewat Node.js.
+     *
      * @return array{
      *     sheet: string|null,
      *     peringatan: string[],
      *     error: array<int, array{baris: int|null, kolom: string|null, pesan: string}>,
+     *     peringatan_baris: array<int, array{baris: int, kolom: string, pesan: string}>,
      *     soal: array<int, array<string, mixed>>,
      *     topik: array<int, array{kode_subtes: string, subtes_id: string, nama_topik: string, urutan: int}>,
      *     dilewati: int,
+     *     jumlah_gambar: int,
+     *     jumlah_rumus: int,
      * }
      */
     public function periksa(string $path): array
     {
-        $hasil = ['sheet' => null, 'peringatan' => [], 'error' => [], 'soal' => [], 'topik' => [], 'dilewati' => 0];
+        $hasil = [
+            'sheet' => null, 'peringatan' => [], 'error' => [], 'peringatan_baris' => [], 'soal' => [], 'topik' => [],
+            'dilewati' => 0, 'jumlah_gambar' => 0, 'jumlah_rumus' => 0,
+        ];
 
         $spreadsheet = IOFactory::createReader('Xlsx')->load($path);
         [$sheet, $kolom] = $this->pilihSheet($spreadsheet->getAllSheets(), $hasil);
@@ -73,6 +101,7 @@ class ImportSoalExcel
         }
 
         $hasil['sheet'] = $sheet->getTitle();
+        $this->periksaGambarSisipan($sheet, $kolom, $hasil);
         $subtes = Subtes::pluck('id', 'kode_subtes')->all();
         // Topik yang dikenal: yang sudah ada di database ditambah isi sheet Topik di file ini.
         $hasil['topik'] = $this->periksaSheetTopik($spreadsheet, $subtes, $hasil);
@@ -80,25 +109,54 @@ class ImportSoalExcel
         $soalLama = Soal::pluck('id', 'kode_soal')->all();
         $batas = $this->batasPanjangKolom();
         $kodeDipakai = [];
+        // Link gambar dan rumus => baris dan kolom yang memakainya; diperiksa sekaligus setelah semua baris dibaca.
+        $tautan = [];
+        $rumusDipakai = [];
+        $kosongBeruntun = 0;
+        $opsionalHilang = array_diff(self::KOLOM_OPSIONAL, array_keys($kolom));
 
         for ($baris = 2; $baris <= $sheet->getHighestDataRow(); $baris++) {
-            $sel = [];
+            $sel = array_fill_keys($opsionalHilang, ['nilai' => null, 'masalah' => null, 'kosong' => true]);
             foreach ($kolom as $kunci => $info) {
                 $sel[$kunci] = $this->bacaSel($sheet, $info['huruf'].$baris);
             }
 
             if ($this->barisKosong($sel)) {
                 $hasil['dilewati']++;
+                $kosongBeruntun++;
 
                 continue;
             }
 
+            $kosongBeruntun = 0;
             $errorBaris = [];
             $tambahError = function (string $kunci, string $pesan) use (&$errorBaris, $baris, $kolom) {
                 $errorBaris[] = ['baris' => $baris, 'kolom' => $kolom[$kunci]['nama'], 'pesan' => $pesan];
             };
 
-            $soal = $this->periksaBaris($sel, $tambahError, $subtes, $topik, $batas, $kodeDipakai, $baris);
+            $soal = Arr::except(
+                $this->periksaBaris($sel, $tambahError, $subtes, $topik, $batas, $kodeDipakai, $baris),
+                array_intersect($opsionalHilang, self::KOLOM_DIPERTAHANKAN),
+            );
+
+            foreach ($this->linkGambar($soal) as $kunci => $url) {
+                $tautan[$url][] = ['baris' => $baris, 'kolom' => $kolom[$kunci]['nama']];
+
+                if ($pesan = self::masalahLokasiGambar($url, $soal['kode_subtes'], $soal['kode_soal'])) {
+                    $tambahError($kunci, $pesan);
+                }
+            }
+
+            foreach ($this->kolomRumus() as $kunci) {
+                foreach (TeksMatematika::rumus((string) $sel[$kunci]['nilai']) as $rumus) {
+                    $rumusDipakai[$rumus][] = ['baris' => $baris, 'kolom' => $kolom[$kunci]['nama']];
+
+                    if (TeksMatematika::miripDolarBiasa($rumus)) {
+                        $hasil['peringatan_baris'][] = ['baris' => $baris, 'kolom' => $kolom[$kunci]['nama'],
+                            'pesan' => "Rumus \"\${$rumus}\$\" diakhiri spasi. Kalau maksudnya tanda dolar biasa (mis. harga), tulis \\$."];
+                    }
+                }
+            }
 
             if ($errorBaris) {
                 array_push($hasil['error'], ...$errorBaris);
@@ -108,6 +166,16 @@ class ImportSoalExcel
                 $hasil['soal'][] = $soal;
             }
         }
+
+        // Baris kosong di ujung sheet (mis. baris template yang sudah diformat Text) bukan baris yang dilewati.
+        $hasil['dilewati'] -= $kosongBeruntun;
+
+        $this->periksaRumus($rumusDipakai, $hasil);
+        $this->periksaLink($tautan, $hasil);
+
+        // Error dari luar periksaBaris() (gambar mengambang, link bermasalah) juga membuat barisnya tidak valid.
+        $barisError = array_flip(array_filter(array_column($hasil['error'], 'baris')));
+        $hasil['soal'] = array_values(array_filter($hasil['soal'], fn ($s) => ! isset($barisError[$s['baris']])));
 
         return $hasil;
     }
@@ -138,7 +206,10 @@ class ImportSoalExcel
 
                 if (! $soal) {
                     $soalId = (string) Str::orderedUuid();
-                    $soalBaru[] = $atribut + ['id' => $soalId, 'kode_soal' => $data['kode_soal'], 'editor_id' => null];
+                    // Insert massal melewati cast Eloquent, jadi kolom jsonb ditulis sebagai JSON.
+                    $kolomTabel = isset($atribut['kolom_tabel']) ? json_encode($atribut['kolom_tabel'], JSON_UNESCAPED_UNICODE) : null;
+                    $soalBaru[] = ['kolom_tabel' => $kolomTabel] + $atribut
+                        + ['id' => $soalId, 'kode_soal' => $data['kode_soal'], 'editor_id' => null];
 
                     foreach ($data['opsi'] as $opsi) {
                         $opsiBaru[] = $opsi + ['id' => (string) Str::orderedUuid(), 'soal_id' => $soalId];
@@ -437,7 +508,7 @@ class ImportSoalExcel
         foreach ($daftar ?? $this->daftarHeader() as $kunci => $header) {
             if (isset($ditemukan[$header])) {
                 $kolom[$kunci] = $ditemukan[$header];
-            } else {
+            } elseif ($daftar !== null || ! in_array($kunci, self::KOLOM_OPSIONAL, true)) {
                 $hilang[] = $header;
             }
         }
@@ -464,9 +535,11 @@ class ImportSoalExcel
         }
 
         return $header + [
+            'kolom_tabel' => 'kolom tabel',
             'kunci' => 'kunci jawaban',
             'hint' => 'hint',
             'pembahasan' => 'pembahasan',
+            'gambar_pembahasan' => 'gambar pembahasan',
             'tingkat_kesulitan' => 'tingkat kesulitan',
         ];
     }
@@ -492,6 +565,12 @@ class ImportSoalExcel
         }
 
         $sel = $sheet->getCell($koordinat);
+
+        // Gambar "Place in Cell": nilai selnya objek gambar, bukan teks.
+        if ($sel->getDataType() === DataType::TYPE_DRAWING_IN_CELL) {
+            return ['nilai' => null, 'masalah' => self::PESAN_GAMBAR_SISIPAN, 'kosong' => false];
+        }
+
         $nilai = $sel->getValue();
         $masalah = null;
 
@@ -633,7 +712,10 @@ class ImportSoalExcel
             }
         }
 
-        $this->periksaGambar($nilai['gambar_soal'], 'gambar_soal', $batas['soal.gambar_soal'], $tambahError);
+        $gambarSoal = $this->periksaGambar($nilai['gambar_soal'], 'gambar_soal', $batas['soal.gambar_soal'], $tambahError);
+        $gambarPembahasan = $this->periksaGambar(
+            $nilai['gambar_pembahasan'], 'gambar_pembahasan', $batas['soal.gambar_pembahasan'], $tambahError,
+        );
 
         foreach (self::KOLOM_TEKS_MATEMATIKA as $kunci) {
             $this->periksaTandaDolar($nilai[$kunci], $kunci, $tambahError);
@@ -647,20 +729,33 @@ class ImportSoalExcel
             $gambar = $nilai["opsi_{$huruf}_gambar"];
 
             $this->periksaTandaDolar($teks, "opsi_{$huruf}_teks", $tambahError);
-            $this->periksaGambar($gambar, "opsi_{$huruf}_gambar", $batas['opsi_jawaban.gambar_opsi'], $tambahError);
 
             $opsi[$label] = [
                 'label' => $label,
                 'teks_opsi' => $teks ?? '',
-                'gambar_opsi' => $gambar,
+                'gambar_opsi' => $this->periksaGambar($gambar, "opsi_{$huruf}_gambar", $batas['opsi_jawaban.gambar_opsi'], $tambahError),
                 'is_kunci' => false,
+                'kunci_kolom' => null,
                 'urutan' => $i + 1,
                 'terisi' => $teks !== null || $gambar !== null
                     || $sel["opsi_{$huruf}_teks"]['masalah'] || $sel["opsi_{$huruf}_gambar"]['masalah'],
             ];
         }
 
-        $kunciJawaban = $tipe ? $this->periksaKunci($tipe, $nilai['kunci'], $sel['kunci']['masalah'] !== null, $opsi, $tambahError) : null;
+        // Kolom Tabel hanya untuk majemuk_tabel; kosong berarti Benar|Salah.
+        $kolomTabel = null;
+        if ($tipe === 'majemuk_tabel') {
+            $kolomTabel = MajemukTabel::kolom($nilai['kolom_tabel']);
+
+            if ($pesan = MajemukTabel::masalahKolom($kolomTabel)) {
+                $tambahError('kolom_tabel', $pesan);
+                $kolomTabel = null;
+            }
+        } elseif ($tipe !== null && $nilai['kolom_tabel'] !== null) {
+            $tambahError('kolom_tabel', 'Kolom Tabel hanya diisi untuk tipe majemuk_tabel.');
+        }
+
+        $kunciJawaban = $tipe ? $this->periksaKunci($tipe, $nilai['kunci'], $sel['kunci']['masalah'] !== null, $opsi, $tambahError, $kolomTabel) : null;
 
         return [
             'kode_soal' => $kodeSoal,
@@ -669,10 +764,12 @@ class ImportSoalExcel
             'nama_topik' => $namaTopik,
             'tipe' => $tipe,
             'teks_soal' => $nilai['teks_soal'],
-            'gambar_soal' => $nilai['gambar_soal'],
+            'gambar_soal' => $gambarSoal,
             'kunci_jawaban' => $kunciJawaban,
             'hint' => $nilai['hint'],
             'pembahasan' => $nilai['pembahasan'],
+            'gambar_pembahasan' => $gambarPembahasan,
+            'kolom_tabel' => $kolomTabel,
             'tingkat_kesulitan' => $kesulitan,
             'opsi' => array_values(array_map(
                 fn ($o) => Arr::except($o, 'terisi'),
@@ -682,10 +779,12 @@ class ImportSoalExcel
     }
 
     /**
-     * Periksa opsi dan kunci sesuai tipe soal, lalu tandai is_kunci pada $opsi.
+     * Periksa opsi dan kunci sesuai tipe soal, lalu tandai is_kunci (majemuk_tabel: kunci_kolom) pada $opsi.
      * Mengembalikan nilai kolom soal.kunci_jawaban (hanya terisi untuk isian singkat).
+     *
+     * @param  string[]|null  $kolomTabel  judul kolom soal majemuk_tabel; null bila Kolom Tabel bermasalah
      */
-    private function periksaKunci(string $tipe, ?string $kunci, bool $kunciBermasalah, array &$opsi, callable $tambahError): ?string
+    private function periksaKunci(string $tipe, ?string $kunci, bool $kunciBermasalah, array &$opsi, callable $tambahError, ?array $kolomTabel = null): ?string
     {
         $terisi = array_keys(array_filter($opsi, fn ($o) => $o['terisi']));
 
@@ -708,7 +807,7 @@ class ImportSoalExcel
             return implode('|', $jawaban);
         }
 
-        $jenis = $tipe === 'benar_salah' ? 'pernyataan' : 'opsi';
+        $jenis = $tipe === 'pilihan_ganda' ? 'opsi' : 'pernyataan';
 
         // Opsi harus berurutan dari A tanpa ada yang dilewati.
         $terakhir = $terisi ? end($terisi) : null;
@@ -745,6 +844,28 @@ class ImportSoalExcel
             return null;
         }
 
+        // Majemuk tabel: satu kolom per pernyataan yang terisi, berurutan (huruf awal judul kolom atau nomornya).
+        if ($tipe === 'majemuk_tabel') {
+            // Kolom Tabel yang bermasalah sudah dilaporkan; kunci baru bisa dibaca setelah kolomnya benar.
+            if ($kolomTabel === null) {
+                return null;
+            }
+
+            [$nomor, $pesan] = MajemukTabel::kunci($kunci, $kolomTabel);
+
+            if ($pesan) {
+                $tambahError('kunci', $pesan);
+            } elseif (count($nomor) !== count($terisi)) {
+                $tambahError('kunci', 'Ada '.count($terisi).' pernyataan, tetapi kunci berisi '.count($nomor)." nilai ({$kunci}).");
+            } else {
+                foreach ($terisi as $i => $label) {
+                    $opsi[$label]['kunci_kolom'] = $nomor[$i];
+                }
+            }
+
+            return null;
+        }
+
         // Pilihan Ganda Kompleks: satu B/S per pernyataan yang terisi, berurutan.
         $nilaiKunci = array_map(fn ($k) => strtoupper(trim($k)), explode(',', $kunci));
 
@@ -761,36 +882,206 @@ class ImportSoalExcel
         return null;
     }
 
-    private function periksaGambar(?string $url, string $kunci, ?int $batas, callable $tambahError): void
+    /**
+     * Ubah isi sel gambar menjadi link lengkap ke bucket gambar soal. Diterima link lengkap (diawali
+     * GAMBAR_SOAL_URL) atau bagian sesudahnya, mis. PK/PK-034.png. Isi file-nya diperiksa di periksaLink().
+     *
+     * @return string|null link lengkap, atau null bila sel kosong atau isinya ditolak
+     */
+    private function periksaGambar(?string $isi, string $kunci, ?int $batas, callable $tambahError): ?string
     {
-        if ($url === null) {
+        if ($isi === null) {
+            return null;
+        }
+
+        $dasar = rtrim((string) config('services.supabase.url_gambar_soal'), '/');
+
+        if ($dasar === '') {
+            $tambahError($kunci, 'GAMBAR_SOAL_URL belum diisi di .env, jadi link gambar belum bisa diperiksa.');
+
+            return null;
+        }
+
+        if (preg_match('#^https?://#i', $isi)) {
+            if (preg_match('#^https?://(drive|docs)\.google\.com/#i', $isi)) {
+                $tambahError($kunci, 'Link Google Drive tidak bisa ditampilkan sebagai gambar. Unggah gambarnya ke Storage, lalu pakai link dari sana.');
+
+                return null;
+            }
+
+            if (! str_starts_with($isi, $dasar.'/')) {
+                $tambahError($kunci, "Link harus ke Storage gambar soal ({$dasar}/...). Gambar dari situs lain tidak diterima.");
+
+                return null;
+            }
+
+            $jalur = substr($isi, strlen($dasar) + 1);
+        } else {
+            $jalur = ltrim($isi, '/');
+        }
+
+        if (! preg_match('#^[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*\.(png|jpe?g|webp)$#i', $jalur)) {
+            $tambahError($kunci, "\"{$jalur}\" tidak sesuai aturan nama: folder dan file hanya berisi huruf, angka, - dan _, diakhiri .png, .jpg, atau .webp. Contoh: PK/PK-034.png.");
+
+            return null;
+        }
+
+        $url = $dasar.'/'.$jalur;
+
+        if ($batas && mb_strlen($url) > $batas) {
+            $tambahError($kunci, 'Link lebih dari '.$batas.' karakter ('.mb_strlen($url).').');
+
+            return null;
+        }
+
+        return $url;
+    }
+
+    /**
+     * Gambar mengambang (Place over Cells) di sheet Soal ditolak, karena gambar soal ditulis sebagai link.
+     * Baris 1 (header) diabaikan. Gambar "Place in Cell" ditolak lewat bacaSel().
+     */
+    private function periksaGambarSisipan(Worksheet $sheet, array $kolom, array &$hasil): void
+    {
+        $namaKolom = array_column($kolom, 'nama', 'huruf');
+
+        foreach ($sheet->getDrawingCollection() as $gambar) {
+            [$huruf, $baris] = Coordinate::coordinateFromString($gambar->getCoordinates());
+
+            if ((int) $baris > 1) {
+                $hasil['error'][] = ['baris' => (int) $baris, 'kolom' => $namaKolom[$huruf] ?? "Kolom {$huruf}", 'pesan' => self::PESAN_GAMBAR_SISIPAN];
+            }
+        }
+    }
+
+    /**
+     * Unduh setiap link gambar sekali, lalu laporkan masalahnya di semua baris yang memakainya.
+     *
+     * @param  array<string, array<int, array{baris: int, kolom: string}>>  $tautan
+     */
+    private function periksaLink(array $tautan, array &$hasil): void
+    {
+        $hasil['jumlah_gambar'] = count($tautan);
+
+        if (! $tautan) {
             return;
         }
 
-        if (! str_starts_with($url, 'https://') || ! filter_var($url, FILTER_VALIDATE_URL)) {
-            $tambahError($kunci, 'Harus berupa URL lengkap yang diawali https://.');
-        } elseif ($batas && mb_strlen($url) > $batas) {
-            $tambahError($kunci, 'URL lebih dari '.$batas.' karakter ('.mb_strlen($url).').');
+        foreach ($this->pemeriksaLink->periksa(array_keys($tautan)) as $url => $masalah) {
+            if ($masalah === null) {
+                continue;
+            }
+
+            foreach ($tautan[$url] as $pakai) {
+                $hasil['error'][] = ['baris' => $pakai['baris'], 'kolom' => $pakai['kolom'], 'pesan' => $masalah];
+            }
         }
+    }
+
+    /**
+     * Link gambar yang sudah lolos aturan nama di satu baris soal.
+     *
+     * @return array<string, string> kunci kolom (gambar_soal, opsi_a_gambar, ..., gambar_pembahasan) => link
+     */
+    private function linkGambar(array $soal): array
+    {
+        $link = $soal['gambar_soal'] ? ['gambar_soal' => $soal['gambar_soal']] : [];
+
+        foreach ($soal['opsi'] as $opsi) {
+            if ($opsi['gambar_opsi']) {
+                $link['opsi_'.strtolower($opsi['label']).'_gambar'] = $opsi['gambar_opsi'];
+            }
+        }
+
+        if ($soal['gambar_pembahasan'] ?? null) {
+            $link['gambar_pembahasan'] = $soal['gambar_pembahasan'];
+        }
+
+        return $link;
+    }
+
+    /**
+     * Satu file gambar hanya untuk satu soal: file ada di folder subtes soalnya dan namanya diawali kode soal
+     * (PK/PK-034.png, PK/PK-034-A.png). Lokasi lain biasanya gambar yang salah tempel, mis. PK-043.png di baris PK-034.
+     */
+    public static function masalahLokasiGambar(string $url, ?string $kodeSubtes, ?string $kodeSoal): ?string
+    {
+        $path = (string) parse_url($url, PHP_URL_PATH);
+        $nama = basename($path);
+
+        if ($kodeSubtes !== null && basename(dirname($path)) !== $kodeSubtes) {
+            return "Gambar soal {$kodeSubtes} harus ada di folder {$kodeSubtes}: tulis {$kodeSubtes}/{$nama}.";
+        }
+
+        if ($kodeSoal !== null && ! preg_match('/^'.preg_quote($kodeSoal, '/').'(?!\d)/i', $nama)) {
+            return "Nama file \"{$nama}\" tidak diawali {$kodeSoal}. Pastikan gambarnya memang untuk soal ini. "
+                ."Satu file hanya untuk satu soal; kalau gambarnya sama dengan soal lain, salin filenya dan beri nama yang diawali {$kodeSoal}.";
+        }
+
+        return null;
     }
 
     private function periksaTandaDolar(?string $teks, string $kunci, callable $tambahError): void
     {
-        if ($teks !== null && substr_count($teks, '$') % 2 === 1) {
-            $tambahError($kunci, 'Tanda $ tidak berpasangan. Tanda $ hanya untuk mengapit rumus, contoh $\\frac{1}{2}$.');
+        if ($teks !== null && ($pesan = TeksMatematika::masalah($teks))) {
+            $tambahError($kunci, $pesan);
+        }
+    }
+
+    /** @return string[] kunci kolom yang boleh berisi rumus $...$ */
+    private function kolomRumus(): array
+    {
+        return [...self::KOLOM_TEKS_MATEMATIKA, ...array_map(fn ($label) => 'opsi_'.strtolower($label).'_teks', self::LABEL_OPSI)];
+    }
+
+    /**
+     * Rumus yang ditolak KaTeX tampil mentah di layar siswa, jadi diperiksa dengan KaTeX versi frontend.
+     * Kalau Node.js tidak bisa dijalankan, import ditolak: lebih baik tertunda daripada rumus rusak masuk.
+     *
+     * @param  array<string, array<int, array{baris: int, kolom: string}>>  $rumusDipakai
+     */
+    private function periksaRumus(array $rumusDipakai, array &$hasil): void
+    {
+        $hasil['jumlah_rumus'] = count($rumusDipakai);
+
+        if (! $rumusDipakai) {
+            return;
+        }
+
+        try {
+            $masalah = $this->pemeriksaRumus->periksa(array_map('strval', array_keys($rumusDipakai)));
+        } catch (RuntimeException $e) {
+            $hasil['error'][] = ['baris' => null, 'kolom' => null,
+                'pesan' => "Rumus tidak bisa diperiksa: {$e->getMessage()} Pastikan Node.js terpasang dan npm install sudah dijalankan."];
+
+            return;
+        }
+
+        foreach ($masalah as $rumus => $pesan) {
+            if ($pesan === null) {
+                continue;
+            }
+
+            $rumus = (string) $rumus;
+            $tampil = mb_strlen($rumus) > 60 ? mb_substr($rumus, 0, 57).'…' : $rumus;
+
+            foreach ($rumusDipakai[$rumus] as $pakai) {
+                $hasil['error'][] = ['baris' => $pakai['baris'], 'kolom' => $pakai['kolom'],
+                    'pesan' => "Rumus \"\${$tampil}\$\" tidak bisa ditampilkan ({$pesan}). Periksa pasangan kurung { } dan ejaan perintah seperti \\frac."];
+            }
         }
     }
 
     /** @return array<string, int|null> batas panjang kolom varchar; null berarti tanpa batas */
     private function batasPanjangKolom(): array
     {
-        $batas = ['soal.kode_soal' => null, 'soal.gambar_soal' => null, 'opsi_jawaban.gambar_opsi' => null];
+        $batas = ['soal.kode_soal' => null, 'soal.gambar_soal' => null, 'soal.gambar_pembahasan' => null, 'opsi_jawaban.gambar_opsi' => null];
 
         $kolom = DB::select("
             select table_name, column_name, character_maximum_length as panjang
             from information_schema.columns
             where table_schema = 'public'
-              and table_name || '.' || column_name in ('soal.kode_soal', 'soal.gambar_soal', 'opsi_jawaban.gambar_opsi')
+              and table_name || '.' || column_name in ('soal.kode_soal', 'soal.gambar_soal', 'soal.gambar_pembahasan', 'opsi_jawaban.gambar_opsi')
         ");
 
         foreach ($kolom as $k) {

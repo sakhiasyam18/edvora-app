@@ -8,6 +8,7 @@ use App\Models\Siswa;
 use App\Models\Soal;
 use App\Models\Subtes;
 use App\Models\Topik;
+use App\Services\MajemukTabel;
 use App\Services\PemilihSoal;
 use App\Services\PenilaianIsian;
 use App\Services\PerbaruiPenguasaan;
@@ -266,6 +267,9 @@ class LatihanSoalController extends Controller
             'jawaban' => ['array'],
             'jawaban.*.opsiIds' => ['nullable', 'array'],
             'jawaban.*.jawabanIsian' => ['nullable', 'string', 'max:100'],
+            // Majemuk_tabel: { idOpsi: nomor kolom }.
+            'jawaban.*.pilihanKolom' => ['nullable', 'array'],
+            'jawaban.*.pilihanKolom.*' => ['integer', 'between:1,'.MajemukTabel::MAKS_KOLOM],
         ]);
 
         $sesi = session($kunciSesi);
@@ -277,7 +281,7 @@ class LatihanSoalController extends Controller
             return redirect()->route('latihan.index');
         }
 
-        // Array of { soalId, opsiIds: [], jawabanIsian: string|null }.
+        // Array of { soalId, opsiIds: [], jawabanIsian: string|null, pilihanKolom?: { idOpsi: nomor kolom } }.
         // Hanya soal yang benar-benar diberikan di sesi ini; soal dobel cukup yang pertama.
         $kiriman = collect($request->input('jawaban', []))
             ->filter(fn ($j) => is_array($j) && in_array($j['soalId'] ?? null, $sesi['soal_ids'], true))
@@ -302,7 +306,7 @@ class LatihanSoalController extends Controller
             ]);
 
             // Ambil semua soal beserta opsinya sekali jalan - hindari N+1 query.
-            $soalMap = Soal::with('opsiJawaban:id,soal_id,is_kunci')
+            $soalMap = Soal::with('opsiJawaban:id,soal_id,is_kunci,kunci_kolom')
                 ->whereIn('id', $sesi['soal_ids'])
                 ->get(['id', 'tipe', 'kunci_jawaban', 'topik_id'])
                 ->keyBy('id');
@@ -324,6 +328,7 @@ class LatihanSoalController extends Controller
                 $terkunci = $sesi['terkunci'][$soalId] ?? null;
                 $dipilih = [];
                 $teksIsian = null;
+                $pilihanKolom = null;
                 $waktuMenjawab = $waktuSelesai;
 
                 if ($soal->tipe === 'isian_singkat' && $terkunci) {
@@ -342,6 +347,17 @@ class LatihanSoalController extends Controller
                     }
 
                     $isCorrect = PenilaianIsian::cocok($teksIsian, $soal->kunci_jawaban ?? '');
+                } elseif ($soal->tipe === 'majemuk_tabel') {
+                    // Kolom jsonb tidak punya FK, jadi hanya terima pilihan untuk pernyataan milik soal ini.
+                    $kunciKolom = $soal->opsiJawaban->pluck('kunci_kolom', 'id')->all();
+                    $pilihanKolom = array_map('intval', array_intersect_key((array) ($j['pilihanKolom'] ?? []), $kunciKolom));
+
+                    // Tanpa pilihan sama sekali berarti soal dilewati. Baris yang tidak dipilih dihitung salah.
+                    if ($pilihanKolom === []) {
+                        continue;
+                    }
+
+                    $isCorrect = MajemukTabel::benar($kunciKolom, $pilihanKolom);
                 } else {
                     // Sementara: terima bentuk lama { opsiId } sampai semua klien memakai opsiIds.
                     $dikirim = $j['opsiIds'] ?? (isset($j['opsiId']) ? [$j['opsiId']] : []);
@@ -368,6 +384,7 @@ class LatihanSoalController extends Controller
                     'opsi_dipilih_id' => $soal->tipe === 'pilihan_ganda' ? ($dipilih[0] ?? null) : null,
                     'opsi_dipilih_ids' => $soal->tipe === 'benar_salah' ? '{'.implode(',', $dipilih).'}' : null,
                     'jawaban_isian' => $teksIsian,
+                    'pilihan_kolom' => $pilihanKolom !== null ? json_encode($pilihanKolom) : null,
                     'is_correct' => $isCorrect,
                     'skor' => $skor,
                     'waktu_menjawab' => $waktuMenjawab,

@@ -5,6 +5,7 @@ import LatihanLayout from '@/Components/Layouts/LatihanLayout';
 import Modal from '@/Components/Modal';
 import ArenaPengerjaan, { NavigasiSoal, StatusJawabanSoal, TombolNavigasiSoal } from '@/Components/Ujian/ArenaPengerjaan';
 import KartuSoal, { TeksMatematika } from '@/Components/Ujian/KartuSoal';
+import TabelMajemuk from '@/Components/Ujian/TabelMajemuk';
 import TimerMundur from '@/Components/Ujian/TimerMundur';
 import TombolOpsi, { IkonHasil, StatusOpsi } from '@/Components/Ujian/TombolOpsi';
 import { KonfigurasiSesiLatihan, OpsiJawaban } from '@/types/latihan';
@@ -14,7 +15,8 @@ type ModalAktif = 'hint' | 'keluar' | 'selesai' | null;
 
 type IdOpsi = string | number;
 
-type Jawaban = { soalId: IdOpsi; opsiIds: IdOpsi[]; jawabanIsian?: string };
+// pilihanKolom hanya untuk majemuk_tabel: id pernyataan => nomor kolom (mulai 1).
+type Jawaban = { soalId: IdOpsi; opsiIds: IdOpsi[]; jawabanIsian?: string; pilihanKolom?: Record<string, number> };
 
 // Balasan latihan.cek. kunciJawaban hanya ada saat benar === false.
 type HasilIsian = { benar: boolean; kunciJawaban?: string };
@@ -51,6 +53,7 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
     // Mode fleksibel: pilihan belum final sampai "Simpan Jawaban" ditekan.
     const [pilihanSementara, setPilihanSementara] = useState<Record<string | number, IdOpsi[]>>({});
     const [isianSementara, setIsianSementara] = useState<Record<string | number, string>>({});
+    const [kolomSementara, setKolomSementara] = useState<Record<string | number, Record<string, number>>>({});
     // Hasil penilaian isian dari server (latihan.cek), per soal. Hanya dipakai di mode fleksibel.
     // kunci hanya dikirim server saat jawaban salah, untuk ditampilkan sebagai "Jawaban yang benar".
     const [hasilIsian, setHasilIsian] = useState<Record<string | number, HasilIsian>>({});
@@ -64,18 +67,25 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
 
     const soal = soalList[indeksAktif];
     const isian = soal.tipe === 'isian_singkat';
+    const tabel = soal.tipe === 'majemuk_tabel';
     const cariJawaban = (soalId: IdOpsi): Jawaban | undefined => form.data.jawaban.find((j: Jawaban) => j.soalId === soalId);
     const tersimpan = cariJawaban(soal.id);
     const terkunci = !simulasi && tersimpan !== undefined;
     const opsiTerpilih: IdOpsi[] = (simulasi || terkunci ? tersimpan?.opsiIds : pilihanSementara[soal.id]) ?? [];
     const teksIsian: string = (simulasi || terkunci ? tersimpan?.jawabanIsian : isianSementara[soal.id]) ?? '';
-    const belumDiisi = isian ? teksIsian.trim() === '' : opsiTerpilih.length === 0;
+    const pilihanKolom: Record<string, number> = (simulasi || terkunci ? tersimpan?.pilihanKolom : kolomSementara[soal.id]) ?? {};
+    // Majemuk tabel di mode fleksibel baru bisa disimpan setelah setiap baris dipilih.
+    const belumDiisi = isian
+        ? teksIsian.trim() === ''
+        : tabel
+          ? soal.opsi_jawaban.some((o: OpsiJawaban) => pilihanKolom[String(o.id)] === undefined)
+          : opsiTerpilih.length === 0;
 
-    // Jawaban kosong (tanpa opsi dan tanpa teks) berarti soal kembali belum dijawab.
-    const simpanJawaban = (soalId: IdOpsi, opsiIds: IdOpsi[], jawabanIsian = '') => {
+    // Jawaban kosong (tanpa opsi, tanpa teks, dan tanpa pilihan kolom) berarti soal kembali belum dijawab.
+    const simpanJawaban = (soalId: IdOpsi, opsiIds: IdOpsi[], jawabanIsian = '', pilihanKolom: Record<string, number> = {}) => {
         const lainnya = form.data.jawaban.filter((j: Jawaban) => j.soalId !== soalId);
-        const kosong = opsiIds.length === 0 && jawabanIsian.trim() === '';
-        form.setData('jawaban', kosong ? lainnya : [...lainnya, { soalId, opsiIds, jawabanIsian }]);
+        const kosong = opsiIds.length === 0 && jawabanIsian.trim() === '' && Object.keys(pilihanKolom).length === 0;
+        form.setData('jawaban', kosong ? lainnya : [...lainnya, { soalId, opsiIds, jawabanIsian, pilihanKolom }]);
     };
 
     const ubahIsian = (teks: string) => {
@@ -129,6 +139,14 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
         else setPilihanSementara((p) => ({ ...p, [soal.id]: baru }));
     };
 
+    // Majemuk tabel: satu kolom per pernyataan; memilih kolom lain di baris yang sama mengganti pilihannya.
+    const pilihKolom = (opsi: OpsiJawaban, nomorKolom: number) => {
+        const baru = { ...pilihanKolom, [String(opsi.id)]: nomorKolom };
+
+        if (simulasi) simpanJawaban(soal.id, [], '', baru);
+        else setKolomSementara((p) => ({ ...p, [soal.id]: baru }));
+    };
+
     // Mode fleksibel: jawaban yang sudah dikunci boleh ketahuan benar/salahnya di navigasi.
     // Mode simulasi tidak memakai ini, supaya hasil belum terlihat sebelum latihan selesai.
     // Aturannya sama dengan backend: semua-atau-nol terhadap himpunan is_kunci.
@@ -139,6 +157,16 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
         if (soalKe.tipe === 'isian_singkat') {
             const hasil = hasilIsian[soalKe.id];
             return hasil === undefined ? null : hasil.benar ? 'benar' : 'salah';
+        }
+
+        // Sama dengan MajemukTabel::benar(): setiap pernyataan harus dijawab dengan kolom kuncinya.
+        if (soalKe.tipe === 'majemuk_tabel') {
+            const pilihan = cariJawaban(soalKe.id)?.pilihanKolom;
+            if (pilihan === undefined) return null;
+
+            const pernyataan: OpsiJawaban[] = soalKe.opsi_jawaban;
+            const benar = pernyataan.length > 0 && pernyataan.every((o) => pilihan[String(o.id)] === o.kunci_kolom);
+            return benar ? 'benar' : 'salah';
         }
 
         const dipilih = cariJawaban(soalKe.id)?.opsiIds;
@@ -235,7 +263,7 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
                                 onClick={() => {
                                     if (belumDiisi || mengecek) return;
                                     if (isian) cekIsian();
-                                    else simpanJawaban(soal.id, opsiTerpilih, teksIsian);
+                                    else simpanJawaban(soal.id, opsiTerpilih, teksIsian, pilihanKolom);
                                 }}
                                 disabled={belumDiisi || mengecek}
                                 className={`${tombolKecil} bg-[#C5EBA8] text-[#2F5E1A] hover:bg-[#B5E194]`}
@@ -257,17 +285,27 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
                 <KartuSoal nomor={indeksAktif + 1} teksSoal={soal.teks_soal} gambarUrl={soal.gambar_soal} />
 
                 <div className="mt-4 space-y-2.5">
-                    {soal.opsi_jawaban.map((opsi: any) => (
-                        <TombolOpsi
-                            key={opsi.id}
-                            opsi={opsi}
-                            status={statusOpsi(opsi)}
-                            disabled={terkunci}
-                            onPilih={pilihOpsi}
-                            kotakCentang={soal.tipe === 'benar_salah'}
-                            dipilih={opsiTerpilih.includes(opsi.id)}
+                    {tabel ? (
+                        <TabelMajemuk
+                            kolom={soal.kolom_tabel ?? []}
+                            pernyataan={soal.opsi_jawaban}
+                            pilihan={pilihanKolom}
+                            onPilih={pilihKolom}
+                            terkunci={terkunci}
                         />
-                    ))}
+                    ) : (
+                        soal.opsi_jawaban.map((opsi: any) => (
+                            <TombolOpsi
+                                key={opsi.id}
+                                opsi={opsi}
+                                status={statusOpsi(opsi)}
+                                disabled={terkunci}
+                                onPilih={pilihOpsi}
+                                kotakCentang={soal.tipe === 'benar_salah'}
+                                dipilih={opsiTerpilih.includes(opsi.id)}
+                            />
+                        ))
+                    )}
                 </div>
 
                 {/* Sebelum dikunci: field isian. Batas 100 karakter mengikuti validasi backend. */}
@@ -323,6 +361,13 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
                         <span className="absolute -top-3 left-4 rounded-md bg-[#2E3F85] px-3 py-1 text-sm font-medium text-white shadow">Pembahasan</span>
                         <div className="rounded-lg bg-white px-4 pb-4 pt-6 text-sm leading-relaxed text-[#1F2D5C] shadow">
                             <TeksMatematika teks={soal.pembahasan} />
+                            {soal.gambar_pembahasan && (
+                                <img
+                                    src={soal.gambar_pembahasan}
+                                    alt={`Gambar pembahasan soal nomor ${indeksAktif + 1}`}
+                                    className="mt-4 max-h-72 max-w-full rounded-lg border border-gray-200 bg-white"
+                                />
+                            )}
                         </div>
                     </div>
                 )}

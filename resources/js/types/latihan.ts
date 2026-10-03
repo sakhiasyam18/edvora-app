@@ -1,13 +1,15 @@
 // resources/js/types/latihan.ts
 
 export type ModeLatihan = 'fleksibel' | 'simulasi';
-export type TipeSoal = 'pilihan_ganda' | 'isian_singkat' | 'benar_salah';
+export type TipeSoal = 'pilihan_ganda' | 'isian_singkat' | 'benar_salah' | 'majemuk_tabel';
 
 export interface OpsiJawaban {
   id: string | number;
   label: 'A' | 'B' | 'C' | 'D' | 'E';
-  teks_opsi: string; // Database mapped
+  teks_opsi: string; // Database mapped; boleh kosong bila opsi hanya berisi gambar
+  gambar_opsi?: string | null; // link gambar di Supabase Storage
   is_kunci: boolean;
+  kunci_kolom?: number | null; // majemuk_tabel: nomor kolom (mulai 1) yang benar untuk pernyataan ini
 }
 
 export interface Soal {
@@ -15,9 +17,11 @@ export interface Soal {
   subtes_id: string | number;
   tipe: TipeSoal; // DB mapped
   teks_soal: string; // DB mapped
-  gambar_soal?: string; // DB mapped
-  opsi_jawaban: OpsiJawaban[]; // DB mapped relation
+  gambar_soal?: string | null; // DB mapped; link gambar di Supabase Storage
+  opsi_jawaban: OpsiJawaban[]; // DB mapped relation; majemuk_tabel: satu opsi = satu pernyataan (baris tabel)
+  kolom_tabel?: string[] | null; // majemuk_tabel: judul kolom tabel, mis. ["Benar", "Salah", "Tidak Bisa Ditentukan"]
   pembahasan: string;
+  gambar_pembahasan?: string | null; // DB mapped; link gambar di Supabase Storage, tampil di bawah teks pembahasan
   ada_hint?: boolean; // teks hint tidak ikut dikirim; diambil lewat latihan.hint supaya pemakaiannya tercatat
 }
 
