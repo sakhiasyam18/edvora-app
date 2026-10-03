@@ -26,11 +26,17 @@ function kembali() {
     router.visit(route(induk));
 }
 
+interface TopbarSiswaProps {
+    inisial: string;
+    // Halaman Akun Pribadi (/akun...): ikon rumah di kiri diganti ikon pengguna. Dihitung SiswaLayout dari URL.
+    isAkunPribadi: boolean;
+}
+
 /**
  * Topbar halaman siswa: tombol kembali (hanya di sub-halaman) dan pintasan ke Beranda di kiri, avatar pengguna di kanan.
  * Tautan avatar tetap menuju Akun Pribadi seperti sebelumnya; panah hanya penanda desain.
  */
-export default function TopbarSiswa({ inisial }: { inisial: string }) {
+export default function TopbarSiswa({ inisial, isAkunPribadi }: TopbarSiswaProps) {
     // usePage: SiswaLayout persisten, jadi topbar perlu dirender ulang setiap pindah halaman untuk mengecek rute aktif.
     usePage();
     const subHalaman = !HALAMAN_UTAMA.some((nama) => route().current(nama));
@@ -56,7 +62,15 @@ export default function TopbarSiswa({ inisial }: { inisial: string }) {
                 )}
 
                 <Link href={route('dashboard')} aria-label="Beranda" className="shrink-0 transition hover:opacity-70">
-                    <img src="/images/ikon/topbar-beranda.png" alt="" className="h-[33.939px] w-[33.939px] object-contain" />
+                    {isAkunPribadi ? (
+                        <div className="flex h-[33.939px] w-[33.939px] items-center justify-center rounded-full bg-[#E8EDF5]">
+                            <svg className="h-5 w-5 text-[#A3AED0]" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                        </div>
+                    ) : (
+                        <img src="/images/ikon/topbar-beranda.png" alt="" className="h-[33.939px] w-[33.939px] object-contain" />
+                    )}
                 </Link>
 
                 {breadcrumb.map((item, i) => (
