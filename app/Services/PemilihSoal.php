@@ -12,6 +12,7 @@ use Random\Randomizer;
  * Soal hanya muncul sekali per siswa: soal yang sudah pernah dijawab di sesi yang selesai, dalam mode apa pun,
  * tidak disajikan lagi di mode fleksibel maupun simulasi. Soal yang dijawab salah nanti dikerjakan ulang
  * lewat mode remedial. Soal yang tampil tetapi tidak dijawab tidak tercatat, jadi tetap bisa muncul lagi.
+ * Soal di sesi fleksibel yang masih berjalan dicadangkan dan tidak disajikan di sesi lain.
  * Soal paket Try Out yang belum Ditutup tidak disajikan di latihan (RANCANGAN-tryout.md T9).
  */
 class PemilihSoal
@@ -19,12 +20,19 @@ class PemilihSoal
     // Komposisi soal mode simulasi dalam persen (UCS1).
     public const PORSI_SIMULASI = ['mudah' => 30, 'sedang' => 40, 'sulit' => 30];
 
-    // Syarat "belum pernah dikerjakan" untuk baris tabel soal. Parameternya user_id.
+    // Syarat "belum pernah dikerjakan dan tidak sedang dicadangkan" untuk baris tabel soal. Parameternya user_id dua
+    // kali. Soal di sesi fleksibel yang masih berjalan dicadangkan untuk sesi itu, supaya tidak dijawab di dua sesi
+    // (RANCANGAN-RENCANA-save-fleksibel.md SF6).
     private const BELUM_DIKERJAKAN = <<<'SQL'
         not exists (
             select 1 from jawaban_pengerjaan j
             join pengerjaan p on p.id = j.pengerjaan_id
             where j.soal_id = soal.id and p.user_id = ? and p.status = 'selesai'
+        )
+        and not exists (
+            select 1 from pengerjaan pb
+            where pb.user_id = ? and pb.status = 'berjalan' and pb.mode_latihan = 'fleksibel'
+              and soal.id = any(pb.soal_ids)
         )
         SQL;
 
@@ -62,7 +70,7 @@ class PemilihSoal
                    (select pt.tahap from penguasaan_topik pt where pt.user_id = ? and pt.topik_id = soal.topik_id) as tahap
             from soal
             where soal.topik_id in (%s) and %s and %s
-            SQL, $tanda, self::BELUM_DIKERJAKAN, self::bukanSoalTryOutAktif()), [$userId, ...$topikIds, $userId]);
+            SQL, $tanda, self::BELUM_DIKERJAKAN, self::bukanSoalTryOutAktif()), [$userId, ...$topikIds, $userId, $userId]);
 
         // Topik yang soalnya sudah habis tidak muncul di hasil query; tahapnya tidak berpengaruh.
         $tahap = array_fill_keys($topikIds, Penguasaan::TAHAP_AWAL);
@@ -88,7 +96,7 @@ class PemilihSoal
             select soal.id, soal.topik_id, soal.tingkat_kesulitan::text as tingkat
             from soal
             where soal.subtes_id = ? and %s and %s
-            SQL, self::BELUM_DIKERJAKAN, self::bukanSoalTryOutAktif()), [$subtesId, $userId]);
+            SQL, self::BELUM_DIKERJAKAN, self::bukanSoalTryOutAktif()), [$subtesId, $userId, $userId]);
 
         $kandidat = array_map(fn ($b) => ['id' => $b->id, 'topik_id' => $b->topik_id, 'tingkat' => $b->tingkat], $baris);
         $kuota = DB::table('topik')->where('subtes_id', $subtesId)->pluck('jumlah_soal_simulasi', 'id')->all();

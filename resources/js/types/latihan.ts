@@ -22,7 +22,7 @@ export interface Soal {
 }
 
 export interface KonfigurasiSesiLatihan {
-  sesiId?: string;                // dibuat server di ujian(); dipakai latihan.cek, latihan.hint, dan latihan.simpan
+  sesiId?: string;                // id sesi di session (remedial, simulasi) atau id pengerjaan (fleksibel); dipakai latihan.jawab, latihan.hint, latihan.simpan
   subtesId: string | number;
   namaSubtes: string;
   topikIds?: string[];            // mode fleksibel: minimal satu topik
@@ -31,6 +31,23 @@ export interface KonfigurasiSesiLatihan {
   jumlahSoal: number;
   waktuPengerjaanMenit?: number;  // dipakai kalau mode === 'simulasi'
   iceBreakingAktif?: boolean;     // dipakai kalau mode bukan simulasi
+}
+
+// Balasan latihan.jawab, sekaligus isi JawabanTersimpan.hasil (RANCANGAN-RENCANA-save-fleksibel.md 6.1).
+// Dikirim setelah jawaban final, jadi halaman ujian tidak menerima kunci sebelum siswa menjawab.
+export interface UmpanBalikJawaban {
+  benar: boolean;
+  kunciOpsiIds: string[];         // opsi ber-kunci, untuk mewarnai pilihan; kosong untuk isian
+  kunci: string;                  // siap tampil: "A. Vierzna", "Vierzna dan Dewi", kunci isian, atau "-"
+  pembahasan: string | null;
+}
+
+// Prop halaman kerjakan fleksibel: jawaban yang sudah tersimpan saat siswa melanjutkan sesi.
+export interface JawabanTersimpan {
+  soalId: string;
+  opsiIds: string[];
+  jawabanIsian: string | null;
+  hasil: UmpanBalikJawaban;
 }
 
 // Dibaca dari tahap, bukan dari skor saja: skor 80 di tahap 1 (soal mudah) belum berarti dikuasai.

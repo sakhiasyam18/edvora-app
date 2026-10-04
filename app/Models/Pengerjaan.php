@@ -32,6 +32,7 @@ class Pengerjaan extends Model
         'total_skor',
         'mode_latihan',
         'soal_ids',
+        'hint_soal_ids',
     ];
 
     protected $casts = [
@@ -42,6 +43,14 @@ class Pengerjaan extends Model
     // Soal yang diberikan di sesi, urut tampil (termasuk yang tidak dijawab). Postgres mengirim uuid[] sebagai
     // teks "{a,b}"; sesi sebelum kolom ini ada bernilai NULL, jadi dibaca sebagai array kosong.
     protected function soalIds(): Attribute
+    {
+        return Attribute::make(
+            get: fn ($v) => $v ? array_values(array_filter(explode(',', trim($v, '{}')))) : [],
+        );
+    }
+
+    // Soal yang hint-nya dibuka di sesi fleksibel (SF9); formatnya sama dengan soal_ids.
+    protected function hintSoalIds(): Attribute
     {
         return Attribute::make(
             get: fn ($v) => $v ? array_values(array_filter(explode(',', trim($v, '{}')))) : [],

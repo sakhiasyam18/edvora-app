@@ -8,7 +8,7 @@ import KartuPembahasan from '@/Components/Ujian/KartuPembahasan';
 import KartuSoal, { TeksMatematika } from '@/Components/Ujian/KartuSoal';
 import TimerMundur from '@/Components/Ujian/TimerMundur';
 import TombolOpsi, { IkonHasil, StatusOpsi } from '@/Components/Ujian/TombolOpsi';
-import { KonfigurasiSesiLatihan, OpsiJawaban } from '@/types/latihan';
+import { JawabanTersimpan, KonfigurasiSesiLatihan, OpsiJawaban, UmpanBalikJawaban } from '@/types/latihan';
 import { dummyKonfigurasiSesi, dummyKunciJawaban, dummySoalList } from '@/data/dummyLatihan';
 
 type ModalAktif = 'hint' | 'keluar' | 'selesai' | null;
@@ -17,15 +17,16 @@ type IdOpsi = string | number;
 
 type Jawaban = { soalId: IdOpsi; opsiIds: IdOpsi[]; jawabanIsian?: string };
 
-// Balasan latihan.cek. kunciJawaban hanya ada saat benar === false.
-type HasilIsian = { benar: boolean; kunciJawaban?: string };
-
-// Urutan centang tidak boleh mempengaruhi hasil: {A,D,E} sama dengan {E,A,D}.
-function samaHimpunan(a: IdOpsi[], b: IdOpsi[]) {
-    return a.length === b.length && a.every((x) => b.includes(x));
+interface UjianProps {
+    subtes: any;
+    soalList: any[];
+    konfigurasi: any;
+    // Fleksibel (latihan.kerjakan): jawaban yang sudah tersimpan dan teks hint yang sudah dibuka. Kosong di mode lain.
+    jawabanTersimpan?: JawabanTersimpan[];
+    hintTerbuka?: Record<string, string>;
 }
 
-// Terjemahkan respons gagal dari latihan.cek dan latihan.hint menjadi pesan untuk siswa.
+// Terjemahkan respons gagal dari latihan.jawab dan latihan.hint menjadi pesan untuk siswa.
 // aksi melengkapi kalimat, mis. "memeriksa jawaban" atau "membuka hint".
 function pesanGagal(e: unknown, aksi: string): string {
     if (!axios.isAxiosError(e) || !e.response) return 'Gagal terhubung ke server. Periksa koneksi lalu coba lagi.';
@@ -38,27 +39,29 @@ function pesanGagal(e: unknown, aksi: string): string {
     return data?.message ?? `Gagal ${aksi}. Coba lagi.`;
 }
 
-export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; soalList: any[]; konfigurasi: any }) {
+export default function Ujian({ subtes, soalList, konfigurasi, jawabanTersimpan = [], hintTerbuka: hintAwal = {} }: UjianProps) {
     const simulasi = konfigurasi.mode === 'simulasi';
 
     // Semua tipe berbasis opsi memakai array; pilihan ganda = array beranggota satu.
     // Soal isian_singkat memakai jawabanIsian dengan opsiIds kosong.
+    // Lanjut Kerjakan: jawaban yang sudah tersimpan di server langsung terkunci.
     const form = useForm({
         ...konfigurasi,
-        jawaban: [] as Jawaban[],
+        jawaban: jawabanTersimpan.map((j) => ({ soalId: j.soalId, opsiIds: j.opsiIds, jawabanIsian: j.jawabanIsian ?? '' })) as Jawaban[],
     });
 
     const [indeksAktif, setIndeksAktif] = useState(0);
     // Mode fleksibel: pilihan belum final sampai "Simpan Jawaban" ditekan.
     const [pilihanSementara, setPilihanSementara] = useState<Record<string | number, IdOpsi[]>>({});
     const [isianSementara, setIsianSementara] = useState<Record<string | number, string>>({});
-    // Hasil penilaian isian dari server (latihan.cek), per soal. Hanya dipakai di mode fleksibel.
-    // kunci hanya dikirim server saat jawaban salah, untuk ditampilkan sebagai "Jawaban yang benar".
-    const [hasilIsian, setHasilIsian] = useState<Record<string | number, HasilIsian>>({});
-    const [mengecek, setMengecek] = useState(false);
-    const [pesanCek, setPesanCek] = useState<{ soalId: IdOpsi; pesan: string } | null>(null);
+    // Balasan latihan.jawab per soal: benar/salah, opsi kunci, teks kunci, dan pembahasan. Tidak dipakai di simulasi.
+    const [hasilJawaban, setHasilJawaban] = useState<Record<string | number, UmpanBalikJawaban>>(() =>
+        Object.fromEntries(jawabanTersimpan.map((j) => [j.soalId, j.hasil])),
+    );
+    const [mengirim, setMengirim] = useState(false);
+    const [pesanKirim, setPesanKirim] = useState<{ soalId: IdOpsi; pesan: string } | null>(null);
     // Teks hint dari latihan.hint, per soal. Soal yang ada di sini sudah tercatat di server memakai hint.
-    const [hintTerbuka, setHintTerbuka] = useState<Record<string | number, string>>({});
+    const [hintTerbuka, setHintTerbuka] = useState<Record<string | number, string>>(hintAwal);
     const [memuatHint, setMemuatHint] = useState(false);
     const [pesanHint, setPesanHint] = useState<string | null>(null);
     const [modal, setModal] = useState<ModalAktif>(null);
@@ -84,20 +87,28 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
         else setIsianSementara((p) => ({ ...p, [soal.id]: teks }));
     };
 
-    // Mode fleksibel: isian dinilai di server. Soal baru dikunci setelah server menjawab,
-    // jadi kalau gagal (mis. koneksi putus) siswa masih bisa mencoba lagi.
-    const cekIsian = async () => {
+    // Fleksibel dan remedial: server menilai lalu menyimpan (fleksibel) atau mengunci di session (remedial), dan
+    // membalas kunci serta pembahasan. Soal baru dikunci setelah server menjawab, jadi kalau gagal
+    // (mis. koneksi putus) siswa masih bisa mencoba lagi.
+    const kirimSatuJawaban = async () => {
         const soalId = soal.id;
-        setMengecek(true);
-        setPesanCek(null);
+        const opsiIds = isian ? [] : opsiTerpilih;
+        const jawabanIsian = isian ? teksIsian : '';
+        setMengirim(true);
+        setPesanKirim(null);
         try {
-            const { data } = await axios.post(route('latihan.cek'), { sesiId: konfigurasi.sesiId, soalId, jawabanIsian: teksIsian });
-            setHasilIsian((p) => ({ ...p, [soalId]: { benar: data.benar, kunciJawaban: data.kunciJawaban } }));
-            simpanJawaban(soalId, [], teksIsian);
+            const { data } = await axios.post<UmpanBalikJawaban>(route('latihan.jawab'), {
+                sesiId: konfigurasi.sesiId,
+                soalId,
+                opsiIds,
+                jawabanIsian: isian ? jawabanIsian : null,
+            });
+            setHasilJawaban((p) => ({ ...p, [soalId]: data }));
+            simpanJawaban(soalId, opsiIds, jawabanIsian);
         } catch (e) {
-            setPesanCek({ soalId, pesan: pesanGagal(e, 'memeriksa jawaban') });
+            setPesanKirim({ soalId, pesan: pesanGagal(e, 'menyimpan jawaban') });
         } finally {
-            setMengecek(false);
+            setMengirim(false);
         }
     };
 
@@ -130,32 +141,22 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
         else setPilihanSementara((p) => ({ ...p, [soal.id]: baru }));
     };
 
-    // Mode fleksibel: jawaban yang sudah dikunci boleh ketahuan benar/salahnya di navigasi.
-    // Mode simulasi tidak memakai ini, supaya hasil belum terlihat sebelum latihan selesai.
-    // Aturannya sama dengan backend: semua-atau-nol terhadap himpunan is_kunci.
+    // Fleksibel dan remedial: warna bulatan dari balasan server. Simulasi tidak memakai ini, supaya hasil belum
+    // terlihat sebelum latihan selesai. Belum dijawab = null, jadi bulatan tetap netral.
     const statusJawabanSoal = (indeks: number): StatusJawabanSoal => {
-        const soalKe = soalList[indeks];
-        // Isian dinilai di server (latihan.cek); frontend hanya menampilkan hasilnya.
-        // Belum dicek = null, jadi bulatan tetap biru "sudah dijawab".
-        if (soalKe.tipe === 'isian_singkat') {
-            const hasil = hasilIsian[soalKe.id];
-            return hasil === undefined ? null : hasil.benar ? 'benar' : 'salah';
-        }
-
-        const dipilih = cariJawaban(soalKe.id)?.opsiIds;
-        if (dipilih === undefined) return null;
-
-        const kunci = soalKe.opsi_jawaban.filter((o: any) => o.is_kunci).map((o: any) => o.id);
-        return kunci.length > 0 && samaHimpunan(dipilih, kunci) ? 'benar' : 'salah';
+        const hasil = hasilJawaban[soalList[indeks].id];
+        return hasil === undefined ? null : hasil.benar ? 'benar' : 'salah';
     };
 
     const statusOpsi = (opsi: OpsiJawaban): StatusOpsi => {
         const dipilih = opsiTerpilih.includes(opsi.id);
-        if (terkunci) {
+        const kunciOpsiIds = hasilJawaban[soal.id]?.kunciOpsiIds;
+        if (terkunci && kunciOpsiIds) {
+            const opsiKunci = kunciOpsiIds.includes(String(opsi.id));
             // Benar_salah: tiap pernyataan punya nilai kebenarannya sendiri, jadi semua opsi
             // diberi warna — bukan hanya yang dipilih — supaya siswa melihat jawaban lengkapnya.
-            if (soal.tipe === 'benar_salah') return opsi.is_kunci ? 'benar' : 'salah';
-            if (opsi.is_kunci) return 'benar';
+            if (soal.tipe === 'benar_salah') return opsiKunci ? 'benar' : 'salah';
+            if (opsiKunci) return 'benar';
             if (dipilih) return 'salah';
             return 'default';
         }
@@ -175,20 +176,8 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
         form.post(route('latihan.simpan'));
     };
 
-    // Teks "Kunci Jawaban" di kartu umpan balik; formatnya sama dengan PembahasanPengerjaan::teksKunci di backend.
-    const teksKunci = (): string | null => {
-        if (isian) {
-            const hasil = hasilIsian[soal.id];
-            // Server hanya mengirim kunci saat salah; saat benar, jawaban siswa itulah kuncinya.
-            return hasil?.kunciJawaban ?? (hasil?.benar ? teksIsian : null);
-        }
-        const kunci = soal.opsi_jawaban.filter((o: any) => o.is_kunci);
-        if (kunci.length === 0) return null;
-        if (soal.tipe !== 'benar_salah') return `${kunci[0].label}. ${kunci[0].teks_opsi}`;
-        const teks = kunci.map((o: any) => o.teks_opsi);
-        const terakhir = teks.pop();
-        return teks.length === 0 ? terakhir : `${teks.join(', ')} dan ${terakhir}`;
-    };
+    // Teks "Kunci Jawaban" di kartu umpan balik, dari balasan server (format PembahasanPengerjaan::teksKunci).
+    const teksKunci = (): string | null => hasilJawaban[soal.id]?.kunci ?? null;
 
     const namaMode = { fleksibel: 'Fleksibel', simulasi: 'Simulasi', remedial: 'Remedial' }[konfigurasi.mode as string] ?? '';
     const statusAktif = terkunci ? statusJawabanSoal(indeksAktif) : null;
@@ -273,14 +262,13 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
                         <button
                             type="button"
                             onClick={() => {
-                                if (belumDiisi || mengecek) return;
-                                if (isian) cekIsian();
-                                else simpanJawaban(soal.id, opsiTerpilih, teksIsian);
+                                if (belumDiisi || mengirim) return;
+                                kirimSatuJawaban();
                             }}
-                            disabled={belumDiisi || mengecek}
+                            disabled={belumDiisi || mengirim}
                             className={`${tombolBesar} ${belumDiisi ? 'bg-siswa-ujian-redup text-white/80 shadow-none' : 'bg-ujian-hijau text-white'}`}
                         >
-                            {mengecek ? 'Memeriksa…' : 'Simpan Jawaban'}
+                            {mengirim ? 'Menyimpan…' : 'Simpan Jawaban'}
                         </button>
                     ) : (
                         <button type="button" onClick={() => setModal('selesai')} className={`${tombolBesar} bg-ujian-biru text-white`}>
@@ -308,12 +296,12 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
                     </div>
 
                     {/* Sebelum dikunci: field isian. Batas 100 karakter mengikuti validasi backend. */}
-                    {isian && !hasilIsian[soal.id] && (
+                    {isian && !hasilJawaban[soal.id] && (
                         <input
                             type="text"
                             value={teksIsian}
                             onChange={(e) => ubahIsian(e.target.value)}
-                            disabled={terkunci || mengecek}
+                            disabled={terkunci || mengirim}
                             maxLength={100}
                             placeholder="Tulis Jawabanmu Disini..."
                             aria-label="Jawaban isian singkat"
@@ -321,27 +309,27 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
                         />
                     )}
 
-                    {/* Setelah dikunci: jawaban siswa diganti bilah hasil dari latihan.cek. */}
-                    {isian && hasilIsian[soal.id] && (
+                    {/* Setelah dikunci: jawaban siswa diganti bilah hasil dari latihan.jawab. */}
+                    {isian && hasilJawaban[soal.id] && (
                         <div
                             className={`mt-3 flex min-h-11 animate-muncul-halus items-center justify-between gap-3 rounded-[10px] px-4 py-2.5 text-sm font-semibold text-white shadow-panel ${
-                                hasilIsian[soal.id].benar ? 'bg-ujian-hijau' : 'bg-ujian-merah'
+                                hasilJawaban[soal.id].benar ? 'bg-ujian-hijau' : 'bg-ujian-merah'
                             }`}
                         >
                             <span className="break-all">{teksIsian}</span>
                             <span className="flex shrink-0 items-center gap-1.5 font-medium">
-                                <IkonHasil benar={hasilIsian[soal.id].benar} />
-                                {hasilIsian[soal.id].benar ? 'Benar' : 'Salah'}
+                                <IkonHasil benar={hasilJawaban[soal.id].benar} />
+                                {hasilJawaban[soal.id].benar ? 'Benar' : 'Salah'}
                             </span>
                         </div>
                     )}
-                    {isian && pesanCek && pesanCek.soalId === soal.id && (
+                    {pesanKirim && pesanKirim.soalId === soal.id && (
                         <p role="alert" className="mt-2 text-sm text-siswa-umpan-salah-teks">
-                            {pesanCek.pesan}
+                            {pesanKirim.pesan}
                         </p>
                     )}
 
-                    {terkunci && <KartuPembahasan status={statusAktif ?? 'kosong'} kunci={teksKunci()} pembahasan={soal.pembahasan} />}
+                    {terkunci && <KartuPembahasan status={statusAktif ?? 'kosong'} kunci={teksKunci()} pembahasan={hasilJawaban[soal.id]?.pembahasan ?? ''} />}
                 </div>
             </ArenaPengerjaan>
 
@@ -388,7 +376,9 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
                 <div className="p-6 font-poppins md:px-8 md:py-7">
                     <h3 className="text-xl font-semibold text-siswa-umpan-salah-teks">Keluar</h3>
                     <p className="mt-2 text-[15px] font-medium leading-relaxed text-siswa-teks">
-                        Anda akan meninggalkan halaman latihan soal dan jawaban anda akan disimpan oleh sistem.
+                        {konfigurasi.mode === 'remedial'
+                            ? 'Sesi remedial ini akan dibatalkan dan jawabanmu tidak disimpan. Soal-soalnya akan muncul lagi di sesi remedial berikutnya.'
+                            : 'Anda akan meninggalkan halaman latihan soal dan jawaban anda akan disimpan oleh sistem.'}
                     </p>
                     <div className="mt-5 flex justify-end gap-2">
                         <button type="button" onClick={() => setModal(null)} className={`${tombolModal} border border-siswa-teks/40 bg-white text-siswa-judul`}>

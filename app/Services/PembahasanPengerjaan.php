@@ -131,14 +131,48 @@ class PembahasanPengerjaan
         return "{$kunci[0]['label']}. {$kunci[0]['teks_opsi']}";
     }
 
-    private static function satuSoal(Soal $soal, ?JawabanPengerjaan $jawaban): array
+    /**
+     * Umpan balik satu jawaban yang sudah final (latihan.jawab, RANCANGAN-RENCANA-save-fleksibel.md SF7): benar/salah,
+     * opsi kunci untuk mewarnai pilihan, teks kunci siap tampil, dan pembahasan. Hanya dikirim setelah jawaban
+     * dikunci, jadi kunci tidak bisa dipakai untuk menebak.
+     *
+     * @param  array<int, array{id: string, label: string, teks_opsi: string, is_kunci: bool}>  $opsi  urut `urutan`
+     * @return array{benar: bool, kunciOpsiIds: string[], kunci: string, pembahasan: ?string}
+     */
+    public static function umpanBalik(string $tipe, array $opsi, ?string $kunciJawaban, ?string $pembahasan, bool $benar): array
     {
-        $opsi = $soal->opsiJawaban->map(fn ($o) => [
+        return [
+            'benar' => $benar,
+            'kunciOpsiIds' => array_values(array_column(array_filter($opsi, fn (array $o) => $o['is_kunci']), 'id')),
+            'kunci' => self::teksKunci($tipe, $opsi, $kunciJawaban),
+            'pembahasan' => $pembahasan,
+        ];
+    }
+
+    /** umpanBalik() dari model Soal yang opsiJawaban-nya sudah dimuat urut `urutan`. */
+    public static function umpanBalikSoal(Soal $soal, bool $benar): array
+    {
+        return self::umpanBalik($soal->tipe, self::opsiTampil($soal), $soal->kunci_jawaban, $soal->pembahasan, $benar);
+    }
+
+    /**
+     * Opsi soal dalam bentuk yang dipakai teksKunci() dan umpanBalik().
+     *
+     * @return array<int, array{id: string, label: string, teks_opsi: string, is_kunci: bool}>
+     */
+    private static function opsiTampil(Soal $soal): array
+    {
+        return $soal->opsiJawaban->map(fn ($o) => [
             'id' => $o->id,
             'label' => $o->label,
             'teks_opsi' => $o->teks_opsi,
             'is_kunci' => (bool) $o->is_kunci,
         ])->all();
+    }
+
+    private static function satuSoal(Soal $soal, ?JawabanPengerjaan $jawaban): array
+    {
+        $opsi = self::opsiTampil($soal);
 
         return [
             'id' => $soal->id,

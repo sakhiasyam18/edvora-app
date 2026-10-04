@@ -60,11 +60,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
             // Segmen subtes/ mencegah bentrok dengan /latihan/ujian dan /latihan/hasil; kode tak dikenal → 404.
             Route::get('/subtes/{subtes:kode_subtes}', [LatihanSoalController::class, 'pilihMode'])->name('latihan.mode');
             Route::get('/ujian', [LatihanSoalController::class, 'ujian'])->name('latihan.ujian');
+            // Fleksibel tersimpan di database: Mulai membuat sesi berjalan, lalu dikerjakan dan dilanjutkan di kerjakan.
+            Route::post('/mulai', [LatihanSoalController::class, 'mulai'])->block(10, 10)->name('latihan.mulai');
+            Route::get('/kerjakan/{pengerjaan}', [LatihanSoalController::class, 'kerjakan'])->whereUuid('pengerjaan')->name('latihan.kerjakan');
             // block(): request dengan session yang sama diproses bergantian, jadi klik ganda tidak saling timpa.
-            Route::post('/ujian/cek-jawaban', [LatihanSoalController::class, 'cekJawaban'])
+            // Fleksibel dan remedial: nilai dan simpan satu jawaban; balasannya membawa kunci dan pembahasan.
+            Route::post('/ujian/jawab', [LatihanSoalController::class, 'jawab'])
                 ->middleware('throttle:30,1')
                 ->block(10, 10)
-                ->name('latihan.cek');
+                ->name('latihan.jawab');
             // Membuka hint dicatat di session supaya jawaban benar dengan hint bernilai 0,5.
             Route::post('/ujian/hint', [LatihanSoalController::class, 'bukaHint'])
                 ->middleware('throttle:30,1')

@@ -126,6 +126,11 @@ class RiwayatController extends Controller
             return redirect()->route('tryout.hasil', $pengerjaan->try_out_id);
         }
 
+        // Sesi fleksibel yang belum selesai: pembahasan akan membocorkan kunci soal yang belum dijawab (SF13).
+        if ($pengerjaan->status === 'berjalan') {
+            return redirect()->route('latihan.kerjakan', $pengerjaan->id);
+        }
+
         return Inertia::render('Latihan/Pembahasan', [
             'pengerjaan' => [
                 'id' => $pengerjaan->id,
