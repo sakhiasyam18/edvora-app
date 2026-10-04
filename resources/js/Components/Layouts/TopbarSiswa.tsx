@@ -1,4 +1,5 @@
 import { Link, router, usePage } from '@inertiajs/react';
+import { useEffect, useRef, useState } from 'react';
 
 // Halaman menu utama sidebar: tidak punya "halaman sebelumnya", jadi tombol kembali disembunyikan.
 const HALAMAN_UTAMA = ['dashboard', 'latihan.index', 'latihan.persiapan', 'tryout.index', 'riwayat.index', 'perkembangan.index', 'akun.profil.utama'];
@@ -34,13 +35,27 @@ interface TopbarSiswaProps {
 
 /**
  * Topbar halaman siswa: tombol kembali (hanya di sub-halaman) dan pintasan ke Beranda di kiri, avatar pengguna di kanan.
- * Tautan avatar tetap menuju Akun Pribadi seperti sebelumnya; panah hanya penanda desain.
+ * Avatar membuka menu berisi nama, email, dan tombol Keluar. Akun Pribadi dibuka lewat sidebar.
  */
 export default function TopbarSiswa({ inisial, isAkunPribadi }: TopbarSiswaProps) {
     // usePage: SiswaLayout persisten, jadi topbar perlu dirender ulang setiap pindah halaman untuk mengecek rute aktif.
-    usePage();
+    const user = usePage<any>().props.auth?.user;
     const subHalaman = !HALAMAN_UTAMA.some((nama) => route().current(nama));
     const breadcrumb = BREADCRUMB.find(([nama]) => route().current(nama))?.[1] ?? [];
+
+    const [menuTerbuka, setMenuTerbuka] = useState(false);
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    // Tutup menu saat klik di luar.
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+                setMenuTerbuka(false);
+            }
+        }
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     return (
         // sticky top-0: tetap menempel di atas saat halaman di-scroll.
@@ -83,12 +98,37 @@ export default function TopbarSiswa({ inisial, isAkunPribadi }: TopbarSiswaProps
                 ))}
             </div>
 
-            <Link href={route('akun.profil.utama')} className="flex items-center gap-4" aria-label="Akun Pribadi">
-                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-edvora-primary text-[24px] font-normal leading-none text-white transition hover:bg-edvora-primary-hover">
-                    {inisial}
-                </span>
-                <img src="/images/ikon/panah-bawah.png" alt="" className="h-[19.542px] w-[19.542px] object-contain" />
-            </Link>
+            <div className="relative" ref={menuRef}>
+                <button
+                    type="button"
+                    onClick={() => setMenuTerbuka(!menuTerbuka)}
+                    aria-label="Menu akun"
+                    aria-expanded={menuTerbuka}
+                    className="flex items-center gap-4"
+                >
+                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-edvora-primary text-[24px] font-normal leading-none text-white transition hover:bg-edvora-primary-hover">
+                        {inisial}
+                    </span>
+                    <img src="/images/ikon/panah-bawah.png" alt="" className="h-[19.542px] w-[19.542px] object-contain" />
+                </button>
+
+                {menuTerbuka && (
+                    <div className="absolute right-0 z-50 mt-2 w-52 rounded-xl border border-slate-100 bg-white py-1.5 text-sm shadow-xl">
+                        <div className="border-b border-slate-100 px-4 py-2">
+                            <p className="truncate font-semibold text-slate-800">{user?.name}</p>
+                            <p className="truncate text-xs text-slate-500">{user?.email}</p>
+                        </div>
+                        <Link
+                            href={route('logout')}
+                            method="post"
+                            as="button"
+                            className="block w-full px-4 py-2 text-left font-medium text-red-600 transition hover:bg-red-50"
+                        >
+                            Keluar
+                        </Link>
+                    </div>
+                )}
+            </div>
         </header>
     );
 }
