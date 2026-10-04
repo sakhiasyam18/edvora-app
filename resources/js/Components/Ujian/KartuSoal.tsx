@@ -1,18 +1,18 @@
 import 'katex/dist/katex.min.css';
 import { InlineMath } from 'react-katex';
+import { pecahTeksMatematika } from '@/lib/teksMatematika';
 import { Soal } from '@/types/latihan';
 
-// Pecah teks jadi bagian biasa dan bagian $...$ yang dirender KaTeX.
+// Teks biasa ditampilkan apa adanya; rumus di antara $...$ dirender KaTeX. Aturan $ ada di lib/teksMatematika.
+// Rumus yang gagal dirender ditampilkan mentah; importer sudah menolak rumus seperti itu sebelum masuk database.
 export function TeksMatematika({ teks }: { teks: string }) {
-    const bagian = teks.split(/(\$[^$]+\$)/g);
-
     return (
         <>
-            {bagian.map((potongan, i) =>
-                potongan.startsWith('$') && potongan.endsWith('$') && potongan.length > 1 ? (
-                    <InlineMath key={i} math={potongan.slice(1, -1)} renderError={() => <span>{potongan}</span>} />
+            {pecahTeksMatematika(teks).map((bagian, i) =>
+                bagian.rumus ? (
+                    <InlineMath key={i} math={bagian.isi} renderError={() => <span>{`$${bagian.isi}$`}</span>} />
                 ) : (
-                    <span key={i} className="whitespace-pre-line">{potongan}</span>
+                    <span key={i} className="whitespace-pre-line">{bagian.isi}</span>
                 ),
             )}
         </>

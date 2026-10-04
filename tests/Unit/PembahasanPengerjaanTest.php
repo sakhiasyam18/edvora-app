@@ -70,9 +70,26 @@ class PembahasanPengerjaanTest extends TestCase
         $this->assertSame([
             'benar' => false,
             'kunciOpsiIds' => ['B'],
+            'kunciKolom' => null,
             'kunci' => 'B. Paramita',
             'pembahasan' => 'Karena B.',
+            'gambarPembahasan' => null,
         ], PembahasanPengerjaan::umpanBalik('pilihan_ganda', $opsi, null, 'Karena B.', false));
+    }
+
+    public function test_umpan_balik_majemuk_tabel_berisi_kunci_per_baris_dan_judul_kolom(): void
+    {
+        $opsi = [
+            ['id' => 'p1', 'label' => 'A', 'teks_opsi' => 'P', 'is_kunci' => false, 'kunci_kolom' => 2],
+            ['id' => 'p2', 'label' => 'B', 'teks_opsi' => 'Q', 'is_kunci' => false, 'kunci_kolom' => 1],
+        ];
+
+        $hasil = PembahasanPengerjaan::umpanBalik('majemuk_tabel', $opsi, null, null, true, ['Benar', 'Salah'], 'https://contoh/gambar.png');
+
+        $this->assertSame(['p1' => 2, 'p2' => 1], $hasil['kunciKolom']);
+        $this->assertSame('1. Salah; 2. Benar', $hasil['kunci']);
+        $this->assertSame([], $hasil['kunciOpsiIds']);
+        $this->assertSame('https://contoh/gambar.png', $hasil['gambarPembahasan']);
     }
 
     public function test_umpan_balik_benar_salah_memuat_semua_pernyataan_yang_benar(): void

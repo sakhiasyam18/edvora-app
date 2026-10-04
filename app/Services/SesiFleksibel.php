@@ -72,13 +72,13 @@ class SesiFleksibel
      * model walaupun sudah di-makeHidden. Soal yang sudah dihapus dari bank dilewati.
      *
      * @param  Collection<int, Soal>  $soalList  dengan opsiJawaban urut `urutan`
-     * @return array{jawabanTersimpan: array<int, array{soalId: string, opsiIds: string[], jawabanIsian: ?string, hasil: array}>, hintTerbuka: array<string, string>}
+     * @return array{jawabanTersimpan: array<int, array{soalId: string, opsiIds: string[], jawabanIsian: ?string, pilihanKolom: ?array, hasil: array}>, hintTerbuka: array<string, string>}
      */
     public function muat(Pengerjaan $p, Collection $soalList): array
     {
         $soalMap = $soalList->keyBy('id');
         $jawaban = JawabanPengerjaan::where('pengerjaan_id', $p->id)
-            ->get(['soal_id', 'opsi_dipilih_id', 'opsi_dipilih_ids', 'jawaban_isian', 'is_correct'])
+            ->get(['soal_id', 'opsi_dipilih_id', 'opsi_dipilih_ids', 'jawaban_isian', 'pilihan_kolom', 'is_correct'])
             ->keyBy('soal_id');
 
         $tersimpan = [];
@@ -91,6 +91,8 @@ class SesiFleksibel
                     'soalId' => $soalId,
                     'opsiIds' => $j->opsi_dipilih_id !== null ? [$j->opsi_dipilih_id] : $j->opsi_dipilih_ids,
                     'jawabanIsian' => $j->jawaban_isian,
+                    // Majemuk_tabel: { idOpsi: nomor kolom }.
+                    'pilihanKolom' => $j->pilihan_kolom,
                     'hasil' => PembahasanPengerjaan::umpanBalikSoal($soal, (bool) $j->is_correct),
                 ];
             }
@@ -113,18 +115,19 @@ class SesiFleksibel
      * mempertahankan baris lama, lalu balasan dibentuk dari baris itu (SF14).
      *
      * @param  array<int, string>  $opsiIds
-     * @return array{benar: bool, kunciOpsiIds: string[], kunci: string, pembahasan: ?string}
+     * @param  array<string, int>  $pilihanKolom  majemuk_tabel: id opsi => nomor kolom
+     * @return array{benar: bool, kunciOpsiIds: string[], kunciKolom: ?array, kunci: string, pembahasan: ?string, gambarPembahasan: ?string}
      *
      * @throws ValidationException soal bukan bagian sesi, atau jawaban kosong
      */
-    public function jawab(Pengerjaan $p, string $soalId, array $opsiIds, ?string $jawabanIsian): array
+    public function jawab(Pengerjaan $p, string $soalId, array $opsiIds, ?string $jawabanIsian, array $pilihanKolom = []): array
     {
         if (! in_array($soalId, $p->soal_ids, true)) {
             throw ValidationException::withMessages(['soalId' => 'Soal ini bukan bagian dari sesi latihan.']);
         }
 
         $soal = Soal::with(['opsiJawaban' => fn ($q) => $q->orderBy('urutan')])
-            ->findOrFail($soalId, ['id', 'tipe', 'kunci_jawaban', 'pembahasan', 'tingkat_kesulitan']);
+            ->findOrFail($soalId, ['id', 'tipe', 'kunci_jawaban', 'pembahasan', 'gambar_pembahasan', 'kolom_tabel', 'tingkat_kesulitan']);
 
         $hasil = PenilaianJawaban::nilai(
             $soal->tipe,
@@ -133,6 +136,8 @@ class SesiFleksibel
             $soal->kunci_jawaban,
             $opsiIds,
             $jawabanIsian,
+            $soal->opsiJawaban->pluck('kunci_kolom', 'id')->all(),
+            $pilihanKolom,
         );
 
         if ($hasil === null) {
@@ -146,7 +151,7 @@ class SesiFleksibel
             'pengerjaan_id' => $p->id,
             'pengerjaan_subtes_id' => null,
             'soal_id' => $soalId,
-            ...JawabanPengerjaan::kolomJawaban($soal->tipe, $hasil['opsiIds'], $hasil['jawabanIsian']),
+            ...JawabanPengerjaan::kolomJawaban($soal->tipe, $hasil['opsiIds'], $hasil['jawabanIsian'], $hasil['pilihanKolom']),
             'is_correct' => $hasil['benar'],
             // Poin jawaban ini; XP dihitung ulang saat Selesaikan (SF10).
             'skor' => PenilaianLatihan::hadiah($soal->tingkat_kesulitan, $hasil['benar'], $pakaiHint)['poin'],

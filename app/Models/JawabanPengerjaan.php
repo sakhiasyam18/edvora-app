@@ -30,6 +30,12 @@ class JawabanPengerjaan extends Model
         'skor',
         'waktu_menjawab',
         'pakai_hint',
+        'pilihan_kolom',
+    ];
+
+    protected $casts = [
+        // Soal majemuk_tabel: {id opsi: nomor kolom pilihan siswa}.
+        'pilihan_kolom' => 'array',
     ];
 
     // Postgres mengirim uuid[] sebagai teks "{a,b}"; cast 'array' Laravel mengharapkan JSON.
@@ -43,18 +49,21 @@ class JawabanPengerjaan extends Model
 
     /**
      * Kolom jawaban menurut tipe soal, untuk insert massal. Jalur itu melewati mutator Eloquent, jadi literal array
-     * Postgres ditulis manual. Pilihan ganda memakai opsi_dipilih_id supaya FK-nya terjaga; benar_salah memakai
-     * opsi_dipilih_ids; isian memakai jawaban_isian.
+     * Postgres dan JSON ditulis manual. Pilihan ganda memakai opsi_dipilih_id supaya FK-nya terjaga; benar_salah memakai
+     * opsi_dipilih_ids; isian memakai jawaban_isian; majemuk_tabel memakai pilihan_kolom. Keempat kolom selalu ada,
+     * karena insert massal mensyaratkan setiap baris memiliki kolom yang sama.
      *
      * @param  array<int, string>  $opsiIds
-     * @return array{opsi_dipilih_id: ?string, opsi_dipilih_ids: ?string, jawaban_isian: ?string}
+     * @param  array<string, int>|null  $pilihanKolom  majemuk_tabel: id opsi => nomor kolom
+     * @return array{opsi_dipilih_id: ?string, opsi_dipilih_ids: ?string, jawaban_isian: ?string, pilihan_kolom: ?string}
      */
-    public static function kolomJawaban(string $tipe, array $opsiIds, ?string $jawabanIsian): array
+    public static function kolomJawaban(string $tipe, array $opsiIds, ?string $jawabanIsian, ?array $pilihanKolom = null): array
     {
         return [
             'opsi_dipilih_id' => $tipe === 'pilihan_ganda' ? ($opsiIds[0] ?? null) : null,
             'opsi_dipilih_ids' => $tipe === 'benar_salah' ? '{'.implode(',', $opsiIds).'}' : null,
             'jawaban_isian' => $tipe === 'isian_singkat' ? $jawabanIsian : null,
+            'pilihan_kolom' => $tipe === 'majemuk_tabel' && $pilihanKolom !== null ? json_encode($pilihanKolom) : null,
         ];
     }
 

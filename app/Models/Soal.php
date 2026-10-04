@@ -26,9 +26,16 @@ class Soal extends Model
         'kunci_jawaban',
         'hint',
         'pembahasan',
+        'gambar_pembahasan',
+        'kolom_tabel',
         'tingkat_kesulitan',
         'status',
         'topik_id',
+    ];
+
+    protected $casts = [
+        // Judul kolom soal majemuk_tabel, mis. ["Benar", "Salah"]; null untuk tipe lain.
+        'kolom_tabel' => 'array',
     ];
 
     public function subtes()

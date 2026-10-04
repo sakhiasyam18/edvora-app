@@ -21,7 +21,7 @@ class PembahasanPengerjaan
     public function untuk(Pengerjaan $pengerjaan): array
     {
         $jawaban = JawabanPengerjaan::where('pengerjaan_id', $pengerjaan->id)
-            ->get(['soal_id', 'opsi_dipilih_id', 'opsi_dipilih_ids', 'jawaban_isian', 'is_correct', 'waktu_menjawab'])
+            ->get(['soal_id', 'opsi_dipilih_id', 'opsi_dipilih_ids', 'jawaban_isian', 'pilihan_kolom', 'is_correct', 'waktu_menjawab'])
             ->keyBy('soal_id');
 
         $urutan = self::urutanSoal($pengerjaan->soal_ids, $jawaban->map(fn ($j) => (string) $j->waktu_menjawab)->all());
@@ -45,7 +45,7 @@ class PembahasanPengerjaan
 
         $jawaban = JawabanPengerjaan::where('pengerjaan_id', $pengerjaan->id)
             ->whereIn('soal_id', $urutan)
-            ->get(['soal_id', 'opsi_dipilih_id', 'opsi_dipilih_ids', 'jawaban_isian', 'is_correct'])
+            ->get(['soal_id', 'opsi_dipilih_id', 'opsi_dipilih_ids', 'jawaban_isian', 'pilihan_kolom', 'is_correct'])
             ->keyBy('soal_id');
 
         return $this->susun($urutan, $jawaban);
@@ -60,7 +60,7 @@ class PembahasanPengerjaan
     {
         $soalMap = Soal::with(['opsiJawaban' => fn ($q) => $q->orderBy('urutan')])
             ->whereIn('id', $urutan)
-            ->get(['id', 'tipe', 'teks_soal', 'gambar_soal', 'pembahasan', 'kunci_jawaban'])
+            ->get(['id', 'tipe', 'teks_soal', 'gambar_soal', 'pembahasan', 'gambar_pembahasan', 'kunci_jawaban', 'kolom_tabel'])
             ->keyBy('id');
 
         $hasil = [];
@@ -106,14 +106,25 @@ class PembahasanPengerjaan
 
     /**
      * Kunci siap tampil: "A. Vierzna" (pilihan ganda), "Vierzna dan Dewi" (benar_salah: semua pernyataan
-     * yang benar), atau alternatif pertama kunci isian. "-" bila soal tidak punya kunci.
+     * yang benar), "1. Benar; 2. Salah" (majemuk_tabel: kolom kunci tiap pernyataan), atau alternatif pertama
+     * kunci isian. "-" bila soal tidak punya kunci.
      *
-     * @param  array<int, array{label: string, teks_opsi: string, is_kunci: bool}>  $opsi  urut `urutan`
+     * @param  array<int, array{label: string, teks_opsi: string, is_kunci: bool, kunci_kolom?: ?int}>  $opsi  urut `urutan`
+     * @param  string[]|null  $kolomTabel  judul kolom soal majemuk_tabel
      */
-    public static function teksKunci(string $tipe, array $opsi, ?string $kunciJawaban): string
+    public static function teksKunci(string $tipe, array $opsi, ?string $kunciJawaban, ?array $kolomTabel = null): string
     {
         if ($tipe === 'isian_singkat') {
             return PenilaianIsian::kunciTampil($kunciJawaban) ?: '-';
+        }
+
+        if ($tipe === 'majemuk_tabel') {
+            $baris = [];
+            foreach (array_values($opsi) as $i => $o) {
+                $baris[] = ($i + 1).'. '.($kolomTabel[($o['kunci_kolom'] ?? 0) - 1] ?? '-');
+            }
+
+            return $baris === [] ? '-' : implode('; ', $baris);
         }
 
         $kunci = array_values(array_filter($opsi, fn (array $o) => $o['is_kunci']));
@@ -136,23 +147,44 @@ class PembahasanPengerjaan
      * opsi kunci untuk mewarnai pilihan, teks kunci siap tampil, dan pembahasan. Hanya dikirim setelah jawaban
      * dikunci, jadi kunci tidak bisa dipakai untuk menebak.
      *
-     * @param  array<int, array{id: string, label: string, teks_opsi: string, is_kunci: bool}>  $opsi  urut `urutan`
-     * @return array{benar: bool, kunciOpsiIds: string[], kunci: string, pembahasan: ?string}
+     * kunciKolom (majemuk_tabel: id opsi => nomor kolom kunci) mewarnai sel tabel, karena kunci_kolom tidak ikut di
+     * props halaman ujian.
+     *
+     * @param  array<int, array{id: string, label: string, teks_opsi: string, is_kunci: bool, kunci_kolom?: ?int}>  $opsi  urut `urutan`
+     * @param  string[]|null  $kolomTabel  judul kolom soal majemuk_tabel
+     * @return array{benar: bool, kunciOpsiIds: string[], kunciKolom: ?array<string, ?int>, kunci: string, pembahasan: ?string, gambarPembahasan: ?string}
      */
-    public static function umpanBalik(string $tipe, array $opsi, ?string $kunciJawaban, ?string $pembahasan, bool $benar): array
-    {
+    public static function umpanBalik(
+        string $tipe,
+        array $opsi,
+        ?string $kunciJawaban,
+        ?string $pembahasan,
+        bool $benar,
+        ?array $kolomTabel = null,
+        ?string $gambarPembahasan = null,
+    ): array {
         return [
             'benar' => $benar,
             'kunciOpsiIds' => array_values(array_column(array_filter($opsi, fn (array $o) => $o['is_kunci']), 'id')),
-            'kunci' => self::teksKunci($tipe, $opsi, $kunciJawaban),
+            'kunciKolom' => $tipe === 'majemuk_tabel' ? array_column($opsi, 'kunci_kolom', 'id') : null,
+            'kunci' => self::teksKunci($tipe, $opsi, $kunciJawaban, $kolomTabel),
             'pembahasan' => $pembahasan,
+            'gambarPembahasan' => $gambarPembahasan,
         ];
     }
 
     /** umpanBalik() dari model Soal yang opsiJawaban-nya sudah dimuat urut `urutan`. */
     public static function umpanBalikSoal(Soal $soal, bool $benar): array
     {
-        return self::umpanBalik($soal->tipe, self::opsiTampil($soal), $soal->kunci_jawaban, $soal->pembahasan, $benar);
+        return self::umpanBalik(
+            $soal->tipe,
+            self::opsiTampil($soal),
+            $soal->kunci_jawaban,
+            $soal->pembahasan,
+            $benar,
+            $soal->kolom_tabel,
+            $soal->gambar_pembahasan,
+        );
     }
 
     /**
@@ -166,7 +198,9 @@ class PembahasanPengerjaan
             'id' => $o->id,
             'label' => $o->label,
             'teks_opsi' => $o->teks_opsi,
+            'gambar_opsi' => $o->gambar_opsi,
             'is_kunci' => (bool) $o->is_kunci,
+            'kunci_kolom' => $o->kunci_kolom,
         ])->all();
     }
 
@@ -180,8 +214,10 @@ class PembahasanPengerjaan
             'teks_soal' => $soal->teks_soal,
             'gambar_soal' => $soal->gambar_soal,
             'pembahasan' => $soal->pembahasan,
+            'gambar_pembahasan' => $soal->gambar_pembahasan,
+            'kolom_tabel' => $soal->kolom_tabel,
             'opsi_jawaban' => $opsi,
-            'kunci' => self::teksKunci($soal->tipe, $opsi, $soal->kunci_jawaban),
+            'kunci' => self::teksKunci($soal->tipe, $opsi, $soal->kunci_jawaban, $soal->kolom_tabel),
             'status' => self::status($jawaban?->is_correct),
             'jawaban' => [
                 // Pilihan ganda menyimpan satu opsi, benar_salah menyimpan himpunan opsi.
@@ -191,6 +227,8 @@ class PembahasanPengerjaan
                     default => $jawaban->opsi_dipilih_ids,
                 },
                 'isian' => $jawaban?->jawaban_isian,
+                // Majemuk_tabel: { idOpsi: nomor kolom }.
+                'pilihanKolom' => $jawaban?->pilihan_kolom,
             ],
         ];
     }

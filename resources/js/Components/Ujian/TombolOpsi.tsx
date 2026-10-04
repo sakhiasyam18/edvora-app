@@ -69,8 +69,8 @@ export function BulatanCentang({ dipilih }: { dipilih: boolean }) {
 
 const KELAS_BILAH = 'rounded-[10px] shadow-panel transition-all duration-300 ease-out';
 
-// Teks opsi beserta gambarnya bila ada (opsi Try Out boleh bergambar).
-function IsiOpsi({ opsi }: { opsi: OpsiDasar }) {
+// Teks opsi beserta gambarnya bila ada (opsi Try Out boleh bergambar). Dipakai juga oleh TabelMajemuk.
+export function IsiOpsi({ opsi }: { opsi: OpsiDasar }) {
     return (
         <span>
             <TeksMatematika teks={opsi.teks_opsi} />

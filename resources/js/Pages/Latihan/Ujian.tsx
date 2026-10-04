@@ -6,6 +6,7 @@ import Modal from '@/Components/Modal';
 import ArenaPengerjaan, { NavigasiSoal, StatusJawabanSoal } from '@/Components/Ujian/ArenaPengerjaan';
 import KartuPembahasan from '@/Components/Ujian/KartuPembahasan';
 import KartuSoal, { TeksMatematika } from '@/Components/Ujian/KartuSoal';
+import TabelMajemuk from '@/Components/Ujian/TabelMajemuk';
 import TimerMundur from '@/Components/Ujian/TimerMundur';
 import TombolOpsi, { IkonHasil, StatusOpsi } from '@/Components/Ujian/TombolOpsi';
 import { JawabanTersimpan, KonfigurasiSesiLatihan, OpsiJawaban, UmpanBalikJawaban } from '@/types/latihan';
@@ -15,7 +16,8 @@ type ModalAktif = 'hint' | 'keluar' | 'selesai' | null;
 
 type IdOpsi = string | number;
 
-type Jawaban = { soalId: IdOpsi; opsiIds: IdOpsi[]; jawabanIsian?: string };
+// pilihanKolom hanya untuk majemuk_tabel: id pernyataan => nomor kolom (mulai 1).
+type Jawaban = { soalId: IdOpsi; opsiIds: IdOpsi[]; jawabanIsian?: string; pilihanKolom?: Record<string, number> };
 
 interface UjianProps {
     subtes: any;
@@ -47,14 +49,20 @@ export default function Ujian({ subtes, soalList, konfigurasi, jawabanTersimpan 
     // Lanjut Kerjakan: jawaban yang sudah tersimpan di server langsung terkunci.
     const form = useForm({
         ...konfigurasi,
-        jawaban: jawabanTersimpan.map((j) => ({ soalId: j.soalId, opsiIds: j.opsiIds, jawabanIsian: j.jawabanIsian ?? '' })) as Jawaban[],
+        jawaban: jawabanTersimpan.map((j) => ({
+            soalId: j.soalId,
+            opsiIds: j.opsiIds,
+            jawabanIsian: j.jawabanIsian ?? '',
+            pilihanKolom: j.pilihanKolom ?? {},
+        })) as Jawaban[],
     });
 
     const [indeksAktif, setIndeksAktif] = useState(0);
     // Mode fleksibel: pilihan belum final sampai "Simpan Jawaban" ditekan.
     const [pilihanSementara, setPilihanSementara] = useState<Record<string | number, IdOpsi[]>>({});
     const [isianSementara, setIsianSementara] = useState<Record<string | number, string>>({});
-    // Balasan latihan.jawab per soal: benar/salah, opsi kunci, teks kunci, dan pembahasan. Tidak dipakai di simulasi.
+    const [kolomSementara, setKolomSementara] = useState<Record<string | number, Record<string, number>>>({});
+    // Balasan latihan.jawab per soal: benar/salah, kunci, teks kunci, dan pembahasan. Tidak dipakai di simulasi.
     const [hasilJawaban, setHasilJawaban] = useState<Record<string | number, UmpanBalikJawaban>>(() =>
         Object.fromEntries(jawabanTersimpan.map((j) => [j.soalId, j.hasil])),
     );
@@ -68,18 +76,25 @@ export default function Ujian({ subtes, soalList, konfigurasi, jawabanTersimpan 
 
     const soal = soalList[indeksAktif];
     const isian = soal.tipe === 'isian_singkat';
+    const tabel = soal.tipe === 'majemuk_tabel';
     const cariJawaban = (soalId: IdOpsi): Jawaban | undefined => form.data.jawaban.find((j: Jawaban) => j.soalId === soalId);
     const tersimpan = cariJawaban(soal.id);
     const terkunci = !simulasi && tersimpan !== undefined;
     const opsiTerpilih: IdOpsi[] = (simulasi || terkunci ? tersimpan?.opsiIds : pilihanSementara[soal.id]) ?? [];
     const teksIsian: string = (simulasi || terkunci ? tersimpan?.jawabanIsian : isianSementara[soal.id]) ?? '';
-    const belumDiisi = isian ? teksIsian.trim() === '' : opsiTerpilih.length === 0;
+    const pilihanKolom: Record<string, number> = (simulasi || terkunci ? tersimpan?.pilihanKolom : kolomSementara[soal.id]) ?? {};
+    // Majemuk tabel di mode fleksibel baru bisa disimpan setelah setiap baris dipilih.
+    const belumDiisi = isian
+        ? teksIsian.trim() === ''
+        : tabel
+          ? soal.opsi_jawaban.some((o: OpsiJawaban) => pilihanKolom[String(o.id)] === undefined)
+          : opsiTerpilih.length === 0;
 
-    // Jawaban kosong (tanpa opsi dan tanpa teks) berarti soal kembali belum dijawab.
-    const simpanJawaban = (soalId: IdOpsi, opsiIds: IdOpsi[], jawabanIsian = '') => {
+    // Jawaban kosong (tanpa opsi, tanpa teks, dan tanpa pilihan kolom) berarti soal kembali belum dijawab.
+    const simpanJawaban = (soalId: IdOpsi, opsiIds: IdOpsi[], jawabanIsian = '', pilihanKolom: Record<string, number> = {}) => {
         const lainnya = form.data.jawaban.filter((j: Jawaban) => j.soalId !== soalId);
-        const kosong = opsiIds.length === 0 && jawabanIsian.trim() === '';
-        form.setData('jawaban', kosong ? lainnya : [...lainnya, { soalId, opsiIds, jawabanIsian }]);
+        const kosong = opsiIds.length === 0 && jawabanIsian.trim() === '' && Object.keys(pilihanKolom).length === 0;
+        form.setData('jawaban', kosong ? lainnya : [...lainnya, { soalId, opsiIds, jawabanIsian, pilihanKolom }]);
     };
 
     const ubahIsian = (teks: string) => {
@@ -92,8 +107,9 @@ export default function Ujian({ subtes, soalList, konfigurasi, jawabanTersimpan 
     // (mis. koneksi putus) siswa masih bisa mencoba lagi.
     const kirimSatuJawaban = async () => {
         const soalId = soal.id;
-        const opsiIds = isian ? [] : opsiTerpilih;
+        const opsiIds = isian || tabel ? [] : opsiTerpilih;
         const jawabanIsian = isian ? teksIsian : '';
+        const kolom = tabel ? pilihanKolom : {};
         setMengirim(true);
         setPesanKirim(null);
         try {
@@ -102,9 +118,10 @@ export default function Ujian({ subtes, soalList, konfigurasi, jawabanTersimpan 
                 soalId,
                 opsiIds,
                 jawabanIsian: isian ? jawabanIsian : null,
+                pilihanKolom: tabel ? kolom : null,
             });
             setHasilJawaban((p) => ({ ...p, [soalId]: data }));
-            simpanJawaban(soalId, opsiIds, jawabanIsian);
+            simpanJawaban(soalId, opsiIds, jawabanIsian, kolom);
         } catch (e) {
             setPesanKirim({ soalId, pesan: pesanGagal(e, 'menyimpan jawaban') });
         } finally {
@@ -141,8 +158,16 @@ export default function Ujian({ subtes, soalList, konfigurasi, jawabanTersimpan 
         else setPilihanSementara((p) => ({ ...p, [soal.id]: baru }));
     };
 
-    // Fleksibel dan remedial: warna bulatan dari balasan server. Simulasi tidak memakai ini, supaya hasil belum
-    // terlihat sebelum latihan selesai. Belum dijawab = null, jadi bulatan tetap netral.
+    // Majemuk tabel: satu kolom per pernyataan; memilih kolom lain di baris yang sama mengganti pilihannya.
+    const pilihKolom = (opsi: OpsiJawaban, nomorKolom: number) => {
+        const baru = { ...pilihanKolom, [String(opsi.id)]: nomorKolom };
+
+        if (simulasi) simpanJawaban(soal.id, [], '', baru);
+        else setKolomSementara((p) => ({ ...p, [soal.id]: baru }));
+    };
+
+    // Fleksibel dan remedial: warna bulatan dari balasan server, termasuk majemuk tabel. Simulasi tidak memakai ini,
+    // supaya hasil belum terlihat sebelum latihan selesai. Belum dijawab = null, jadi bulatan tetap netral.
     const statusJawabanSoal = (indeks: number): StatusJawabanSoal => {
         const hasil = hasilJawaban[soalList[indeks].id];
         return hasil === undefined ? null : hasil.benar ? 'benar' : 'salah';
@@ -282,17 +307,28 @@ export default function Ujian({ subtes, soalList, konfigurasi, jawabanTersimpan 
                     <KartuSoal nomor={indeksAktif + 1} teksSoal={soal.teks_soal} gambarUrl={soal.gambar_soal} />
 
                     <div className="mt-3 space-y-2.5">
-                        {soal.opsi_jawaban.map((opsi: any) => (
-                            <TombolOpsi
-                                key={opsi.id}
-                                opsi={opsi}
-                                status={statusOpsi(opsi)}
-                                disabled={terkunci}
-                                onPilih={pilihOpsi}
-                                kotakCentang={soal.tipe === 'benar_salah'}
-                                dipilih={opsiTerpilih.includes(opsi.id)}
+                        {tabel ? (
+                            <TabelMajemuk
+                                kolom={soal.kolom_tabel ?? []}
+                                pernyataan={soal.opsi_jawaban}
+                                pilihan={pilihanKolom}
+                                onPilih={pilihKolom}
+                                terkunci={terkunci}
+                                kunci={hasilJawaban[soal.id]?.kunciKolom}
                             />
-                        ))}
+                        ) : (
+                            soal.opsi_jawaban.map((opsi: any) => (
+                                <TombolOpsi
+                                    key={opsi.id}
+                                    opsi={opsi}
+                                    status={statusOpsi(opsi)}
+                                    disabled={terkunci}
+                                    onPilih={pilihOpsi}
+                                    kotakCentang={soal.tipe === 'benar_salah'}
+                                    dipilih={opsiTerpilih.includes(opsi.id)}
+                                />
+                            ))
+                        )}
                     </div>
 
                     {/* Sebelum dikunci: field isian. Batas 100 karakter mengikuti validasi backend. */}
@@ -329,7 +365,15 @@ export default function Ujian({ subtes, soalList, konfigurasi, jawabanTersimpan 
                         </p>
                     )}
 
-                    {terkunci && <KartuPembahasan status={statusAktif ?? 'kosong'} kunci={teksKunci()} pembahasan={hasilJawaban[soal.id]?.pembahasan ?? ''} />}
+                    {/* Pembahasan dan gambarnya dari balasan latihan.jawab; props halaman ujian tidak memuatnya. */}
+                    {terkunci && (
+                        <KartuPembahasan
+                            status={statusAktif ?? 'kosong'}
+                            kunci={teksKunci()}
+                            pembahasan={hasilJawaban[soal.id]?.pembahasan ?? ''}
+                            gambar={hasilJawaban[soal.id]?.gambarPembahasan ?? null}
+                        />
+                    )}
                 </div>
             </ArenaPengerjaan>
 

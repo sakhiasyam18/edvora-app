@@ -1,13 +1,15 @@
 // resources/js/types/latihan.ts
 
 export type ModeLatihan = 'fleksibel' | 'simulasi' | 'remedial';
-export type TipeSoal = 'pilihan_ganda' | 'isian_singkat' | 'benar_salah';
+export type TipeSoal = 'pilihan_ganda' | 'isian_singkat' | 'benar_salah' | 'majemuk_tabel';
 
 export interface OpsiJawaban {
   id: string | number;
   label: 'A' | 'B' | 'C' | 'D' | 'E';
-  teks_opsi: string; // Database mapped
-  is_kunci: boolean;
+  teks_opsi: string; // Database mapped; boleh kosong bila opsi hanya berisi gambar
+  gambar_opsi?: string | null; // link gambar di Supabase Storage
+  is_kunci: boolean;              // tidak ada di props halaman ujian; hanya di pembahasan
+  kunci_kolom?: number | null; // majemuk_tabel: nomor kolom (mulai 1) yang benar; sama, hanya di pembahasan
 }
 
 export interface Soal {
@@ -15,9 +17,11 @@ export interface Soal {
   subtes_id: string | number;
   tipe: TipeSoal; // DB mapped
   teks_soal: string; // DB mapped
-  gambar_soal?: string; // DB mapped
-  opsi_jawaban: OpsiJawaban[]; // DB mapped relation
+  gambar_soal?: string | null; // DB mapped; link gambar di Supabase Storage
+  opsi_jawaban: OpsiJawaban[]; // DB mapped relation; majemuk_tabel: satu opsi = satu pernyataan (baris tabel)
+  kolom_tabel?: string[] | null; // majemuk_tabel: judul kolom tabel, mis. ["Benar", "Salah", "Tidak Bisa Ditentukan"]
   pembahasan: string;
+  gambar_pembahasan?: string | null; // DB mapped; link gambar di Supabase Storage. Di halaman ujian dikirim lewat UmpanBalikJawaban
   ada_hint?: boolean; // teks hint tidak ikut dikirim; diambil lewat latihan.hint supaya pemakaiannya tercatat
 }
 
@@ -37,9 +41,11 @@ export interface KonfigurasiSesiLatihan {
 // Dikirim setelah jawaban final, jadi halaman ujian tidak menerima kunci sebelum siswa menjawab.
 export interface UmpanBalikJawaban {
   benar: boolean;
-  kunciOpsiIds: string[];         // opsi ber-kunci, untuk mewarnai pilihan; kosong untuk isian
-  kunci: string;                  // siap tampil: "A. Vierzna", "Vierzna dan Dewi", kunci isian, atau "-"
+  kunciOpsiIds: string[];         // opsi ber-kunci, untuk mewarnai pilihan; kosong untuk isian dan majemuk_tabel
+  kunciKolom: Record<string, number | null> | null; // majemuk_tabel: id pernyataan => nomor kolom kunci; null untuk tipe lain
+  kunci: string;                  // siap tampil: "A. Vierzna", "Vierzna dan Dewi", "1. Benar; 2. Salah", kunci isian, atau "-"
   pembahasan: string | null;
+  gambarPembahasan: string | null;
 }
 
 // Prop halaman kerjakan fleksibel: jawaban yang sudah tersimpan saat siswa melanjutkan sesi.
@@ -47,6 +53,7 @@ export interface JawabanTersimpan {
   soalId: string;
   opsiIds: string[];
   jawabanIsian: string | null;
+  pilihanKolom: Record<string, number> | null; // majemuk_tabel: id pernyataan => nomor kolom
   hasil: UmpanBalikJawaban;
 }
 

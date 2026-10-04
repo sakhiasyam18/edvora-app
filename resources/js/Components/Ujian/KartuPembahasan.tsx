@@ -19,10 +19,11 @@ interface KartuPembahasanProps {
     status: StatusPembahasan;
     kunci?: string | null; // siap tampil: "A. Vierzna", "Vierzna dan Dewi", atau kunci isian
     pembahasan: string;
+    gambar?: string | null; // soal.gambar_pembahasan: link gambar di Supabase Storage, tampil di bawah teks pembahasan
 }
 
 // Kartu umpan balik setelah jawaban dikunci (Figma node 725:8081, 759:784); dipakai halaman ujian dan pembahasan.
-export default function KartuPembahasan({ status, kunci, pembahasan }: KartuPembahasanProps) {
+export default function KartuPembahasan({ status, kunci, pembahasan, gambar }: KartuPembahasanProps) {
     const kartu = KARTU[status];
 
     return (
@@ -46,6 +47,7 @@ export default function KartuPembahasan({ status, kunci, pembahasan }: KartuPemb
                 <p className="mt-1 font-medium leading-relaxed">
                     <TeksMatematika teks={pembahasan} />
                 </p>
+                {gambar && <img src={gambar} alt="Gambar pembahasan" loading="lazy" className="mt-3 max-h-72 max-w-full rounded-lg bg-white" />}
             </div>
         </section>
     );

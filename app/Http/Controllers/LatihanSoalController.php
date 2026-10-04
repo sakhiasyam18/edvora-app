@@ -8,6 +8,7 @@ use App\Models\Soal;
 use App\Models\Subtes;
 use App\Models\Topik;
 use App\Models\TransaksiXp;
+use App\Services\MajemukTabel;
 use App\Services\PembahasanPengerjaan;
 use App\Services\PemilihSoal;
 use App\Services\Penguasaan;
@@ -274,9 +275,13 @@ class LatihanSoalController extends Controller
             'opsiIds.*' => ['string'],
             // Jawaban isian dibatasi satu kata atau bilangan bulat; 100 karakter sudah sangat longgar.
             'jawabanIsian' => ['nullable', 'string', 'max:100'],
+            // Majemuk_tabel: { idOpsi: nomor kolom }.
+            'pilihanKolom' => ['nullable', 'array'],
+            'pilihanKolom.*' => ['integer', 'between:1,'.MajemukTabel::MAKS_KOLOM],
         ]);
         $opsiIds = $data['opsiIds'] ?? [];
         $jawabanIsian = $data['jawabanIsian'] ?? null;
+        $pilihanKolom = $data['pilihanKolom'] ?? [];
 
         $kunciSesi = 'latihan.'.$data['sesiId'];
         $sesi = session($kunciSesi);
@@ -286,7 +291,7 @@ class LatihanSoalController extends Controller
             $pengerjaan = $fleksibel->cari(Auth::id(), $data['sesiId']);
 
             return $pengerjaan
-                ? response()->json($fleksibel->jawab($pengerjaan, $data['soalId'], $opsiIds, $jawabanIsian))
+                ? response()->json($fleksibel->jawab($pengerjaan, $data['soalId'], $opsiIds, $jawabanIsian, $pilihanKolom))
                 : response()->json(['message' => 'Sesi latihan tidak ditemukan atau sudah selesai.'], 410);
         }
 
@@ -300,7 +305,7 @@ class LatihanSoalController extends Controller
         }
 
         $soal = Soal::with(['opsiJawaban' => fn ($q) => $q->orderBy('urutan')])
-            ->findOrFail($data['soalId'], ['id', 'tipe', 'kunci_jawaban', 'pembahasan']);
+            ->findOrFail($data['soalId'], ['id', 'tipe', 'kunci_jawaban', 'pembahasan', 'gambar_pembahasan', 'kolom_tabel']);
 
         // Sudah dikunci: balas hasil yang tersimpan tanpa menilai ulang, supaya jawaban tidak bisa diganti.
         if ($terkunci = $sesi['terkunci'][$data['soalId']] ?? null) {
@@ -314,6 +319,8 @@ class LatihanSoalController extends Controller
             $soal->kunci_jawaban,
             $opsiIds,
             $jawabanIsian,
+            $soal->opsiJawaban->pluck('kunci_kolom', 'id')->all(),
+            $pilihanKolom,
         );
 
         if ($hasil === null) {
@@ -324,6 +331,7 @@ class LatihanSoalController extends Controller
         session()->put("{$kunciSesi}.terkunci.{$data['soalId']}", [
             'opsiIds' => $hasil['opsiIds'],
             'jawaban' => $hasil['jawabanIsian'],
+            'pilihanKolom' => $hasil['pilihanKolom'],
             'benar' => $hasil['benar'],
             'waktu' => now()->toDateTimeString(),
         ]);
@@ -405,6 +413,9 @@ class LatihanSoalController extends Controller
             'jawaban' => ['array'],
             'jawaban.*.opsiIds' => ['nullable', 'array'],
             'jawaban.*.jawabanIsian' => ['nullable', 'string', 'max:100'],
+            // Majemuk_tabel: { idOpsi: nomor kolom }.
+            'jawaban.*.pilihanKolom' => ['nullable', 'array'],
+            'jawaban.*.pilihanKolom.*' => ['integer', 'between:1,'.MajemukTabel::MAKS_KOLOM],
         ]);
 
         $sesi = session($kunciSesi);
@@ -416,7 +427,7 @@ class LatihanSoalController extends Controller
             return redirect()->route('latihan.index');
         }
 
-        // Array of { soalId, opsiIds: [], jawabanIsian: string|null }.
+        // Array of { soalId, opsiIds: [], jawabanIsian: string|null, pilihanKolom?: { idOpsi: nomor kolom } }.
         // Hanya soal yang benar-benar diberikan di sesi ini; soal dobel cukup yang pertama.
         $kiriman = collect($request->input('jawaban', []))
             ->filter(fn ($j) => is_array($j) && in_array($j['soalId'] ?? null, $sesi['soal_ids'], true))
@@ -444,7 +455,7 @@ class LatihanSoalController extends Controller
             ]);
 
             // Ambil semua soal beserta opsinya sekali jalan - hindari N+1 query.
-            $soalMap = Soal::with('opsiJawaban:id,soal_id,is_kunci')
+            $soalMap = Soal::with('opsiJawaban:id,soal_id,is_kunci,kunci_kolom')
                 ->whereIn('id', $sesi['soal_ids'])
                 ->get(['id', 'tipe', 'kunci_jawaban', 'topik_id', 'tingkat_kesulitan'])
                 ->keyBy('id');
@@ -466,6 +477,7 @@ class LatihanSoalController extends Controller
                 $terkunci = $sesi['terkunci'][$soalId] ?? null;
                 $dipilih = [];
                 $teksIsian = null;
+                $pilihanKolom = null;
                 $waktuMenjawab = $waktuSelesai;
 
                 if ($terkunci) {
@@ -473,6 +485,7 @@ class LatihanSoalController extends Controller
                     // Kuncian sesi lama (hanya isian, tanpa opsiIds) tetap terbaca.
                     $dipilih = $terkunci['opsiIds'] ?? [];
                     $teksIsian = $terkunci['jawaban'];
+                    $pilihanKolom = $terkunci['pilihanKolom'] ?? null;
                     $isCorrect = $terkunci['benar'];
                     $waktuMenjawab = $terkunci['waktu'];
                 } elseif (! $j) {
@@ -487,6 +500,8 @@ class LatihanSoalController extends Controller
                         $soal->kunci_jawaban,
                         $j['opsiIds'] ?? (isset($j['opsiId']) ? [$j['opsiId']] : []),
                         $j['jawabanIsian'] ?? null,
+                        $soal->opsiJawaban->pluck('kunci_kolom', 'id')->all(),
+                        (array) ($j['pilihanKolom'] ?? []),
                     );
 
                     // Jawaban kosong tidak dicatat.
@@ -496,6 +511,7 @@ class LatihanSoalController extends Controller
 
                     $dipilih = $hasil['opsiIds'];
                     $teksIsian = $hasil['jawabanIsian'];
+                    $pilihanKolom = $hasil['pilihanKolom'];
                     $isCorrect = $hasil['benar'];
                 }
 
@@ -508,7 +524,7 @@ class LatihanSoalController extends Controller
                     'pengerjaan_subtes_id' => null,
                     'soal_id' => $soalId,
                     // Bulk insert melewati mutator Eloquent; kolom per tipe soal dari kolomJawaban().
-                    ...JawabanPengerjaan::kolomJawaban($soal->tipe, $dipilih, $teksIsian),
+                    ...JawabanPengerjaan::kolomJawaban($soal->tipe, $dipilih, $teksIsian, $pilihanKolom),
                     'is_correct' => $isCorrect,
                     // Poin jawaban ini (RANCANGAN-penyesuaian-sdd.md 4.2).
                     'skor' => $hadiah['poin'],
@@ -636,8 +652,9 @@ class LatihanSoalController extends Controller
 
         $soalList->each(function (Soal $soal) {
             $soal->setAttribute('ada_hint', filled($soal->hint));
-            $soal->makeHidden(['kunci_jawaban', 'hint', 'pembahasan']);
-            $soal->opsiJawaban->each->makeHidden('is_kunci');
+            // gambar_pembahasan dan kunci_kolom (majemuk_tabel) juga bisa membocorkan jawaban.
+            $soal->makeHidden(['kunci_jawaban', 'hint', 'pembahasan', 'gambar_pembahasan']);
+            $soal->opsiJawaban->each->makeHidden(['is_kunci', 'kunci_kolom']);
         });
 
         return $soalList;

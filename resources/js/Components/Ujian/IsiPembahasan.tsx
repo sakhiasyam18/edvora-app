@@ -1,5 +1,6 @@
 import KartuPembahasan, { StatusPembahasan } from '@/Components/Ujian/KartuPembahasan';
 import KartuSoal, { TeksMatematika } from '@/Components/Ujian/KartuSoal';
+import TabelMajemuk from '@/Components/Ujian/TabelMajemuk';
 import TombolOpsi, { BulatanCentang, IkonHasil, StatusOpsi } from '@/Components/Ujian/TombolOpsi';
 import { OpsiJawaban, TipeSoal } from '@/types/latihan';
 
@@ -10,10 +11,13 @@ export interface SoalPembahasan {
     teks_soal: string;
     gambar_soal: string | null;
     pembahasan: string;
+    gambar_pembahasan: string | null;
+    kolom_tabel: string[] | null; // majemuk_tabel: judul kolom tabel
     opsi_jawaban: OpsiJawaban[];
-    kunci: string; // siap tampil: "A. Vierzna", "Vierzna dan Dewi", atau kunci isian
+    kunci: string; // siap tampil: "A. Vierzna", "Vierzna dan Dewi", "1. Benar; 2. Salah", atau kunci isian
     status: StatusPembahasan;
-    jawaban: { opsiIds: string[]; isian: string | null };
+    // pilihanKolom hanya untuk majemuk_tabel: id pernyataan => nomor kolom (mulai 1).
+    jawaban: { opsiIds: string[]; isian: string | null; pilihanKolom: Record<string, number> | null };
 }
 
 // Pilihan ganda: kunci selalu hijau; pilihan siswa yang salah merah; opsi lain tetap putih.
@@ -68,6 +72,10 @@ export default function IsiPembahasan({ soal, nomor }: { soal: SoalPembahasan; n
                         <span className="font-medium italic text-siswa-teks">Tidak dijawab</span>
                     )}
                 </div>
+            ) : soal.tipe === 'majemuk_tabel' ? (
+                <div className="mt-3">
+                    <TabelMajemuk kolom={soal.kolom_tabel ?? []} pernyataan={soal.opsi_jawaban} pilihan={soal.jawaban.pilihanKolom ?? {}} terkunci />
+                </div>
             ) : (
                 <div className="mt-3 space-y-2.5">
                     {soal.opsi_jawaban.map((opsi) => {
@@ -82,7 +90,7 @@ export default function IsiPembahasan({ soal, nomor }: { soal: SoalPembahasan; n
                 </div>
             )}
 
-            <KartuPembahasan status={soal.status} kunci={soal.kunci} pembahasan={soal.pembahasan} />
+            <KartuPembahasan status={soal.status} kunci={soal.kunci} pembahasan={soal.pembahasan} gambar={soal.gambar_pembahasan} />
         </>
     );
 }
