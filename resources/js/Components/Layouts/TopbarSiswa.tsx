@@ -2,7 +2,17 @@ import { Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 
 // Halaman menu utama sidebar: tidak punya "halaman sebelumnya", jadi tombol kembali disembunyikan.
-const HALAMAN_UTAMA = ['dashboard', 'latihan.index', 'latihan.persiapan', 'tryout.index', 'riwayat.index', 'perkembangan.index', 'akun.profil.utama'];
+const HALAMAN_UTAMA = [
+    'dashboard',
+    'latihan.index',
+    'latihan.persiapan',
+    'tryout.index',
+    'riwayat.index',
+    'perkembangan.index',
+    'akun.profil.utama',
+    'admin.index',
+    'admin.user.index',
+];
 
 // Tujuan cadangan bila tidak ada riwayat di tab ini (mis. halaman dibuka langsung dari tautan).
 const INDUK: [string, string][] = [
@@ -10,34 +20,35 @@ const INDUK: [string, string][] = [
     ['tryout.*', 'tryout.index'],
     ['riwayat.*', 'riwayat.index'],
     ['akun.*', 'akun.profil.utama'],
+    ['admin.*', 'admin.index'],
 ];
 
 // Breadcrumb di samping ikon rumah. Hanya halaman yang desainnya memakai breadcrumb (Figma: Try Out).
 const BREADCRUMB: [string, string[]][] = [
     ['tryout.index', ['Try Out']],
     ['tryout.hasil', ['Try Out', 'Hasil Try Out']],
+    ['tryout.peringkat', ['Try Out', 'Peringkat Try Out']],
 ];
 
-function kembali() {
+function kembali(rutBeranda: string) {
     if (window.history.length > 1) {
         window.history.back();
         return;
     }
-    const induk = INDUK.find(([pola]) => route().current(pola))?.[1] ?? 'dashboard';
+    const induk = INDUK.find(([pola]) => route().current(pola))?.[1] ?? rutBeranda;
     router.visit(route(induk));
 }
 
 interface TopbarSiswaProps {
     inisial: string;
-    // Halaman Akun Pribadi (/akun...): ikon rumah di kiri diganti ikon pengguna. Dihitung SiswaLayout dari URL.
-    isAkunPribadi: boolean;
+    rutBeranda?: string; // tujuan ikon rumah; admin memakai 'admin.index'
 }
 
 /**
  * Topbar halaman siswa: tombol kembali (hanya di sub-halaman) dan pintasan ke Beranda di kiri, avatar pengguna di kanan.
  * Avatar membuka menu berisi nama, email, dan tombol Keluar. Akun Pribadi dibuka lewat sidebar.
  */
-export default function TopbarSiswa({ inisial, isAkunPribadi }: TopbarSiswaProps) {
+export default function TopbarSiswa({ inisial, rutBeranda = 'dashboard' }: TopbarSiswaProps) {
     // usePage: SiswaLayout persisten, jadi topbar perlu dirender ulang setiap pindah halaman untuk mengecek rute aktif.
     const user = usePage<any>().props.auth?.user;
     const subHalaman = !HALAMAN_UTAMA.some((nama) => route().current(nama));
@@ -65,7 +76,7 @@ export default function TopbarSiswa({ inisial, isAkunPribadi }: TopbarSiswaProps
                 {subHalaman && (
                     <button
                         type="button"
-                        onClick={kembali}
+                        onClick={() => kembali(rutBeranda)}
                         aria-label="Kembali ke halaman sebelumnya"
                         title="Kembali"
                         className="-ml-2 flex h-9 w-9 animate-muncul-halus items-center justify-center rounded-full text-[#6F6F6F] transition duration-200 hover:-translate-x-0.5 hover:bg-siswa-badge-subtes hover:text-siswa-judul"
@@ -76,16 +87,8 @@ export default function TopbarSiswa({ inisial, isAkunPribadi }: TopbarSiswaProps
                     </button>
                 )}
 
-                <Link href={route('dashboard')} aria-label="Beranda" className="shrink-0 transition hover:opacity-70">
-                    {isAkunPribadi ? (
-                        <div className="flex h-[33.939px] w-[33.939px] items-center justify-center rounded-full bg-[#E8EDF5]">
-                            <svg className="h-5 w-5 text-[#A3AED0]" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                            </svg>
-                        </div>
-                    ) : (
-                        <img src="/images/ikon/topbar-beranda.png" alt="" className="h-[33.939px] w-[33.939px] object-contain" />
-                    )}
+                <Link href={route(rutBeranda)} aria-label="Beranda" className="shrink-0 transition hover:opacity-70">
+                    <img src="/images/ikon/topbar-beranda.png" alt="" className="h-[33.939px] w-[33.939px] object-contain" />
                 </Link>
 
                 {breadcrumb.map((item, i) => (
@@ -109,25 +112,39 @@ export default function TopbarSiswa({ inisial, isAkunPribadi }: TopbarSiswaProps
                     <span className="flex h-10 w-10 items-center justify-center rounded-full bg-edvora-primary text-[24px] font-normal leading-none text-white transition hover:bg-edvora-primary-hover">
                         {inisial}
                     </span>
-                    <img src="/images/ikon/panah-bawah.png" alt="" className="h-[19.542px] w-[19.542px] object-contain" />
+                    <img
+                        src="/images/ikon/panah-bawah.png"
+                        alt=""
+                        className={`h-[19.542px] w-[19.542px] object-contain transition-transform duration-300 ${menuTerbuka ? 'rotate-180' : ''}`}
+                    />
                 </button>
 
-                {menuTerbuka && (
-                    <div className="absolute right-0 z-50 mt-2 w-52 rounded-xl border border-slate-100 bg-white py-1.5 text-sm shadow-xl">
-                        <div className="border-b border-slate-100 px-4 py-2">
-                            <p className="truncate font-semibold text-slate-800">{user?.name}</p>
-                            <p className="truncate text-xs text-slate-500">{user?.email}</p>
+                {/* Menu akun: selalu dirender supaya membuka/menutup dengan memudar; gaya kartu sama dengan halaman siswa. */}
+                <div
+                    className={`absolute right-0 z-50 mt-2 w-60 origin-top-right overflow-hidden rounded-[14px] border border-siswa-garis-halus bg-white py-1.5 shadow-kartu transition duration-200 ease-out ${
+                        menuTerbuka ? 'scale-100 opacity-100' : 'pointer-events-none scale-95 opacity-0'
+                    }`}
+                >
+                    <div className="flex items-center gap-3 border-b border-siswa-garis-halus px-4 pb-3 pt-2">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-edvora-primary text-[16px] text-white">{inisial}</span>
+                        <div className="min-w-0">
+                            <p className="truncate text-[14px] font-semibold text-siswa-judul-seksi">{user?.name}</p>
+                            <p className="truncate text-[12px] text-siswa-teks">{user?.email}</p>
                         </div>
-                        <Link
-                            href={route('logout')}
-                            method="post"
-                            as="button"
-                            className="block w-full px-4 py-2 text-left font-medium text-red-600 transition hover:bg-red-50"
-                        >
-                            Keluar
-                        </Link>
                     </div>
-                )}
+                    <Link
+                        href={route('logout')}
+                        method="post"
+                        as="button"
+                        tabIndex={menuTerbuka ? 0 : -1}
+                        className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-[14px] font-medium text-siswa-umpan-salah-teks transition-colors duration-150 hover:bg-siswa-umpan-salah"
+                    >
+                        <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M15 4h3a2 2 0 012 2v12a2 2 0 01-2 2h-3M10 17l-5-5 5-5M5 12h11" />
+                        </svg>
+                        Keluar
+                    </Link>
+                </div>
             </div>
         </header>
     );

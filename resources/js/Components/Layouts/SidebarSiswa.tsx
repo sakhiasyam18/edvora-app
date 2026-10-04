@@ -1,12 +1,13 @@
 import { Link } from '@inertiajs/react';
+import { ReactNode } from 'react';
 import LambangEdvora from './LambangEdvora';
 
-interface MenuSidebar {
+export interface MenuSidebar {
     label: string;
     rute: string | null; // nama rute; null = halamannya belum ada, jadi belum bisa dipencet
     aktifUntuk?: string; // pola route().current() bila berbeda dari rute, mis. 'latihan.*'
-    ikon: string; // berkas ikon dari desain Figma
-    kelasIkon: string; // ukuran kotak ikon, persis seperti di desain
+    ikon: string | ReactNode; // berkas ikon dari desain Figma, atau ikon SVG (menu admin)
+    kelasIkon?: string; // ukuran kotak ikon berkas, persis seperti di desain
 }
 
 // Urutan menu sidebar (RANCANGAN-dashboard-topik-remedial.md, K18).
@@ -23,29 +24,39 @@ const MENU_SIDEBAR: MenuSidebar[] = [
 // Satu baris menu dipakai baik oleh Link maupun oleh menu yang belum punya halaman.
 const KELAS_BARIS = 'flex h-[47px] items-center gap-4 rounded-nav px-[18px] text-[15px] text-white';
 
+interface SidebarSiswaProps {
+    menu?: MenuSidebar[];
+    rutBeranda?: string; // tujuan logo EDVORA; admin memakai 'admin.index'
+}
+
 /**
  * Sidebar siswa: logo EDVORA dan daftar menu dengan penanda halaman aktif.
+ * Dipakai juga oleh AdminLayout dengan menu admin, supaya tampilan sidebar semua peran sama.
  * Disembunyikan di bawah breakpoint md; di layar sempit navigasi memakai topbar.
  */
-export default function SidebarSiswa() {
+export default function SidebarSiswa({ menu: daftarMenu = MENU_SIDEBAR, rutBeranda = 'dashboard' }: SidebarSiswaProps) {
     return (
         <aside className="hidden w-sidebar shrink-0 flex-col bg-gradient-to-b from-siswa-sidebar-awal via-siswa-sidebar-tengah via-[41.674%] to-siswa-sidebar-akhir font-poppins md:sticky md:top-0 md:flex md:h-screen md:overflow-y-auto">
-            <Link href={route('dashboard')} className="flex flex-col items-center pt-[18px]" aria-label="Beranda">
+            <Link href={route(rutBeranda)} className="flex flex-col items-center pt-[18px]" aria-label="Beranda">
                 <LambangEdvora />
                 <span className="mt-[1px] text-[24px] font-extrabold tracking-[3.6px] text-white">EDVORA</span>
             </Link>
 
             <nav className="mt-[26px] space-y-1 px-6">
-                {MENU_SIDEBAR.map((menu) => {
+                {daftarMenu.map((menu) => {
                     // Ikon ditaruh di kotak selebar ikon terlebar (31px) dan di tengahnya, supaya semua label mulai di garis yang sama.
                     const ikon = (
                         <span className="flex w-[31px] shrink-0 justify-center">
                             {/* Membesar sedikit saat baris di-hover (group di Link); menu nonaktif tidak punya group, jadi diam. */}
-                            <img
-                                src={menu.ikon}
-                                alt=""
-                                className={`${menu.kelasIkon} object-contain transition-transform duration-200 ease-out group-hover:scale-110 motion-reduce:transition-none`}
-                            />
+                            {typeof menu.ikon === 'string' ? (
+                                <img
+                                    src={menu.ikon}
+                                    alt=""
+                                    className={`${menu.kelasIkon ?? 'h-7 w-7'} object-contain transition-transform duration-200 ease-out group-hover:scale-110 motion-reduce:transition-none`}
+                                />
+                            ) : (
+                                <span className="flex transition-transform duration-200 ease-out group-hover:scale-110 motion-reduce:transition-none">{menu.ikon}</span>
+                            )}
                         </span>
                     );
 
