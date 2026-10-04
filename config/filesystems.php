@@ -56,6 +56,22 @@ return [
             'throw' => false,
         ],
 
+        // Bucket gambar soal di Supabase Storage lewat protokol S3 (kunci AWS_* di .env). Dipakai unggah gambar dari
+        // formulir soal editor; yang disimpan ke database tetap link publiknya (GAMBAR_SOAL_URL).
+        'gambar_soal' => [
+            'driver' => 's3',
+            'key' => env('AWS_ACCESS_KEY_ID'),
+            'secret' => env('AWS_SECRET_ACCESS_KEY'),
+            'region' => env('AWS_DEFAULT_REGION'),
+            'bucket' => env('AWS_BUCKET'),
+            'endpoint' => env('AWS_ENDPOINT'),
+            'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
+            // Checksum tambahan AWS SDK hanya dikirim bila wajib; layanan S3-compatible tidak selalu mendukungnya.
+            'request_checksum_calculation' => 'when_required',
+            'response_checksum_validation' => 'when_required',
+            'throw' => true,
+        ],
+
     ],
 
     /*

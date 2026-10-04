@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { DragEvent, useRef, useState } from 'react';
 import Modal from '@/Components/Modal';
+import { pesanServer } from '@/lib/pesanServer';
 import { HasilPeriksaUpload, HasilSimpanUpload, SubtesEditor } from '@/types/editor';
 
 interface ModalUploadProps {
@@ -14,25 +15,6 @@ interface ModalUploadProps {
 }
 
 type Tahap = 'pilih' | 'memeriksa' | 'hasil' | 'menyimpan';
-
-// Jawaban server yang bukan hasil periksa: pesan validasi Laravel (errors.file) atau pesan umum (pesan).
-function pesanDariError(e: unknown): { pesan: string; fileRusak: boolean } {
-    if (!axios.isAxiosError(e) || !e.response) {
-        return { pesan: 'Gagal terhubung ke server. Periksa koneksi lalu coba lagi.', fileRusak: false };
-    }
-
-    const data = e.response.data ?? {};
-
-    if (data.errors?.file?.[0]) {
-        return { pesan: data.errors.file[0], fileRusak: false };
-    }
-
-    if (typeof data.pesan === 'string') {
-        return { pesan: data.pesan, fileRusak: e.response.status === 422 };
-    }
-
-    return { pesan: `Terjadi kesalahan di server (HTTP ${e.response.status}). Coba lagi.`, fileRusak: false };
-}
 
 /**
  * Modal Upload Bank Soal (massal), desain "dashboard _ bank soal _ upload file". File diperiksa begitu dipilih
@@ -83,8 +65,9 @@ export default function ModalUpload({ show, subtes, adaTemplate, maksBaris, onTu
             setHasil(data);
             setProgres(100);
         } catch (e) {
-            const { pesan, fileRusak } = pesanDariError(e);
-            setGalat(pesan);
+            // 422 dengan "pesan" (bukan errors.file): file tidak bisa dibaca sebagai .xlsx.
+            const fileRusak = axios.isAxiosError(e) && e.response?.status === 422 && typeof e.response.data?.pesan === 'string';
+            setGalat(pesanServer(e));
             setProgres(0);
             onGagal(fileRusak ? ['Unggah File Gagal!', 'File Gagal Terbaca!'] : ['Unggah File Gagal!']);
         } finally {
@@ -110,7 +93,7 @@ export default function ModalUpload({ show, subtes, adaTemplate, maksBaris, onTu
             if (axios.isAxiosError(e) && e.response?.status === 422 && typeof e.response.data?.valid === 'boolean') {
                 setHasil(e.response.data);
             } else {
-                setGalat(pesanDariError(e).pesan);
+                setGalat(pesanServer(e));
             }
 
             setTahap('hasil');

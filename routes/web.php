@@ -4,6 +4,7 @@ use App\Http\Controllers\AdminSoalController;
 use App\Http\Controllers\BattleController;
 use App\Http\Controllers\BerandaController;
 use App\Http\Controllers\BiodataController;
+use App\Http\Controllers\GambarSoalController;
 use App\Http\Controllers\JadwalController;
 use App\Http\Controllers\LatihanSoalController;
 use App\Http\Controllers\PerkembanganController;
@@ -122,6 +123,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 ->middleware('throttle:20,1')
                 ->block(60, 60)
                 ->name('editor.soal.upload');
+            // Unggah satu gambar dari formulir soal (JSON); link hasilnya diisi ke kolom URL gambar.
+            Route::post('/bank-soal/{subtes:kode_subtes}/gambar', [GambarSoalController::class, 'unggah'])
+                ->middleware('throttle:60,1')
+                ->name('editor.soal.gambar');
 
             Route::get('/soal/{soal:kode_soal}/edit', [AdminSoalController::class, 'edit'])->name('editor.soal.edit');
             Route::put('/soal/{soal:kode_soal}', [AdminSoalController::class, 'ubah'])->name('editor.soal.ubah');

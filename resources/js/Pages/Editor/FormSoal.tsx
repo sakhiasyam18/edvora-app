@@ -1,5 +1,6 @@
 import { Head, Link, useForm } from '@inertiajs/react';
-import { ReactNode, useEffect, useState } from 'react';
+import axios from 'axios';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 import JudulHalaman from '@/Components/Editor/JudulHalaman';
 import ToastGagal from '@/Components/Editor/ToastGagal';
 import EditorLayout from '@/Components/Layouts/EditorLayout';
@@ -7,6 +8,7 @@ import { TeksMatematika } from '@/Components/Ujian/KartuSoal';
 import TabelMajemuk from '@/Components/Ujian/TabelMajemuk';
 import TombolOpsi from '@/Components/Ujian/TombolOpsi';
 import { LABEL_STATUS, LABEL_TINGKAT, LABEL_TIPE } from '@/lib/labelSoal';
+import { pesanServer } from '@/lib/pesanServer';
 import { IsianSoal, OpsiIsian, PilihanTopik, StatusSoal, SubtesEditor, TingkatKesulitan } from '@/types/editor';
 import { OpsiJawaban, TipeSoal } from '@/types/latihan';
 
@@ -65,7 +67,9 @@ export default function FormSoal({ subtes, topikList, kodeSoal, soal, urlGambar 
         }
     };
 
-    const ubahOpsi = (i: number, kunci: keyof OpsiIsian, nilai: string) => setData('opsi', data.opsi.map((o, j) => (j === i ? { ...o, [kunci]: nilai } : o)));
+    // Bentuk fungsi: link hasil unggah gambar datang belakangan, jadi isian opsi lain yang diketik sementara itu tidak tertimpa.
+    const ubahOpsi = (i: number, kunci: keyof OpsiIsian, nilai: string) =>
+        setData((isi) => ({ ...isi, opsi: isi.opsi.map((o, j) => (j === i ? { ...o, [kunci]: nilai } : o)) }));
 
     // Kolom yang dihapus: kunci pernyataan yang menunjuk kolom itu dikosongkan, nomor kolom sesudahnya bergeser.
     const hapusKolom = (k: number) =>
@@ -142,6 +146,7 @@ export default function FormSoal({ subtes, topikList, kodeSoal, soal, urlGambar 
                             onUbah={(v) => setData('gambarSoal', v)}
                             galat={galat.gambarSoal}
                             contoh={`${subtes.kode}/${kodeSoal}.png`}
+                            unggah={{ subtes: subtes.kode, kodeSoal, bagian: 'soal' }}
                         />
                     </Kartu>
 
@@ -215,6 +220,7 @@ export default function FormSoal({ subtes, topikList, kodeSoal, soal, urlGambar 
                                     kunciKolom={data.kunciKolom[i]}
                                     galatTeks={galat[`opsi.${i}.teks`]}
                                     galatGambar={galat[`opsi.${i}.gambar`]}
+                                    unggah={{ subtes: subtes.kode, kodeSoal, bagian: label }}
                                     onUbah={(kunci, nilai) => ubahOpsi(i, kunci, nilai)}
                                     onPilihKunci={() => setData('kunciPg', data.kunciPg === label ? '' : label)}
                                     onCentang={() => setData('kunciBenar', data.kunciBenar.map((b, j) => (j === i ? !b : b)))}
@@ -244,6 +250,7 @@ export default function FormSoal({ subtes, topikList, kodeSoal, soal, urlGambar 
                             onUbah={(v) => setData('gambarPembahasan', v)}
                             galat={galat.gambarPembahasan}
                             contoh={`${subtes.kode}/${kodeSoal}-pembahasan.png`}
+                            unggah={{ subtes: subtes.kode, kodeSoal, bagian: 'pembahasan' }}
                         />
                     </Kartu>
 
@@ -289,6 +296,13 @@ const KETERANGAN_OPSI: Record<TipeSoal, string> = {
     isian_singkat: '',
 };
 
+// Tujuan unggah gambar: subtes dan kode soal menentukan nama file di Storage; bagian = 'soal', 'A'–'E', atau 'pembahasan'.
+interface TujuanUnggah {
+    subtes: string;
+    kodeSoal: string;
+    bagian: string;
+}
+
 interface BarisOpsiProps {
     label: (typeof LABEL_OPSI)[number];
     tipe: TipeSoal;
@@ -300,6 +314,7 @@ interface BarisOpsiProps {
     kunciKolom: number | null;
     galatTeks?: string;
     galatGambar?: string;
+    unggah: TujuanUnggah;
     onUbah: (kunci: keyof OpsiIsian, nilai: string) => void;
     onPilihKunci: () => void;
     onCentang: () => void;
@@ -380,13 +395,16 @@ function BarisOpsi(p: BarisOpsiProps) {
                 )}
 
                 {gambarTerbuka ? (
-                    <input
-                        value={p.opsi.gambar}
-                        onChange={(e) => p.onUbah('gambar', e.target.value)}
-                        placeholder={`Link gambar ${nama.toLowerCase()} ${p.label} (opsional)`}
-                        aria-label={`Link gambar ${nama.toLowerCase()} ${p.label}`}
-                        className={`${KELAS_INPUT} mt-1.5 text-xs`}
-                    />
+                    <div className="mt-1.5 grid gap-2 sm:grid-cols-[minmax(0,1fr)_200px]">
+                        <input
+                            value={p.opsi.gambar}
+                            onChange={(e) => p.onUbah('gambar', e.target.value)}
+                            placeholder={`Link gambar ${nama.toLowerCase()} ${p.label} (opsional)`}
+                            aria-label={`Link gambar ${nama.toLowerCase()} ${p.label}`}
+                            className={`${KELAS_INPUT} text-xs`}
+                        />
+                        <UnggahGambar tujuan={p.unggah} onLink={(url) => p.onUbah('gambar', url)} />
+                    </div>
                 ) : (
                     <button type="button" onClick={() => setGambarTerbuka(true)} className="mt-1 text-xs text-edvora-primary hover:underline">
                         + Gambar
@@ -469,8 +487,17 @@ function linkGambar(isi: string, dasar: string): string | null {
     return dasar ? `${dasar}/${teks.replace(/^\/+/, '')}` : null;
 }
 
-// Kolom link gambar, plus tempat unggah langsung yang belum tersedia (keputusan tim: menyusul).
-function InputGambar({ label, nilai, onUbah, galat, contoh }: { label: string; nilai: string; onUbah: (v: string) => void; galat?: string; contoh: string }) {
+interface InputGambarProps {
+    label: string;
+    nilai: string;
+    onUbah: (v: string) => void;
+    galat?: string;
+    contoh: string;
+    unggah: TujuanUnggah;
+}
+
+// Kolom link gambar dan tombol unggah langsung; link hasil unggahan mengisi kolom itu.
+function InputGambar({ label, nilai, onUbah, galat, contoh, unggah }: InputGambarProps) {
     return (
         <div>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -479,20 +506,77 @@ function InputGambar({ label, nilai, onUbah, galat, contoh }: { label: string; n
                 </Field>
                 <div>
                     <span className="text-sm font-medium text-siswa-judul">atau unggah gambar</span>
-                    <div
-                        aria-disabled="true"
-                        title="Belum tersedia"
-                        className="mt-1 flex cursor-not-allowed items-center gap-2 rounded-[10px] border border-dashed border-siswa-ujian-garis px-3 py-2 text-sm text-siswa-teks-redup"
-                    >
-                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
-                            <path d="M12 16V5M7 10l5-5 5 5M5 20h14" />
-                        </svg>
-                        Belum tersedia
+                    <div className="mt-1">
+                        <UnggahGambar tujuan={unggah} onLink={onUbah} />
                     </div>
-                    <p className="mt-1 text-xs text-siswa-teks">Sementara unggah ke Storage dulu, lalu tempel link-nya. PNG/JPG/WebP, maks. 1 MB.</p>
+                    <p className="mt-1 text-xs text-siswa-teks">PNG/JPG/WebP, maks. 1 MB</p>
                 </div>
             </div>
             <PesanGalat pesan={galat} />
+        </div>
+    );
+}
+
+/**
+ * Unggah gambar langsung ke Storage (editor.soal.gambar). Server memeriksa isinya dan memberi nama file dari kode soal,
+ * lalu link publiknya diteruskan ke onLink. Soalnya sendiri baru tersimpan saat formulir disimpan.
+ */
+function UnggahGambar({ tujuan, onLink }: { tujuan: TujuanUnggah; onLink: (url: string) => void }) {
+    const input = useRef<HTMLInputElement>(null);
+    const [sedang, setSedang] = useState(false);
+    const [namaFile, setNamaFile] = useState<string | null>(null);
+    const [galat, setGalat] = useState<string | null>(null);
+
+    const unggah = async (file: File | undefined) => {
+        if (!file) {
+            return;
+        }
+
+        const data = new FormData();
+        data.append('file', file);
+        data.append('kodeSoal', tujuan.kodeSoal);
+        data.append('bagian', tujuan.bagian);
+        setSedang(true);
+        setGalat(null);
+
+        try {
+            const respons = await axios.post(route('editor.soal.gambar', tujuan.subtes), data);
+            setNamaFile(file.name);
+            onLink(respons.data.url);
+        } catch (e) {
+            setNamaFile(null);
+            setGalat(pesanServer(e));
+        } finally {
+            setSedang(false);
+        }
+    };
+
+    return (
+        <div>
+            <button
+                type="button"
+                onClick={() => input.current?.click()}
+                disabled={sedang}
+                className={`flex w-full items-center gap-2 rounded-[10px] border border-dashed border-siswa-ujian-garis bg-white px-3 py-2 text-left text-sm transition hover:border-edvora-primary disabled:cursor-wait ${
+                    namaFile ? 'text-siswa-judul' : 'text-siswa-teks'
+                }`}
+            >
+                <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
+                    <path d="M12 16V5M7 10l5-5 5 5M5 20h14" />
+                </svg>
+                <span className="truncate">{sedang ? 'Mengunggah…' : (namaFile ?? 'Pilih File')}</span>
+            </button>
+            <input
+                ref={input}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={(e) => {
+                    unggah(e.target.files?.[0]);
+                    e.target.value = '';
+                }}
+            />
+            <PesanGalat pesan={galat ?? undefined} />
         </div>
     );
 }
