@@ -130,15 +130,6 @@ export default function AdminLayout({ judul, children }: PropsWithChildren<Admin
                         <span>Kelola User</span>
                     </Link>
                 </nav>
-
-                {/* Sidebar Footer (System Status Indicator) */}
-                <div className="p-4 text-xs text-slate-400 border-t border-slate-700/50 flex items-center justify-between">
-                    <span className="inline-flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                        Server Online
-                    </span>
-                    <span className="text-slate-500 text-[11px]">v2.4</span>
-                </div>
             </aside>
             {/* END: Left Sidebar */}
 

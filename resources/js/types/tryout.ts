@@ -27,7 +27,8 @@ export interface SoalTryOut {
     tipe: TipeSoal;
     teks_soal: string;
     gambar_soal: string | null;
-    opsi: OpsiTryOut[];
+    kolom_tabel: string[] | null; // majemuk_tabel: judul kolom, mis. ["Benar", "Salah", "Tidak Bisa Ditentukan"]
+    opsi: OpsiTryOut[]; // majemuk_tabel: satu opsi = satu pernyataan (baris tabel)
 }
 
 export interface SubtesAktifTryOut {
@@ -41,6 +42,7 @@ export interface SubtesAktifTryOut {
 export interface JawabanTryOut {
     opsiIds: string[];
     jawabanIsian: string | null;
+    pilihanKolom?: Record<string, number>; // majemuk_tabel: id pernyataan => nomor kolom (mulai 1)
 }
 
 export interface HasilSubtesTryOut {

@@ -19,7 +19,7 @@ class SelesaikanTryOut
     public function __construct(private PenilaianLatihan $penilaian) {}
 
     /**
-     * @param  array<string, array{mulai: ?string, selesai: ?string, jawaban: array<string, array{opsiIds: string[], jawabanIsian: ?string}>}>  $catatan
+     * @param  array<string, array{mulai: ?string, selesai: ?string, jawaban: array<string, array{opsiIds: string[], jawabanIsian: ?string, pilihanKolom?: array<string, int>}>}>  $catatan
      */
     public function jalankan(Pengerjaan $pengerjaan, array $catatan, CarbonInterface $waktuSelesai): void
     {
@@ -34,7 +34,7 @@ class SelesaikanTryOut
                 ->orderBy('urutan')
                 ->with(['soal' => fn ($q) => $q
                     ->select('soal.id', 'soal.tipe', 'soal.kunci_jawaban', 'soal.tingkat_kesulitan')
-                    ->with('opsiJawaban:id,soal_id,is_kunci')])
+                    ->with('opsiJawaban:id,soal_id,is_kunci,kunci_kolom')])
                 ->get();
 
             $jawabanModel = new JawabanPengerjaan;
@@ -67,6 +67,9 @@ class SelesaikanTryOut
                         $soal->kunci_jawaban,
                         $j['opsiIds'] ?? [],
                         $j['jawabanIsian'] ?? null,
+                        // Majemuk_tabel: semua pernyataan harus sesuai kolom kuncinya (MajemukTabel::benar).
+                        $soal->opsiJawaban->pluck('kunci_kolom', 'id')->all(),
+                        $j['pilihanKolom'] ?? [],
                     );
                     if ($hasil === null) {
                         continue;
@@ -80,10 +83,8 @@ class SelesaikanTryOut
                         'pengerjaan_id' => $p->id,
                         'pengerjaan_subtes_id' => $pengerjaanSubtes->id,
                         'soal_id' => $soal->id,
-                        // Bulk insert melewati mutator Eloquent, jadi format array Postgres ditulis manual.
-                        'opsi_dipilih_id' => $soal->tipe === 'pilihan_ganda' ? ($hasil['opsiIds'][0] ?? null) : null,
-                        'opsi_dipilih_ids' => $soal->tipe === 'benar_salah' ? '{'.implode(',', $hasil['opsiIds']).'}' : null,
-                        'jawaban_isian' => $hasil['jawabanIsian'],
+                        // Bulk insert melewati mutator Eloquent; kolom per tipe soal dari kolomJawaban().
+                        ...JawabanPengerjaan::kolomJawaban($soal->tipe, $hasil['opsiIds'], $hasil['jawabanIsian'], $hasil['pilihanKolom']),
                         'is_correct' => $hasil['benar'],
                         'skor' => $hadiah['poin'],
                         'waktu_menjawab' => $c['selesai'] ?? $waktuSelesai->toIso8601String(),

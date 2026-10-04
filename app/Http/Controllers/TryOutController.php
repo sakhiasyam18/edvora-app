@@ -6,6 +6,7 @@ use App\Models\Pengerjaan;
 use App\Models\TransaksiPoin;
 use App\Models\TransaksiXp;
 use App\Models\TryOut;
+use App\Services\MajemukTabel;
 use App\Services\PembahasanPengerjaan;
 use App\Services\PeringkatTryOut;
 use App\Services\SesiTryOut;
@@ -114,15 +115,17 @@ class TryOutController extends Controller
         $indeks = $subtesPaket->search(fn ($s) => $s->id === $posisi['aktif']);
         $aktif = $subtesPaket[$indeks];
 
-        // Kunci, pembahasan, dan hint tidak dikirim ke browser.
+        // Kunci (termasuk kunci_kolom majemuk_tabel), pembahasan, dan hint tidak dikirim ke browser.
         $soalList = $aktif->soal()
             ->with('opsiJawaban:id,soal_id,label,teks_opsi,gambar_opsi,urutan')
-            ->get(['soal.id', 'soal.tipe', 'soal.teks_soal', 'soal.gambar_soal'])
+            ->get(['soal.id', 'soal.tipe', 'soal.teks_soal', 'soal.gambar_soal', 'soal.kolom_tabel'])
             ->map(fn ($soal) => [
                 'id' => $soal->id,
                 'tipe' => $soal->tipe,
                 'teks_soal' => $soal->teks_soal,
                 'gambar_soal' => $soal->gambar_soal,
+                // Majemuk_tabel: judul kolom, mis. ["Benar", "Salah", "Tidak Bisa Ditentukan"]; null untuk tipe lain.
+                'kolom_tabel' => $soal->kolom_tabel,
                 'opsi' => $soal->opsiJawaban->map(fn ($o) => [
                     'id' => $o->id,
                     'label' => $o->label,
@@ -156,6 +159,9 @@ class TryOutController extends Controller
             'jawaban.*.opsiIds' => ['nullable', 'array'],
             'jawaban.*.opsiIds.*' => ['uuid'],
             'jawaban.*.jawabanIsian' => ['nullable', 'string', 'max:100'],
+            // Majemuk_tabel: { idOpsi: nomor kolom }.
+            'jawaban.*.pilihanKolom' => ['nullable', 'array'],
+            'jawaban.*.pilihanKolom.*' => ['integer', 'between:1,'.MajemukTabel::MAKS_KOLOM],
         ]);
 
         $pengerjaan = $this->pengerjaanMilik($tryOut);
@@ -176,6 +182,7 @@ class TryOutController extends Controller
             ->mapWithKeys(fn ($j) => [$j['soalId'] => [
                 'opsiIds' => array_values($j['opsiIds'] ?? []),
                 'jawabanIsian' => $j['jawabanIsian'] ?? null,
+                'pilihanKolom' => $j['pilihanKolom'] ?? [],
             ]])
             ->all();
 

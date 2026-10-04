@@ -1,12 +1,15 @@
 import { OpsiJawaban } from '@/types/latihan';
 import { IkonHasil, IsiOpsi } from '@/Components/Ujian/TombolOpsi';
 
-interface TabelMajemukProps {
+// Opsi latihan (OpsiJawaban) maupun Try Out (OpsiTryOut, tanpa kunci) bisa dipakai sebagai pernyataan.
+type PernyataanTabel = Pick<OpsiJawaban, 'id' | 'teks_opsi'> & { label: string; gambar_opsi?: string | null; kunci_kolom?: number | null };
+
+interface TabelMajemukProps<T extends PernyataanTabel> {
     kolom: string[];
-    pernyataan: OpsiJawaban[];
+    pernyataan: T[];
     // Pilihan siswa: id pernyataan => nomor kolom (mulai 1).
     pilihan: Record<string, number>;
-    onPilih?: (opsi: OpsiJawaban, nomorKolom: number) => void;
+    onPilih?: (opsi: T, nomorKolom: number) => void;
     // Setelah dikunci: sel kunci setiap baris berwarna hijau, pilihan yang keliru merah.
     terkunci?: boolean;
     // Kunci per pernyataan dari balasan latihan.jawab, karena halaman ujian tidak menerima kunci_kolom.
@@ -15,7 +18,14 @@ interface TabelMajemukProps {
 }
 
 // Soal majemuk_tabel: satu baris per pernyataan, satu pilihan per baris. Tampilan dasar, belum didesain.
-export default function TabelMajemuk({ kolom, pernyataan, pilihan, onPilih, terkunci = false, kunci: kunciServer }: TabelMajemukProps) {
+export default function TabelMajemuk<T extends PernyataanTabel>({
+    kolom,
+    pernyataan,
+    pilihan,
+    onPilih,
+    terkunci = false,
+    kunci: kunciServer,
+}: TabelMajemukProps<T>) {
     return (
         <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
             <table className="w-full border-collapse bg-white text-left text-[#1F2D5C]">
