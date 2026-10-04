@@ -7,6 +7,7 @@ use App\Models\AdminEditor;
 use App\Models\AuditLog;
 use App\Models\Siswa;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -22,13 +23,34 @@ use Throwable;
  */
 class UserController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response|RedirectResponse
     {
-        $siswaList = User::where('role', 'siswa')
-            ->with('siswa:user_id,nama_lengkap,kelas,jenis_kelamin')
-            ->orderByDesc('created_at')
-            ->get()
-            ->map(fn (User $user) => [
+        // Pencarian siswa berdasarkan nama, email, atau kelas.
+        $cari = trim((string) $request->input('cari', ''));
+
+        $siswaQuery = User::where('role', 'siswa')->with('siswa:user_id,nama_lengkap,kelas,jenis_kelamin');
+
+        if ($cari !== '') {
+            $pola = '%'.addcslashes($cari, '%_\\').'%';
+            // Label kelas tidak disimpan di database, jadi dicocokkan ke kodenya dulu. Key '10' dibaca PHP sebagai
+            // integer, sedangkan kolom kelas bertipe text, jadi diubah kembali ke string.
+            $kelasCocok = array_map('strval', array_keys(array_filter(
+                Siswa::PILIHAN_KELAS,
+                fn (string $label) => str_contains(mb_strtolower($label), mb_strtolower($cari)),
+            )));
+
+            $siswaQuery->where(function (Builder $q) use ($pola, $kelasCocok) {
+                $q->where('name', 'ilike', $pola)
+                    ->orWhere('email', 'ilike', $pola)
+                    ->orWhereHas('siswa', fn (Builder $s) => $s->where('nama_lengkap', 'ilike', $pola)->orWhereIn('kelas', $kelasCocok));
+            });
+        }
+
+        // withQueryString: pencarian ikut terbawa saat pindah halaman.
+        $siswaList = $siswaQuery->orderByDesc('created_at')
+            ->paginate(20)
+            ->withQueryString()
+            ->through(fn (User $user) => [
                 'id' => $user->id,
                 'namaLengkap' => $user->siswa?->nama_lengkap ?? $user->name ?? '',
                 'email' => $user->email,
@@ -38,6 +60,11 @@ class UserController extends Controller
                 'tanggalDaftar' => $user->created_at?->toIso8601String(),
                 'terakhirLogin' => $user->terakhir_login_at?->toIso8601String(),
             ]);
+
+        // Halaman terakhir bisa kosong setelah siswa terakhirnya dihapus; pindah ke halaman terakhir yang masih berisi.
+        if ($siswaList->isEmpty() && $siswaList->currentPage() > 1) {
+            return redirect()->to($siswaList->url($siswaList->lastPage()));
+        }
 
         $editorList = User::where('role', 'admin_editor')
             ->with('adminEditor')
@@ -54,6 +81,7 @@ class UserController extends Controller
         return Inertia::render('Admin/KelolaUser', [
             'siswaList' => $siswaList,
             'editorList' => $editorList,
+            'cari' => $cari,
         ]);
     }
 
@@ -136,7 +164,7 @@ class UserController extends Controller
 
     public function nonaktifkan(User $user): RedirectResponse
     {
-        // Nonaktifkan hanya untuk akun siswa. Mengaktifkan kembali tidak ada di UCS6.
+        // Nonaktifkan hanya untuk akun siswa.
         abort_unless($user->role === 'siswa', 404);
 
         if ($user->is_active) {
@@ -153,6 +181,24 @@ class UserController extends Controller
         }
 
         Inertia::flash('sukses', 'User berhasil dinonaktifkan');
+
+        return back();
+    }
+
+    public function aktifkan(User $user): RedirectResponse
+    {
+        // Mengaktifkan kembali siswa yang dinonaktifkan (UCS6 2a.2a.2: "hingga diaktifkan kembali").
+        abort_unless($user->role === 'siswa', 404);
+
+        if (! $user->is_active) {
+            DB::transaction(function () use ($user) {
+                $user->forceFill(['is_active' => true])->save();
+
+                AuditLog::catat('Mengaktifkan siswa', $this->identitas($user));
+            });
+        }
+
+        Inertia::flash('sukses', 'User berhasil diaktifkan');
 
         return back();
     }

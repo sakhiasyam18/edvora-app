@@ -180,14 +180,6 @@ export default function AdminLayout({ judul, children }: PropsWithChildren<Admin
                                     <p className="text-xs text-slate-500 truncate">{user?.email || 'admin@edvora.id'}</p>
                                 </div>
                                 <Link
-                                    href={route('profile.edit')}
-                                    className="block px-4 py-2 text-slate-600 hover:bg-slate-50 transition"
-                                    onClick={() => setMenuTerbuka(false)}
-                                >
-                                    Pengaturan Akun
-                                </Link>
-                                <div className="border-t border-slate-100 my-1" />
-                                <Link
                                     href={route('logout')}
                                     method="post"
                                     as="button"

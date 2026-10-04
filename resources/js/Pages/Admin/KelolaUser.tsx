@@ -2,8 +2,8 @@ import InputError from '@/Components/InputError';
 import AdminLayout from '@/Components/Layouts/AdminLayout';
 import Modal from '@/Components/Modal';
 import { formatWaktuWib } from '@/lib/waktu';
-import { Head, useForm } from '@inertiajs/react';
-import { FormEventHandler, ReactNode, useMemo, useState } from 'react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
+import { FormEventHandler, ReactNode, useState } from 'react';
 
 interface SiswaItem {
     id: string;
@@ -24,9 +24,18 @@ interface EditorItem {
     terakhirLogin: string | null;
 }
 
+// Hasil paginate() Laravel; hanya field yang dipakai halaman ini.
+interface Halaman<T> {
+    data: T[];
+    links: { url: string | null; label: string; active: boolean }[];
+    last_page: number;
+    total: number;
+}
+
 interface KelolaUserProps {
-    siswaList: SiswaItem[];
+    siswaList: Halaman<SiswaItem>;
     editorList: EditorItem[];
+    cari: string;
 }
 
 type PopUp =
@@ -36,15 +45,16 @@ type PopUp =
     | { jenis: 'formReset'; editor: EditorItem }
     | { jenis: 'infoSiswa'; siswa: SiswaItem }
     | { jenis: 'konfirmasiNonaktifkan'; siswa: SiswaItem }
+    | { jenis: 'konfirmasiAktifkan'; siswa: SiswaItem }
     | { jenis: 'konfirmasiHapus'; siswa: SiswaItem };
 
 const LABEL_JENIS_KELAMIN = { 'laki-laki': 'Laki-laki', perempuan: 'Perempuan' } as const;
 
 const formatWaktu = (iso: string | null) => (iso ? formatWaktuWib(iso) : '-');
 
-export default function KelolaUser({ siswaList, editorList }: KelolaUserProps) {
+export default function KelolaUser({ siswaList, editorList, cari }: KelolaUserProps) {
     const [popUp, setPopUp] = useState<PopUp | null>(null);
-    const [searchQuery, setSearchQuery] = useState('');
+    const [searchQuery, setSearchQuery] = useState(cari);
 
     const formEditor = useForm({ namaLengkap: '', email: '', password: '' });
     const formReset = useForm({ password: '' });
@@ -81,6 +91,13 @@ export default function KelolaUser({ siswaList, editorList }: KelolaUserProps) {
         });
     };
 
+    const aktifkan = (siswa: SiswaItem) => {
+        aksi.put(route('admin.user.aktifkan', siswa.id), {
+            preserveScroll: true,
+            onSuccess: tutup,
+        });
+    };
+
     const hapus = (siswa: SiswaItem) => {
         aksi.delete(route('admin.user.hapus', siswa.id), {
             preserveScroll: true,
@@ -88,17 +105,11 @@ export default function KelolaUser({ siswaList, editorList }: KelolaUserProps) {
         });
     };
 
-    // Filter siswa berdasarkan pencarian nama atau email
-    const filteredSiswa = useMemo(() => {
-        const query = searchQuery.trim().toLowerCase();
-        if (!query) return siswaList;
-        return siswaList.filter(
-            (s) =>
-                s.namaLengkap.toLowerCase().includes(query) ||
-                s.email.toLowerCase().includes(query) ||
-                (s.kelasLabel && s.kelasLabel.toLowerCase().includes(query))
-        );
-    }, [siswaList, searchQuery]);
+    // Pencarian dijalankan di server (nama, email, atau kelas) saat Enter, lalu hasilnya kembali ke halaman 1.
+    const kirimPencarian: FormEventHandler = (e) => {
+        e.preventDefault();
+        router.get(route('admin.user.index'), { cari: searchQuery.trim() || undefined }, { preserveState: true });
+    };
 
     const isiPopUp = (p: PopUp) => {
         switch (p.jenis) {
@@ -365,7 +376,7 @@ export default function KelolaUser({ siswaList, editorList }: KelolaUserProps) {
                                 <span className="text-sm text-slate-700 font-medium">{formatWaktu(p.siswa.terakhirLogin)}</span>
                             </div>
                             <div className="pt-6 flex items-center justify-between space-x-4">
-                                {p.siswa.isActive && (
+                                {p.siswa.isActive ? (
                                     <button
                                         type="button"
                                         onClick={() => setPopUp({ jenis: 'konfirmasiNonaktifkan', siswa: p.siswa })}
@@ -373,11 +384,19 @@ export default function KelolaUser({ siswaList, editorList }: KelolaUserProps) {
                                     >
                                         Nonaktifkan
                                     </button>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={() => setPopUp({ jenis: 'konfirmasiAktifkan', siswa: p.siswa })}
+                                        className="w-1/2 py-3 rounded-2xl font-bold text-sm btn-metallic-gray"
+                                    >
+                                        Aktifkan
+                                    </button>
                                 )}
                                 <button
                                     type="button"
                                     onClick={() => setPopUp({ jenis: 'konfirmasiHapus', siswa: p.siswa })}
-                                    className={`${p.siswa.isActive ? 'w-1/2' : 'w-full'} py-3 rounded-2xl font-bold text-sm btn-vibrant-red`}
+                                    className="w-1/2 py-3 rounded-2xl font-bold text-sm btn-vibrant-red"
                                 >
                                     Hapus
                                 </button>
@@ -415,6 +434,40 @@ export default function KelolaUser({ siswaList, editorList }: KelolaUserProps) {
                                     disabled={aksi.processing}
                                     onClick={() => nonaktifkan(p.siswa)}
                                     className="w-28 py-2.5 rounded-2xl font-extrabold text-sm btn-vibrant-red disabled:opacity-50"
+                                >
+                                    {aksi.processing ? '...' : 'IYA'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+
+            case 'konfirmasiAktifkan':
+                return (
+                    <div className="bg-white rounded-[32px] overflow-hidden shadow-2xl border border-slate-200/50">
+                        {/* Header */}
+                        <div className="bg-[#2a4175] px-6 py-6 flex items-center justify-center text-white">
+                            <h3 className="text-xl font-bold tracking-wide">Aktifkan User Ini?</h3>
+                        </div>
+                        {/* Content */}
+                        <div className="p-8 text-center bg-white space-y-6">
+                            <p className="text-slate-700 font-semibold text-sm leading-relaxed px-2">
+                                User dapat login kembali.
+                            </p>
+                            <div className="flex items-center justify-center space-x-4">
+                                <button
+                                    type="button"
+                                    disabled={aksi.processing}
+                                    onClick={() => setPopUp({ jenis: 'infoSiswa', siswa: p.siswa })}
+                                    className="w-28 py-2.5 rounded-2xl font-extrabold text-sm btn-metallic-gray"
+                                >
+                                    TIDAK
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={aksi.processing}
+                                    onClick={() => aktifkan(p.siswa)}
+                                    className="w-28 py-2.5 rounded-2xl font-extrabold text-sm btn-vibrant-green disabled:opacity-50"
                                 >
                                     {aksi.processing ? '...' : 'IYA'}
                                 </button>
@@ -529,8 +582,8 @@ export default function KelolaUser({ siswaList, editorList }: KelolaUserProps) {
                     {/* Section Header with Search Bar */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 mb-2">
                         <h2 className="text-lg font-bold text-slate-800">Daftar Siswa</h2>
-                        {/* Search Input Pill */}
-                        <div className="relative w-full sm:w-72">
+                        {/* Search Input Pill; dikirim saat Enter */}
+                        <form onSubmit={kirimPencarian} className="relative w-full sm:w-72">
                             <svg className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
                             </svg>
@@ -541,13 +594,13 @@ export default function KelolaUser({ siswaList, editorList }: KelolaUserProps) {
                                 placeholder="cari siswa..."
                                 className="w-full pl-10 pr-4 py-2 bg-slate-100/80 border border-slate-200/80 rounded-full text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition"
                             />
-                        </div>
+                        </form>
                     </div>
 
                     {/* Student Data Table */}
-                    {filteredSiswa.length === 0 ? (
+                    {siswaList.data.length === 0 ? (
                         <div className="py-8 text-center text-slate-400 text-sm italic">
-                            {siswaList.length === 0 ? 'Belum ada siswa terdaftar.' : 'Tidak ada siswa yang cocok dengan pencarian.'}
+                            {cari === '' ? 'Belum ada siswa terdaftar.' : 'Tidak ada siswa yang cocok dengan pencarian.'}
                         </div>
                     ) : (
                         <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-xs bg-white">
@@ -561,7 +614,7 @@ export default function KelolaUser({ siswaList, editorList }: KelolaUserProps) {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
-                                    {filteredSiswa.map((siswa) => (
+                                    {siswaList.data.map((siswa) => (
                                         <tr key={siswa.id} className="hover:bg-slate-50/70 transition">
                                             <td className="py-3.5 px-5 text-xs md:text-sm font-semibold text-slate-800 truncate max-w-xs" title={siswa.namaLengkap}>
                                                 {siswa.namaLengkap}
@@ -592,6 +645,35 @@ export default function KelolaUser({ siswaList, editorList }: KelolaUserProps) {
                                 </tbody>
                             </table>
                         </div>
+                    )}
+
+                    {/* Pagination 20 siswa per halaman; tautannya sudah membawa pencarian (withQueryString). */}
+                    {siswaList.last_page > 1 && (
+                        <nav aria-label="Halaman daftar siswa" className="flex flex-wrap items-center justify-center gap-2 pt-4">
+                            {siswaList.links.map((link, i) => {
+                                const label = i === 0 ? 'Sebelumnya' : i === siswaList.links.length - 1 ? 'Berikutnya' : link.label;
+                                const gaya = `min-w-9 px-3 py-1.5 rounded-lg border text-sm font-semibold text-center ${
+                                    link.active ? 'bg-slate-800 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-700'
+                                }`;
+
+                                return link.url ? (
+                                    <Link
+                                        key={i}
+                                        href={link.url}
+                                        preserveState
+                                        preserveScroll
+                                        aria-current={link.active ? 'page' : undefined}
+                                        className={`${gaya} ${link.active ? '' : 'hover:bg-slate-50'}`}
+                                    >
+                                        {label}
+                                    </Link>
+                                ) : (
+                                    <span key={i} className={`${gaya} cursor-not-allowed opacity-50`}>
+                                        {label}
+                                    </span>
+                                );
+                            })}
+                        </nav>
                     )}
                 </section>
                 {/* END: Section 2 - Daftar Siswa */}
