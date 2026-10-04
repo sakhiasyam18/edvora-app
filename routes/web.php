@@ -114,6 +114,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 Route::post('/editor', [UserController::class, 'tambahEditor'])->name('tambahEditor');
                 Route::put('/{user}/reset-password', [UserController::class, 'resetPassword'])->whereUuid('user')->name('resetPassword');
                 Route::put('/{user}/nonaktifkan', [UserController::class, 'nonaktifkan'])->whereUuid('user')->name('nonaktifkan');
+                Route::put('/{user}/aktifkan', [UserController::class, 'aktifkan'])->whereUuid('user')->name('aktifkan');
                 Route::delete('/{user}', [UserController::class, 'hapus'])->whereUuid('user')->name('hapus');
             });
         });
