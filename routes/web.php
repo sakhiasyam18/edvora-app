@@ -118,6 +118,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/{tryOut}/kerjakan', [TryOutController::class, 'kerjakan'])->whereUuid('tryOut')->name('tryout.kerjakan');
             Route::post('/{tryOut}/kirim', [TryOutController::class, 'kirim'])->whereUuid('tryOut')->block(10, 10)->name('tryout.kirim');
             Route::get('/{tryOut}/hasil', [TryOutController::class, 'hasil'])->whereUuid('tryOut')->name('tryout.hasil');
+            // urutan dibatasi 1–3 digit: angka yang terlalu panjang tidak muat di parameter int dan menjadi error 500.
+            Route::get('/{tryOut}/pembahasan/{urutan}', [TryOutController::class, 'pembahasan'])->whereUuid('tryOut')->where('urutan', '[0-9]{1,3}')->name('tryout.pembahasan');
+            Route::get('/{tryOut}/peringkat', [TryOutController::class, 'peringkat'])->whereUuid('tryOut')->name('tryout.peringkat');
         });
     });
 });

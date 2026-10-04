@@ -52,3 +52,15 @@ export interface HasilSubtesTryOut {
     kosong: number;
     skor: number | null; // skor IRT subtes (0–1000), null sampai paket dinilai
 }
+
+export type JenisPeringkat = 'umum' | 'khusus';
+
+// Satu baris peringkat Try Out (RANCANGAN-peringkat-pembahasan-tryout.md 5.3).
+export interface BarisPeringkat {
+    peringkat: number;
+    nama: string;
+    universitas: string | null;
+    prodi: string | null; // mis. "S1 Teknik Informatika"
+    skor: number;
+    saya: boolean; // baris milik siswa yang login
+}

@@ -1,5 +1,6 @@
-import { ReactNode } from 'react';
-import { Head, Link } from '@inertiajs/react';
+import { ReactNode, useState } from 'react';
+import { Head, Link, usePage } from '@inertiajs/react';
+import Modal from '@/Components/Modal';
 import KartuStat from '@/Components/Beranda/KartuStat';
 import SiswaLayout from '@/Components/Layouts/SiswaLayout';
 import { warnaSubtes } from '@/Components/Latihan/KartuSubtes';
@@ -24,12 +25,12 @@ function singkatan(nama: string): string {
         .join('');
 }
 
-// Satu kartu subtes di bagian Rincian (Figma: Hasil Try Out). Angka dan bilahnya memakai jumlah benar dari jumlah
-// soal; skor IRT subtes tampil sebagai teks setelah paket dinilai (RANCANGAN-irt.md 5.6). Warna lencana sama dengan
-// kartu Pilih Subtes.
+// Satu kartu subtes di bagian Rincian (Figma: Hasil Try Out). Setelah paket dinilai, angka dan bilah memakai skor IRT
+// subtes (bilah = skor/1000); sebelumnya jumlah benar dari jumlah soal (RANCANGAN-peringkat-pembahasan-tryout.md P4).
+// Warna lencana sama dengan kartu Pilih Subtes.
 function KartuSubtes({ subtes, urutan }: { subtes: HasilSubtesTryOut; urutan: number }) {
     const kode = singkatan(subtes.nama);
-    const persen = subtes.jumlahSoal > 0 ? (subtes.benar / subtes.jumlahSoal) * 100 : 0;
+    const persen = subtes.skor !== null ? subtes.skor / 10 : subtes.jumlahSoal > 0 ? (subtes.benar / subtes.jumlahSoal) * 100 : 0;
 
     return (
         <div
@@ -42,8 +43,14 @@ function KartuSubtes({ subtes, urutan }: { subtes: HasilSubtesTryOut; urutan: nu
                 </span>
                 <p className="min-w-0 flex-1 text-[15px] font-medium leading-tight text-siswa-judul">{subtes.nama}</p>
                 <span className="shrink-0 text-[16px] font-semibold text-siswa-judul">
-                    {subtes.benar}
-                    <span className="text-[13px] font-medium text-siswa-teks">/{subtes.jumlahSoal}</span>
+                    {subtes.skor !== null ? (
+                        subtes.skor.toLocaleString('id-ID')
+                    ) : (
+                        <>
+                            {subtes.benar}
+                            <span className="text-[13px] font-medium text-siswa-teks">/{subtes.jumlahSoal}</span>
+                        </>
+                    )}
                 </span>
             </div>
 
@@ -57,14 +64,20 @@ function KartuSubtes({ subtes, urutan }: { subtes: HasilSubtesTryOut; urutan: nu
                 <span className="text-siswa-umpan-salah-teks">{subtes.salah} Salah</span>
                 <span className="text-siswa-teks"> · {subtes.kosong} Kosong</span>
             </p>
-            {subtes.skor !== null && <p className="mt-1 text-[11px] leading-4 text-siswa-teks">Skor IRT: {subtes.skor.toLocaleString('id-ID')}</p>}
         </div>
     );
 }
 
 const kelasTombol = 'flex h-10 items-center justify-center gap-2 rounded-[10px] text-sm font-semibold shadow-panel transition duration-200';
 
+// Sama dengan TryOutController::PESAN_PERINGKAT_BELUM.
+const PESAN_PERINGKAT_BELUM = 'Peringkat belum tersedia, silakan menunggu event Try Out berakhir.';
+
 export default function Hasil({ paket, ditutup, skorTotal, perSubtes, xp, poin }: HasilProps) {
+    // Pesan dari server (URL peringkat/pembahasan dibuka terlalu cepat) memakai pop-up yang sama dengan tombol.
+    const { flash } = usePage();
+    const [pesan, setPesan] = useState<string | null>(typeof flash.error === 'string' ? flash.error : null);
+
     return (
         <>
             <Head title={`Hasil ${paket.judul} - EDVORA`} />
@@ -100,27 +113,61 @@ export default function Hasil({ paket, ditutup, skorTotal, perSubtes, xp, poin }
                 </section>
 
                 <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
-                    <Link href={route('tryout.index')} className={`${kelasTombol} bg-ujian-biru text-white hover:-translate-y-0.5 hover:shadow-md`}>
-                        &larr; Kembali ke Menu
-                    </Link>
-                    {/* Pembahasan baru dibuka setelah paket ditutup (T15); halamannya dibuat bersama IRT. */}
-                    <div>
+                    {/* Peringkat tersedia setelah paket dinilai; sebelumnya pop-up tanpa request ke server (P1, P2). */}
+                    {skorTotal === null ? (
                         <button
                             type="button"
-                            disabled
-                            title={ditutup ? 'Segera hadir' : 'Tersedia setelah periode berakhir'}
-                            className={`${kelasTombol} w-full cursor-not-allowed bg-siswa-ujian-redup text-white/90 shadow-none`}
+                            onClick={() => setPesan(PESAN_PERINGKAT_BELUM)}
+                            className={`${kelasTombol} bg-ujian-biru text-white hover:-translate-y-0.5 hover:shadow-md`}
                         >
-                            <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                                <path d="M12 6c-2-1.5-5-2-8-1.5v14c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5v-14c-3-.5-6 0-8 1.5zM12 6v14" />
-                            </svg>
-                            Lihat Pembahasan
+                            Peringkat Try Out
                         </button>
-                        <p className="mt-1.5 text-center text-[11px] text-siswa-teks sm:text-right">
-                            {ditutup ? 'Pembahasan segera hadir.' : 'Pembahasan tersedia setelah periode berakhir.'}
-                        </p>
+                    ) : (
+                        <Link href={route('tryout.peringkat', paket.id)} className={`${kelasTombol} bg-ujian-biru text-white hover:-translate-y-0.5 hover:shadow-md`}>
+                            Peringkat Try Out
+                        </Link>
+                    )}
+                    {/* Pembahasan dibuka setelah paket ditutup, supaya kunci tidak bocor ke peserta lain (P3). */}
+                    <div>
+                        {ditutup ? (
+                            <Link
+                                href={route('tryout.pembahasan', [paket.id, 1])}
+                                className={`${kelasTombol} w-full bg-ujian-biru text-white hover:-translate-y-0.5 hover:shadow-md`}
+                            >
+                                <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M12 6c-2-1.5-5-2-8-1.5v14c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5v-14c-3-.5-6 0-8 1.5zM12 6v14" />
+                                </svg>
+                                Lihat Pembahasan
+                            </Link>
+                        ) : (
+                            <>
+                                <button
+                                    type="button"
+                                    disabled
+                                    title="Tersedia setelah periode berakhir"
+                                    className={`${kelasTombol} w-full cursor-not-allowed bg-siswa-ujian-redup text-white/90 shadow-none`}
+                                >
+                                    <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                        <path d="M12 6c-2-1.5-5-2-8-1.5v14c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5v-14c-3-.5-6 0-8 1.5zM12 6v14" />
+                                    </svg>
+                                    Lihat Pembahasan
+                                </button>
+                                <p className="mt-1.5 text-center text-[11px] text-siswa-teks sm:text-right">Pembahasan tersedia setelah periode berakhir.</p>
+                            </>
+                        )}
                     </div>
                 </div>
+
+                <Modal show={pesan !== null} maxWidth="sm" onClose={() => setPesan(null)}>
+                    <div className="p-6 text-siswa-judul">
+                        <p className="text-sm">{pesan}</p>
+                        <div className="mt-4 flex justify-end">
+                            <button type="button" onClick={() => setPesan(null)} className="rounded-lg bg-ujian-biru px-4 py-2 text-sm font-semibold text-white">
+                                OK
+                            </button>
+                        </div>
+                    </div>
+                </Modal>
             </div>
         </>
     );

@@ -5,6 +5,9 @@ namespace App\Services;
 use App\Models\JawabanPengerjaan;
 use App\Models\Pengerjaan;
 use App\Models\Soal;
+use App\Models\TryOutSubtes;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Isi halaman pembahasan satu pengerjaan: setiap soal sesi beserta jawaban siswa, status, dan kunci siap tampil.
@@ -23,6 +26,38 @@ class PembahasanPengerjaan
 
         $urutan = self::urutanSoal($pengerjaan->soal_ids, $jawaban->map(fn ($j) => (string) $j->waktu_menjawab)->all());
 
+        return $this->susun($urutan, $jawaban);
+    }
+
+    /**
+     * Pembahasan satu subtes Try Out (RANCANGAN-peringkat-pembahasan-tryout.md 4.3): semua soal subtes paket sesuai
+     * urutan try_out_soal, termasuk yang dikosongkan, karena pengerjaan Try Out tidak menyimpan soal_ids.
+     *
+     * @return array<int, array<string, mixed>> urut nomor soal
+     */
+    public function untukSubtesTryOut(Pengerjaan $pengerjaan, TryOutSubtes $tryOutSubtes): array
+    {
+        $urutan = DB::table('try_out_soal')
+            ->where('try_out_subtes_id', $tryOutSubtes->id)
+            ->orderBy('urutan')
+            ->pluck('soal_id')
+            ->all();
+
+        $jawaban = JawabanPengerjaan::where('pengerjaan_id', $pengerjaan->id)
+            ->whereIn('soal_id', $urutan)
+            ->get(['soal_id', 'opsi_dipilih_id', 'opsi_dipilih_ids', 'jawaban_isian', 'is_correct'])
+            ->keyBy('soal_id');
+
+        return $this->susun($urutan, $jawaban);
+    }
+
+    /**
+     * @param  string[]  $urutan  id soal urut nomor
+     * @param  Collection<string, JawabanPengerjaan>  $jawaban  soal_id => jawaban
+     * @return array<int, array<string, mixed>>
+     */
+    private function susun(array $urutan, Collection $jawaban): array
+    {
         $soalMap = Soal::with(['opsiJawaban' => fn ($q) => $q->orderBy('urutan')])
             ->whereIn('id', $urutan)
             ->get(['id', 'tipe', 'teks_soal', 'gambar_soal', 'pembahasan', 'kunci_jawaban'])
