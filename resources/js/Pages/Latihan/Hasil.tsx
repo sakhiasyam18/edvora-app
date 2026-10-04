@@ -28,18 +28,18 @@ function KartuTopik({ topik }: { topik: RingkasanTopikHasil }) {
     const naik = topik.perubahan !== null && topik.perubahan.ke > topik.perubahan.dari;
 
     return (
-        <div className="flex w-full items-center gap-4 rounded-[20px] border border-siswa-ujian-garis bg-white px-5 py-4 transition duration-200 hover:-translate-y-0.5 hover:shadow-kartu">
-            <LingkaranTahap topik={topik} ukuran={56} />
+        <div className="flex w-full items-center gap-4 rounded-subtes border border-siswa-garis-halus bg-white px-4 py-3 transition duration-200 hover:-translate-y-0.5 hover:shadow-kartu">
+            <LingkaranTahap topik={topik} ukuran={48} />
             <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-siswa-teks">Topik</p>
-                <p className="text-base font-semibold text-siswa-judul md:text-lg">{topik.nama}</p>
-                <p className="text-sm text-siswa-teks">
+                <p className="text-[11px] font-medium text-siswa-teks">Topik</p>
+                <p className="text-[15px] font-semibold leading-tight text-siswa-judul-seksi">{topik.nama}</p>
+                <p className="mt-0.5 text-[12px] text-siswa-teks">
                     Tahap {topik.tahap} · {TEKS_LABEL[topik.label]} · {keteranganSkor(topik)}
                 </p>
             </div>
             {topik.perubahan && (
                 <span
-                    className={`shrink-0 rounded-full px-3 py-1 text-sm font-semibold ${
+                    className={`shrink-0 rounded-full px-3 py-0.5 text-[12px] font-semibold ${
                         naik ? 'bg-siswa-umpan-benar text-siswa-umpan-benar-teks' : 'bg-siswa-umpan-salah text-siswa-umpan-salah-teks'
                     }`}
                 >
@@ -54,12 +54,12 @@ function KartuTopik({ topik }: { topik: RingkasanTopikHasil }) {
 function KartuStat({ ikon, label, nilai, urutan }: { ikon: ReactNode; label: string; nilai: string | number; urutan: number }) {
     return (
         <div
-            className="flex animate-muncul-halus flex-col items-center rounded-[20px] border border-siswa-ujian-garis bg-white px-3 py-4 text-center transition duration-200 [animation-fill-mode:both] hover:-translate-y-1 hover:shadow-kartu md:py-5"
+            className="flex animate-muncul-halus flex-col items-center rounded-subtes border border-siswa-garis-halus bg-white px-3 py-3.5 text-center transition duration-200 [animation-fill-mode:both] hover:-translate-y-1 hover:shadow-kartu"
             style={{ animationDelay: `${150 + urutan * 70}ms` }}
         >
             {ikon}
-            <p className="mt-2 text-2xl font-bold text-siswa-judul md:text-[28px]">{nilai}</p>
-            <p className="mt-1 text-[11px] font-medium text-siswa-judul md:text-xs">{label}</p>
+            <p className="mt-2 text-[20px] font-semibold leading-tight text-siswa-judul-seksi">{nilai}</p>
+            <p className="mt-0.5 text-[12px] text-siswa-teks">{label}</p>
         </div>
     );
 }
@@ -102,24 +102,23 @@ export default function Hasil({ hasil = dummyHasilLatihan, pengerjaan, ringkasan
         >
             <Head title="Hasil Pengerjaan Soal" />
 
-            <div className="mx-auto w-full max-w-[1150px] px-4 py-8 md:px-8 lg:py-[70px]">
-                <section className="animate-muncul-halus overflow-hidden rounded-[24px] bg-white shadow-kartu">
-                    {/* Pita biru di atas kartu; trofi menumpang di garis bawahnya. */}
-                    <div className="h-20 bg-gradient-to-r from-[#9BBCF2] to-[#4A6CB0] md:h-[100px]" />
+            {/* Ukuran huruf, warna, dan kartu mengikuti Beranda: judul 24px, angka 20px, keterangan abu-abu. */}
+            <div className="mx-auto w-full max-w-[960px] space-y-4 px-4 py-6 font-poppins md:px-8 md:py-10">
+                <section className="animate-muncul-halus overflow-hidden rounded-kartu bg-white shadow-kartu">
+                    {/* Pita biru di atas kartu (gradasi banner Beranda); trofi menumpang di garis bawahnya. */}
+                    <div className="h-16 bg-gradient-to-l from-siswa-banner-awal to-siswa-banner-akhir md:h-20" />
 
-                    <div className="px-5 pb-8 md:px-[70px] md:pb-12">
-                        <div className="-mt-10 flex justify-center md:-mt-[62px]">
-                            <span className="flex h-20 w-20 items-center justify-center rounded-[20px] bg-white shadow-kartu md:h-[124px] md:w-[124px] md:rounded-[24px]">
+                    <div className="px-5 pb-7 md:px-10 md:pb-8">
+                        <div className="-mt-8 flex justify-center md:-mt-10">
+                            <span className="flex h-16 w-16 items-center justify-center rounded-[18px] bg-white shadow-kartu md:h-20 md:w-20 md:rounded-[20px]">
                                 <Trofi />
                             </span>
                         </div>
 
-                        <h1 className="mt-4 text-center text-2xl font-bold text-siswa-judul md:text-[38px] md:leading-tight">Hasil Pengerjaan Soal</h1>
-                        <p className="mt-2 text-center text-sm font-medium text-siswa-teks md:text-base">
-                            Kerja Bagus! Terus tingkatkan kemampuanmu dan berkembang setiap harinya!
-                        </p>
+                        <h1 className="mt-3 text-center text-[22px] font-semibold leading-tight text-siswa-judul-seksi md:text-[24px]">Hasil Pengerjaan Soal</h1>
+                        <p className="mt-1.5 text-center text-[14px] text-siswa-teks">Kerja Bagus! Terus tingkatkan kemampuanmu dan berkembang setiap harinya!</p>
 
-                        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:mt-8 lg:grid-cols-6 lg:gap-[18px]">
+                        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                             <KartuStat
                                 urutan={0}
                                 label="Jawaban Benar"
@@ -189,11 +188,11 @@ export default function Hasil({ hasil = dummyHasilLatihan, pengerjaan, ringkasan
                             />
                         </div>
 
-                        <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between md:mt-12">
+                        <div className="mt-6 grid gap-3 sm:grid-cols-2">
                             <button
                                 type="button"
                                 onClick={() => router.visit(route('latihan.index'))}
-                                className="h-11 rounded-[10px] border border-siswa-ujian-garis bg-siswa-panel-fleksibel px-6 text-sm font-semibold text-siswa-judul shadow-panel transition duration-200 hover:-translate-y-0.5 hover:shadow-md md:text-base"
+                                className="h-10 rounded-[10px] border border-siswa-garis-halus bg-white px-5 text-[14px] font-semibold text-siswa-judul-seksi shadow-panel transition duration-200 hover:-translate-y-0.5 hover:bg-siswa-panel-fleksibel hover:shadow-md"
                             >
                                 ← Kembali ke Menu Latihan Soal
                             </button>
@@ -206,7 +205,7 @@ export default function Hasil({ hasil = dummyHasilLatihan, pengerjaan, ringkasan
                                             : route('riwayat.index'),
                                     )
                                 }
-                                className="h-11 rounded-[10px] bg-ujian-biru px-8 text-sm font-semibold text-white shadow-panel transition duration-200 hover:-translate-y-0.5 hover:shadow-md md:text-base"
+                                className="h-10 rounded-[10px] bg-ujian-biru px-5 text-[14px] font-semibold text-white shadow-panel transition duration-200 hover:-translate-y-0.5 hover:shadow-md"
                             >
                                 Lihat Pembahasan Soal →
                             </button>
@@ -215,9 +214,9 @@ export default function Hasil({ hasil = dummyHasilLatihan, pengerjaan, ringkasan
                 </section>
 
                 {ringkasanTopik.length > 0 && (
-                    <section className="mt-6 animate-muncul-halus rounded-[24px] bg-white px-5 py-5 shadow-kartu [animation-delay:200ms] [animation-fill-mode:both] md:px-8">
-                        <h2 className="text-base font-semibold text-siswa-judul md:text-lg">Perubahan Penguasaan Topik</h2>
-                        <div className="mt-4 space-y-3">
+                    <section className="animate-muncul-halus rounded-kartu bg-white px-5 py-5 shadow-kartu [animation-delay:200ms] [animation-fill-mode:both] md:px-[26px]">
+                        <h2 className="text-[18px] font-semibold leading-tight text-siswa-judul-seksi">Perubahan Penguasaan Topik</h2>
+                        <div className="mt-3 grid gap-3 md:grid-cols-2">
                             {ringkasanTopik.map((topik) => (
                                 <KartuTopik key={topik.id} topik={topik} />
                             ))}
@@ -226,11 +225,11 @@ export default function Hasil({ hasil = dummyHasilLatihan, pengerjaan, ringkasan
                 )}
 
                 {rekomendasiTopik.length > 0 && (
-                    <section className="mt-6 animate-muncul-halus rounded-[24px] bg-white px-5 py-5 shadow-kartu [animation-delay:300ms] [animation-fill-mode:both] md:px-8">
-                        <h2 className="text-base font-semibold text-siswa-judul md:text-lg">Topik yang disarankan untuk dilatih berikutnya</h2>
+                    <section className="animate-muncul-halus rounded-kartu bg-white px-5 py-5 shadow-kartu [animation-delay:300ms] [animation-fill-mode:both] md:px-[26px]">
+                        <h2 className="text-[18px] font-semibold leading-tight text-siswa-judul-seksi">Topik yang disarankan untuk dilatih berikutnya</h2>
                         <ul className="mt-3 space-y-2">
                             {rekomendasiTopik.map((topik) => (
-                                <li key={topik.id} className="rounded-[14px] bg-siswa-panel-fleksibel px-4 py-3 text-sm text-siswa-judul">
+                                <li key={topik.id} className="rounded-subtes bg-siswa-laman-awal px-4 py-2.5 text-[13px] text-siswa-judul-seksi">
                                     <span className="font-semibold">{topik.nama}</span>
                                     <span className="text-siswa-teks"> · Tahap {topik.tahap} · {TEKS_LABEL[topik.label]}</span>
                                 </li>
@@ -245,7 +244,7 @@ export default function Hasil({ hasil = dummyHasilLatihan, pengerjaan, ringkasan
 
 function Trofi() {
     return (
-        <svg className="h-14 w-14 md:h-[88px] md:w-[88px]" viewBox="0 0 120 120" aria-hidden="true">
+        <svg className="h-11 w-11 md:h-14 md:w-14" viewBox="0 0 120 120" aria-hidden="true">
             <path d="M30 22c-14 0-18 8-16 17 2 10 12 16 22 17" fill="none" stroke="#F2B233" strokeWidth="7" strokeLinecap="round" />
             <path d="M90 22c14 0 18 8 16 17-2 10-12 16-22 17" fill="none" stroke="#F2B233" strokeWidth="7" strokeLinecap="round" />
             <path d="M28 14h64v22c0 20-14 36-32 36S28 56 28 36V14z" fill="#F7C548" />
