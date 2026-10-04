@@ -40,6 +40,11 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasOne(Siswa::class, 'user_id', 'id');
     }
 
+    public function adminEditor()
+    {
+        return $this->hasOne(AdminEditor::class, 'user_id', 'id');
+    }
+
     /**
      * The attributes that should be hidden for serialization.
      *
@@ -59,6 +64,7 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return [
             'email_verified_at' => 'datetime',
+            'terakhir_login_at' => 'datetime',
             'password' => 'hashed',
         ];
     }

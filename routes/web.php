@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\AdminSoalController;
 use App\Http\Controllers\BattleController;
 use App\Http\Controllers\BerandaController;
@@ -11,8 +13,6 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RiwayatController;
 use App\Http\Controllers\TryOutController;
 use App\Http\Controllers\WelcomeController;
-use App\Http\Controllers\Admin\DashboardController;
-use App\Http\Controllers\Admin\UserController;
 use Illuminate\Support\Facades\Route;
 
 // ==========================================
@@ -101,16 +101,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         // Rute Admin (UCS6 Mengelola User): hanya role admin; role lain mendapat 403.
         Route::prefix('admin')->middleware('peran:admin')->group(function () {
-            // Dashboard Admin
+            // Dashboard Admin: jumlah siswa/editor, siswa aktif hari ini, audit log admin dan editor.
             Route::get('/', [DashboardController::class, 'index'])->name('admin.index');
 
-            // Kelola User
+            // Daftar User. whereUuid: id yang bukan UUID langsung 404, bukan error query Postgres.
             Route::prefix('users')->name('admin.user.')->group(function () {
                 Route::get('/', [UserController::class, 'index'])->name('index');
-                Route::post('/editor', [UserController::class, 'storeEditor'])->name('storeEditor');
-                Route::put('/{user}/reset-password', [UserController::class, 'resetPassword'])->name('resetPassword');
-                Route::put('/{user}/toggle-status', [UserController::class, 'toggleStatus'])->name('toggleStatus');
-                Route::delete('/{user}', [UserController::class, 'destroy'])->name('destroy');
+                Route::post('/editor', [UserController::class, 'tambahEditor'])->name('tambahEditor');
+                Route::put('/{user}/reset-password', [UserController::class, 'resetPassword'])->whereUuid('user')->name('resetPassword');
+                Route::put('/{user}/nonaktifkan', [UserController::class, 'nonaktifkan'])->whereUuid('user')->name('nonaktifkan');
+                Route::delete('/{user}', [UserController::class, 'hapus'])->whereUuid('user')->name('hapus');
             });
         });
 
@@ -132,4 +132,4 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 });
 
-require __DIR__ . '/auth.php';
+require __DIR__.'/auth.php';

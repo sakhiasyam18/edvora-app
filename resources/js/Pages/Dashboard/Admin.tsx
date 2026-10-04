@@ -1,117 +1,76 @@
-import React from 'react';
-import { Head, Link } from '@inertiajs/react';
+import AdminLayout from '@/Components/Layouts/AdminLayout';
+import { formatWaktuWib } from '@/lib/waktu';
+import { Head } from '@inertiajs/react';
 
-export default function DashboardAdmin() {
+interface LogItem {
+    id: string;
+    aksi: string;
+    keterangan: string | null;
+    namaPelaku: string;
+    waktu: string; // ISO, UTC
+}
+
+interface AdminProps {
+    totalSiswa: number;
+    aktifHariIni: number; // siswa yang login sejak 00.00 WIB
+    jumlahEditor: number;
+    auditLogAdmin: LogItem[];
+    auditLogEditor: LogItem[];
+}
+
+// Satu angka ringkasan. Belum didesain.
+function KartuAngka({ label, nilai }: { label: string; nilai: number }) {
     return (
-        <>
+        <div className="rounded border bg-white p-4">
+            <p className="text-sm text-gray-500">{label}</p>
+            <p className="text-2xl font-bold text-gray-800">{nilai.toLocaleString('id-ID')}</p>
+        </div>
+    );
+}
+
+// Beberapa entri audit log terbaru untuk satu peran. Belum didesain.
+function DaftarLog({ judul, logList }: { judul: string; logList: LogItem[] }) {
+    return (
+        <div className="rounded border bg-white p-4">
+            <h2 className="mb-3 font-semibold text-gray-800">{judul}</h2>
+
+            {logList.length === 0 ? (
+                <p className="text-sm text-gray-500">Belum ada aktivitas.</p>
+            ) : (
+                <ul className="space-y-3 text-sm">
+                    {logList.map((log) => (
+                        <li key={log.id}>
+                            <p className="text-gray-800">
+                                {log.aksi}
+                                {log.keterangan && `: ${log.keterangan}`}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                                {log.namaPelaku} · {formatWaktuWib(log.waktu)}
+                            </p>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </div>
+    );
+}
+
+// Dashboard Admin (rute admin.index). Semua angka dan log dari Admin\DashboardController.
+export default function Admin({ totalSiswa, aktifHariIni, jumlahEditor, auditLogAdmin, auditLogEditor }: AdminProps) {
+    return (
+        <AdminLayout judul="Dashboard">
             <Head title="Dashboard Admin" />
-            <div className="flex min-h-screen bg-[#F0F4F9] font-sans text-slate-800">
-                {/* SIDEBAR */}
-                <aside className="w-64 bg-[#2B4184] p-6 text-white flex flex-col justify-between">
-                    <div>
-                        <div className="flex items-center gap-3 mb-8">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500 font-black text-xl">E</div>
-                            <span className="font-bold text-xl tracking-wider">EDVORA</span>
-                        </div>
-                        <nav className="space-y-2">
-                            <Link href="/admin" className="flex items-center gap-3 px-4 py-3 rounded-xl bg-blue-600/50 font-semibold text-white">
-                                📊 Dashboard
-                            </Link>
-                            <Link href="/admin/users" className="flex items-center gap-3 px-4 py-3 rounded-xl text-blue-200 hover:bg-blue-800/40 transition">
-                                👥 Kelola User
-                            </Link>
-                        </nav>
-                    </div>
-                </aside>
 
-                {/* CONTENT AREA */}
-                <main className="flex-1 p-8">
-                    {/* TOPBAR */}
-                    <header className="flex justify-between items-center mb-6">
-                        <span className="text-2xl">🏠</span>
-                        <div className="w-9 h-9 rounded-full bg-blue-500 text-white font-bold flex items-center justify-center">A</div>
-                    </header>
-
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">ADMIN</p>
-                    <h1 className="text-3xl font-black text-slate-800 mb-1">DASHBOARD</h1>
-                    <p className="text-sm text-slate-500 mb-8">Ringkasan pengguna dan aktivitas sistem</p>
-
-                    {/* STAT CARDS */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center">
-                            <div>
-                                <p className="text-sm text-slate-500 font-semibold">Siswa</p>
-                                <h3 className="text-3xl font-black text-slate-800">1.503</h3>
-                                <p className="text-xs text-slate-400 mt-1">1503 baru minggu ini</p>
-                            </div>
-                            <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-xl">👥</div>
-                        </div>
-
-                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center">
-                            <div>
-                                <p className="text-sm text-slate-500 font-semibold">Aktif Hari Ini</p>
-                                <h3 className="text-3xl font-black text-slate-800">248</h3>
-                                <p className="text-xs text-slate-400 mt-1">1039 aktif minggu ini</p>
-                            </div>
-                            <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-xl">👤</div>
-                        </div>
-
-                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center">
-                            <div>
-                                <p className="text-sm text-slate-500 font-semibold">Editor</p>
-                                <h3 className="text-3xl font-black text-slate-800">11</h3>
-                                <p className="text-xs text-slate-400 mt-1">0 akun nonaktif</p>
-                            </div>
-                            <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-xl">⚙️</div>
-                        </div>
-                    </div>
-
-                    {/* AUDIT LOGS */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                            <div className="flex justify-between items-center mb-4">
-                                <div>
-                                    <h4 className="font-bold text-slate-800">Audit Log</h4>
-                                    <p className="text-xs text-slate-400">ADMIN</p>
-                                </div>
-                                <span className="p-2 rounded-full bg-blue-50 text-blue-500">🛡️</span>
-                            </div>
-                            <div className="p-4 bg-slate-50 rounded-xl space-y-3">
-                                {[1, 2, 3, 4].map((i) => (
-                                    <div key={i} className="flex items-start gap-2 text-sm">
-                                        <span className="text-blue-600">•</span>
-                                        <div>
-                                            <p className="font-medium text-slate-700">menghapus user</p>
-                                            <p className="text-xs text-slate-400">Admin Demo · 29 sep, 13.29</p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                            <div className="flex justify-between items-center mb-4">
-                                <div>
-                                    <h4 className="font-bold text-slate-800">Audit Log</h4>
-                                    <p className="text-xs text-slate-400">EDITOR</p>
-                                </div>
-                                <span className="p-2 rounded-full bg-blue-50 text-blue-500">🛡️</span>
-                            </div>
-                            <div className="p-4 bg-slate-50 rounded-xl space-y-3">
-                                {[1, 2, 3, 4].map((i) => (
-                                    <div key={i} className="flex items-start gap-2 text-sm">
-                                        <span className="text-blue-600">•</span>
-                                        <div>
-                                            <p className="font-medium text-slate-700">unpublished soal</p>
-                                            <p className="text-xs text-slate-400">Admin Editor · 29 sep, 13.29</p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                </main>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <KartuAngka label="Total Siswa" nilai={totalSiswa} />
+                <KartuAngka label="Siswa Aktif Hari Ini" nilai={aktifHariIni} />
+                <KartuAngka label="Jumlah Editor" nilai={jumlahEditor} />
             </div>
-        </>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <DaftarLog judul="Audit Log Admin" logList={auditLogAdmin} />
+                <DaftarLog judul="Audit Log Editor" logList={auditLogEditor} />
+            </div>
+        </AdminLayout>
     );
 }

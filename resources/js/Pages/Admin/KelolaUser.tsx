@@ -1,295 +1,338 @@
-import React, { useState } from 'react';
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import DangerButton from '@/Components/DangerButton';
+import InputError from '@/Components/InputError';
+import InputLabel from '@/Components/InputLabel';
+import AdminLayout from '@/Components/Layouts/AdminLayout';
+import Modal from '@/Components/Modal';
+import PrimaryButton from '@/Components/PrimaryButton';
+import SecondaryButton from '@/Components/SecondaryButton';
+import TextInput from '@/Components/TextInput';
+import { formatWaktuWib } from '@/lib/waktu';
+import { Head, useForm } from '@inertiajs/react';
+import { FormEventHandler, ReactNode, useState } from 'react';
 
-interface UserItem {
+interface SiswaItem {
     id: string;
-    name: string;
+    namaLengkap: string;
     email: string;
-    peran: string;
-    is_active: boolean;
-    created_at?: string;
+    kelasLabel: string | null;
+    jenisKelamin: 'laki-laki' | 'perempuan' | null;
+    isActive: boolean;
+    tanggalDaftar: string | null; // ISO, UTC
+    terakhirLogin: string | null; // ISO, UTC; null = belum pernah login sejak kolom ini ada
 }
 
-interface PageProps {
-    editors: UserItem[];
-    siswa: UserItem[];
-    flash: { success?: string; error?: string };
+interface EditorItem {
+    id: string;
+    namaLengkap: string;
+    email: string;
+    tanggalDaftar: string | null;
+    terakhirLogin: string | null;
 }
 
-export default function KelolaUser() {
-    const { editors, siswa, flash } = usePage<any>().props as PageProps;
+interface KelolaUserProps {
+    siswaList: SiswaItem[];
+    editorList: EditorItem[];
+}
 
-    const [search, setSearch] = useState('');
-    const [modalType, setModalType] = useState<'tambahEditor' | 'infoEditor' | 'resetPassword' | 'infoSiswa' | 'nonaktifkan' | 'hapus' | null>(null);
-    const [selectedUser, setSelectedUser] = useState<UserItem | null>(null);
+// Pop-up yang sedang terbuka; hanya satu dalam satu waktu (UCS6 bagian 6).
+type PopUp =
+    | { jenis: 'tambahEditor' }
+    | { jenis: 'infoEditor'; editor: EditorItem }
+    | { jenis: 'konfirmasiReset'; editor: EditorItem }
+    | { jenis: 'formReset'; editor: EditorItem }
+    | { jenis: 'infoSiswa'; siswa: SiswaItem }
+    | { jenis: 'konfirmasiNonaktifkan'; siswa: SiswaItem }
+    | { jenis: 'konfirmasiHapus'; siswa: SiswaItem };
 
-    // Form state
-    const [formData, setFormData] = useState({ name: '', email: '', password: '' });
+const LABEL_JENIS_KELAMIN = { 'laki-laki': 'Laki-laki', perempuan: 'Perempuan' } as const;
 
-    const handleSearch = (e: React.FormEvent) => {
+const formatWaktu = (iso: string | null) => (iso ? formatWaktuWib(iso) : '-');
+
+// Satu baris informasi akun di pop-up. Belum didesain.
+function Isian({ label, isi }: { label: string; isi: ReactNode }) {
+    return (
+        <div>
+            <dt className="text-xs text-gray-500">{label}</dt>
+            <dd className="text-gray-800">{isi}</dd>
+        </div>
+    );
+}
+
+// Konfirmasi aksi hapus, nonaktifkan, dan reset password, dengan tombol 'Iya' dan 'Tidak' (UCS6 bagian 3).
+function Konfirmasi({ pesan, memproses, onIya, onTidak }: { pesan: string; memproses: boolean; onIya: () => void; onTidak: () => void }) {
+    return (
+        <div className="space-y-4">
+            <p className="text-gray-800">{pesan}</p>
+            <div className="flex justify-end gap-2">
+                <SecondaryButton onClick={onTidak} disabled={memproses}>
+                    Tidak
+                </SecondaryButton>
+                <DangerButton onClick={onIya} disabled={memproses}>
+                    Iya
+                </DangerButton>
+            </div>
+        </div>
+    );
+}
+
+// Daftar User (UCS6): daftar editor (list) dan daftar siswa (tabel), beserta pop-up aksinya. Belum didesain.
+export default function KelolaUser({ siswaList, editorList }: KelolaUserProps) {
+    const [popUp, setPopUp] = useState<PopUp | null>(null);
+
+    // Nama field sama dengan aturan validasi di Admin\UserController.
+    const formEditor = useForm({ namaLengkap: '', email: '', password: '' });
+    const formReset = useForm({ password: '' });
+    // Aksi tanpa isian (nonaktifkan, hapus); dipakai untuk status memproses.
+    const aksi = useForm({});
+
+    const tutup = () => {
+        setPopUp(null);
+        formEditor.reset();
+        formEditor.clearErrors();
+        formReset.reset();
+        formReset.clearErrors();
+    };
+
+    // Berhasil maupun gagal di server, pop-up ditutup dan pesannya tampil dari flash. Error validasi tetap di form.
+    const simpanEditor: FormEventHandler = (e) => {
         e.preventDefault();
-        router.get('/admin/users', { search }, { preserveState: true });
+        formEditor.post(route('admin.user.tambahEditor'), { preserveScroll: true, onSuccess: tutup });
     };
 
-    const submitTambahEditor = (e: React.FormEvent) => {
+    const simpanReset = (editor: EditorItem): FormEventHandler => (e) => {
         e.preventDefault();
-        router.post('/admin/users/editor', formData, {
-            onSuccess: () => {
-                setModalType(null);
-                setFormData({ name: '', email: '', password: '' });
-            },
-        });
+        formReset.put(route('admin.user.resetPassword', editor.id), { preserveScroll: true, onSuccess: tutup });
     };
 
-    const submitResetPassword = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!selectedUser) return;
-        router.put(`/admin/users/${selectedUser.id}/reset-password`, { password: formData.password }, {
-            onSuccess: () => setModalType(null),
-        });
-    };
+    const nonaktifkan = (siswa: SiswaItem) =>
+        aksi.put(route('admin.user.nonaktifkan', siswa.id), { preserveScroll: true, onSuccess: tutup });
 
-    const handleToggleStatus = () => {
-        if (!selectedUser) return;
-        router.put(`/admin/users/${selectedUser.id}/toggle-status`, {}, {
-            onSuccess: () => setModalType(null),
-        });
-    };
+    const hapus = (siswa: SiswaItem) =>
+        aksi.delete(route('admin.user.hapus', siswa.id), { preserveScroll: true, onSuccess: tutup });
 
-    const handleHapusUser = () => {
-        if (!selectedUser) return;
-        router.delete(`/admin/users/${selectedUser.id}`, {
-            onSuccess: () => setModalType(null),
-        });
+    const isiPopUp = (p: PopUp) => {
+        switch (p.jenis) {
+            case 'tambahEditor':
+                return (
+                    <form onSubmit={simpanEditor} className="space-y-4">
+                        <h2 className="text-lg font-semibold text-gray-800">Tambah Editor</h2>
+
+                        <div>
+                            <InputLabel htmlFor="namaLengkap" value="Nama" />
+                            <TextInput
+                                id="namaLengkap"
+                                value={formEditor.data.namaLengkap}
+                                onChange={(e) => formEditor.setData('namaLengkap', e.target.value)}
+                                className="mt-1 block w-full"
+                                isFocused
+                            />
+                            <InputError message={formEditor.errors.namaLengkap} className="mt-1" />
+                        </div>
+
+                        <div>
+                            <InputLabel htmlFor="email" value="Email" />
+                            <TextInput
+                                id="email"
+                                type="email"
+                                value={formEditor.data.email}
+                                onChange={(e) => formEditor.setData('email', e.target.value)}
+                                className="mt-1 block w-full"
+                            />
+                            <InputError message={formEditor.errors.email} className="mt-1" />
+                        </div>
+
+                        <div>
+                            <InputLabel htmlFor="password" value="Password" />
+                            <TextInput
+                                id="password"
+                                type="password"
+                                value={formEditor.data.password}
+                                onChange={(e) => formEditor.setData('password', e.target.value)}
+                                className="mt-1 block w-full"
+                            />
+                            <InputError message={formEditor.errors.password} className="mt-1" />
+                        </div>
+
+                        <div className="flex justify-end gap-2">
+                            <SecondaryButton onClick={tutup}>Tutup</SecondaryButton>
+                            <PrimaryButton type="submit" disabled={formEditor.processing}>
+                                Simpan
+                            </PrimaryButton>
+                        </div>
+                    </form>
+                );
+
+            case 'infoEditor':
+                return (
+                    <div className="space-y-4">
+                        <h2 className="text-lg font-semibold text-gray-800">Informasi Akun Editor</h2>
+                        <dl className="space-y-2 text-sm">
+                            <Isian label="Nama Lengkap" isi={p.editor.namaLengkap} />
+                            <Isian label="Email" isi={p.editor.email} />
+                            <Isian label="Tanggal Daftar" isi={formatWaktu(p.editor.tanggalDaftar)} />
+                            <Isian label="Terakhir Login" isi={formatWaktu(p.editor.terakhirLogin)} />
+                        </dl>
+                        <div className="flex justify-end gap-2">
+                            <SecondaryButton onClick={tutup}>Tutup</SecondaryButton>
+                            <PrimaryButton onClick={() => setPopUp({ jenis: 'konfirmasiReset', editor: p.editor })}>
+                                Reset Password
+                            </PrimaryButton>
+                        </div>
+                    </div>
+                );
+
+            case 'konfirmasiReset':
+                return (
+                    <Konfirmasi
+                        pesan="Reset password editor ini?"
+                        memproses={false}
+                        onIya={() => setPopUp({ jenis: 'formReset', editor: p.editor })}
+                        onTidak={() => setPopUp({ jenis: 'infoEditor', editor: p.editor })}
+                    />
+                );
+
+            case 'formReset':
+                return (
+                    <form onSubmit={simpanReset(p.editor)} className="space-y-4">
+                        <h2 className="text-lg font-semibold text-gray-800">Reset Password</h2>
+                        <p className="text-sm text-gray-500">{p.editor.namaLengkap}</p>
+
+                        <div>
+                            <InputLabel htmlFor="passwordSementara" value="Password Sementara" />
+                            <TextInput
+                                id="passwordSementara"
+                                type="password"
+                                value={formReset.data.password}
+                                onChange={(e) => formReset.setData('password', e.target.value)}
+                                className="mt-1 block w-full"
+                                isFocused
+                            />
+                            <InputError message={formReset.errors.password} className="mt-1" />
+                        </div>
+
+                        <div className="flex justify-end gap-2">
+                            <SecondaryButton onClick={tutup}>Tutup</SecondaryButton>
+                            <PrimaryButton type="submit" disabled={formReset.processing}>
+                                Simpan
+                            </PrimaryButton>
+                        </div>
+                    </form>
+                );
+
+            case 'infoSiswa':
+                return (
+                    <div className="space-y-4">
+                        <h2 className="text-lg font-semibold text-gray-800">Informasi Akun Siswa</h2>
+                        <dl className="space-y-2 text-sm">
+                            <Isian label="Nama Lengkap" isi={p.siswa.namaLengkap} />
+                            <Isian label="Email" isi={p.siswa.email} />
+                            <Isian label="Status Akun" isi={p.siswa.isActive ? 'Aktif' : 'Nonaktif'} />
+                            <Isian label="Kelas" isi={p.siswa.kelasLabel ?? '-'} />
+                            <Isian label="Jenis Kelamin" isi={p.siswa.jenisKelamin ? LABEL_JENIS_KELAMIN[p.siswa.jenisKelamin] : '-'} />
+                            <Isian label="Tanggal Daftar" isi={formatWaktu(p.siswa.tanggalDaftar)} />
+                            <Isian label="Terakhir Login" isi={formatWaktu(p.siswa.terakhirLogin)} />
+                        </dl>
+                        <div className="flex justify-end gap-2">
+                            <SecondaryButton onClick={tutup}>Tutup</SecondaryButton>
+                            {p.siswa.isActive && (
+                                <SecondaryButton onClick={() => setPopUp({ jenis: 'konfirmasiNonaktifkan', siswa: p.siswa })}>
+                                    Nonaktifkan User
+                                </SecondaryButton>
+                            )}
+                            <DangerButton onClick={() => setPopUp({ jenis: 'konfirmasiHapus', siswa: p.siswa })}>
+                                Hapus User
+                            </DangerButton>
+                        </div>
+                    </div>
+                );
+
+            case 'konfirmasiNonaktifkan':
+                return (
+                    <Konfirmasi
+                        pesan="Nonaktifkan user ini? User tidak dapat login hingga diaktifkan kembali."
+                        memproses={aksi.processing}
+                        onIya={() => nonaktifkan(p.siswa)}
+                        onTidak={() => setPopUp({ jenis: 'infoSiswa', siswa: p.siswa })}
+                    />
+                );
+
+            case 'konfirmasiHapus':
+                return (
+                    <Konfirmasi
+                        pesan="Hapus user ini? Data pribadi akan dihapus permanen."
+                        memproses={aksi.processing}
+                        onIya={() => hapus(p.siswa)}
+                        onTidak={() => setPopUp({ jenis: 'infoSiswa', siswa: p.siswa })}
+                    />
+                );
+        }
     };
 
     return (
-        <>
-            <Head title="Kelola User" />
-            <div className="flex min-h-screen bg-[#F0F4F9] font-sans text-slate-800 relative">
-                
-                {/* POP-UP NOTIFIKASI FLASH MESSAGE (GAMBAR 5) */}
-                {flash?.success && (
-                    <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 rounded-full border border-emerald-300 bg-white px-6 py-3 shadow-lg text-emerald-600 font-bold text-sm">
-                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">✓</span>
-                        {flash.success}
-                    </div>
+        <AdminLayout judul="Daftar User">
+            <Head title="Daftar User" />
+
+            {/* Daftar editor: komponen List (UCS6 bagian 3). */}
+            <div className="rounded border bg-white p-4">
+                <div className="mb-3 flex items-center justify-between">
+                    <h2 className="font-semibold text-gray-800">Daftar Editor</h2>
+                    <PrimaryButton onClick={() => setPopUp({ jenis: 'tambahEditor' })}>Tambah Editor</PrimaryButton>
+                </div>
+
+                {editorList.length === 0 ? (
+                    <p className="text-sm text-gray-500">Belum ada editor.</p>
+                ) : (
+                    <ul className="divide-y text-sm">
+                        {editorList.map((editor) => (
+                            <li key={editor.id} className="flex items-center justify-between gap-4 py-2">
+                                <span className="text-gray-800">{editor.namaLengkap}</span>
+                                <span className="text-gray-500">{editor.email}</span>
+                                <SecondaryButton onClick={() => setPopUp({ jenis: 'infoEditor', editor })}>
+                                    Informasi Akun
+                                </SecondaryButton>
+                            </li>
+                        ))}
+                    </ul>
                 )}
-
-                {flash?.error && (
-                    <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 rounded-full border border-red-300 bg-white px-6 py-3 shadow-lg text-red-500 font-bold text-sm">
-                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-red-100 text-red-500">!</span>
-                        {flash.error}
-                    </div>
-                )}
-
-                {/* SIDEBAR */}
-                <aside className="w-64 bg-[#2B4184] p-6 text-white flex flex-col justify-between">
-                    <div>
-                        <div className="flex items-center gap-3 mb-8">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500 font-black text-xl">E</div>
-                            <span className="font-bold text-xl tracking-wider">EDVORA</span>
-                        </div>
-                        <nav className="space-y-2">
-                            <Link href="/admin" className="flex items-center gap-3 px-4 py-3 rounded-xl text-blue-200 hover:bg-blue-800/40 transition">
-                                📊 Dashboard
-                            </Link>
-                            <Link href="/admin/users" className="flex items-center gap-3 px-4 py-3 rounded-xl bg-blue-600/50 font-semibold text-white">
-                                👥 Kelola User
-                            </Link>
-                        </nav>
-                    </div>
-                </aside>
-
-                {/* MAIN CONTENT */}
-                <main className="flex-1 p-8">
-                    <header className="flex justify-between items-center mb-6">
-                        <span className="text-2xl">🏠</span>
-                        <div className="w-9 h-9 rounded-full bg-blue-500 text-white font-bold flex items-center justify-center">A</div>
-                    </header>
-
-                    <h1 className="text-3xl font-black text-slate-800 mb-6">Daftar User</h1>
-
-                    {/* DAFTAR EDITOR */}
-                    <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 mb-8">
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-lg font-bold text-slate-800">Daftar Editor</h2>
-                            <button
-                                onClick={() => setModalType('tambahEditor')}
-                                className="bg-[#2B4184] text-white px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-blue-900 transition"
-                            >
-                                + Tambah Editor
-                            </button>
-                        </div>
-
-                        <div className="space-y-3">
-                            {editors.map((item) => (
-                                <div key={item.id} className="flex items-center justify-between p-3 border border-slate-100 rounded-2xl hover:bg-slate-50 transition">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500">👤</div>
-                                        <span className="font-bold text-slate-700 text-sm">{item.name}</span>
-                                    </div>
-                                    <span className="text-xs font-medium text-slate-500">{item.email}</span>
-                                    <button
-                                        onClick={() => { setSelectedUser(item); setModalType('infoEditor'); }}
-                                        className="bg-[#3B5299] text-white px-4 py-1.5 rounded-lg text-xs font-bold"
-                                    >
-                                        Informasi Akun
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* DAFTAR SISWA */}
-                    <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-lg font-bold text-slate-800">Daftar Siswa</h2>
-                            <form onSubmit={handleSearch} className="relative">
-                                <input
-                                    type="text"
-                                    placeholder="cari siswa..."
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    className="w-64 rounded-full border border-slate-200 pl-9 pr-4 py-2 text-xs focus:outline-none focus:border-blue-500"
-                                />
-                                <span className="absolute left-3 top-2.5 text-xs text-slate-400">🔍</span>
-                            </form>
-                        </div>
-
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-[#2B4184] text-white text-xs">
-                                    <th className="p-3 rounded-l-xl">Nama Lengkap</th>
-                                    <th className="p-3">E-mail</th>
-                                    <th className="p-3 text-center">Status</th>
-                                    <th className="p-3 text-center rounded-r-xl">Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-700">
-                                {siswa.map((s) => (
-                                    <tr key={s.id} className="hover:bg-slate-50">
-                                        <td className="p-3">{s.name}</td>
-                                        <td className="p-3 text-slate-500">{s.email}</td>
-                                        <td className="p-3 text-center">
-                                            <span className={`px-3 py-1 rounded-full text-[10px] font-bold text-white ${s.is_active ? 'bg-emerald-500' : 'bg-slate-500'}`}>
-                                                {s.is_active ? 'Aktif' : 'Nonaktif'}
-                                            </span>
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            <button
-                                                onClick={() => { setSelectedUser(s); setModalType('infoSiswa'); }}
-                                                className="bg-[#3B5299] text-white px-4 py-1.5 rounded-lg text-xs font-bold"
-                                            >
-                                                Informasi Akun
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </main>
-
-                {/* MODAL TAMBAH EDITOR (GAMBAR 3) */}
-                {modalType === 'tambahEditor' && (
-                    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                        <div className="bg-[#2B4184] text-white w-full max-w-md rounded-3xl p-6 shadow-2xl relative">
-                            <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-red-400 font-bold">✖</button>
-                            <h3 className="text-center font-bold text-lg mb-6">Tambah Editor</h3>
-                            <form onSubmit={submitTambahEditor} className="space-y-4">
-                                <div>
-                                    <label className="text-xs font-semibold block mb-1">Nama Lengkap</label>
-                                    <input
-                                        type="text"
-                                        placeholder="Masukkan nama lengkap"
-                                        className="w-full rounded-xl bg-slate-100 text-slate-800 p-3 text-xs focus:outline-none"
-                                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                        required
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-semibold block mb-1">E-mail</label>
-                                    <input
-                                        type="email"
-                                        placeholder="Masukkan e-mail"
-                                        className="w-full rounded-xl bg-slate-100 text-slate-800 p-3 text-xs focus:outline-none"
-                                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                        required
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-semibold block mb-1">Password</label>
-                                    <input
-                                        type="password"
-                                        placeholder="Masukkan password"
-                                        className="w-full rounded-xl bg-slate-100 text-slate-800 p-3 text-xs focus:outline-none"
-                                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                        required
-                                    />
-                                </div>
-                                <div className="flex gap-3 pt-4">
-                                    <button type="button" onClick={() => setModalType(null)} className="flex-1 bg-slate-400 py-2.5 rounded-xl text-xs font-bold">Batal</button>
-                                    <button type="submit" className="flex-1 bg-emerald-500 py-2.5 rounded-xl text-xs font-bold">Simpan</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                )}
-
-                {/* MODAL INFORMASI AKUN SISWA / EDITOR (GAMBAR 3 & 4) */}
-                {(modalType === 'infoEditor' || modalType === 'infoSiswa') && selectedUser && (
-                    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                        <div className="bg-[#2B4184] text-white w-full max-w-md rounded-3xl p-6 shadow-2xl relative">
-                            <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-red-400 font-bold">✖</button>
-                            <h3 className="text-center font-bold text-lg mb-6">Informasi Akun {modalType === 'infoEditor' ? 'Editor' : 'Siswa'}</h3>
-                            <div className="bg-white text-slate-800 rounded-2xl p-4 text-xs space-y-3 mb-6">
-                                <div><p className="font-bold text-slate-400">Nama Lengkap</p><p className="font-bold">{selectedUser.name}</p></div>
-                                <div><p className="font-bold text-slate-400">E-mail</p><p className="font-bold">{selectedUser.email}</p></div>
-                                <div>
-                                    <p className="font-bold text-slate-400">Status Akun</p>
-                                    <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-bold text-white mt-1 ${selectedUser.is_active ? 'bg-emerald-500' : 'bg-slate-500'}`}>
-                                        {selectedUser.is_active ? 'Aktif' : 'Nonaktif'}
-                                    </span>
-                                </div>
-                            </div>
-                            <div className="flex gap-3">
-                                {modalType === 'infoEditor' ? (
-                                    <button onClick={() => setModalType('resetPassword')} className="w-full bg-slate-400 py-2.5 rounded-xl text-xs font-bold">Reset Password</button>
-                                ) : (
-                                    <>
-                                        <button onClick={() => setModalType('nonaktifkan')} className="flex-1 bg-slate-400 py-2.5 rounded-xl text-xs font-bold">Nonaktifkan</button>
-                                        <button onClick={() => setModalType('hapus')} className="flex-1 bg-red-500 py-2.5 rounded-xl text-xs font-bold">Hapus</button>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* MODAL NONAKTIFKAN / HAPUS (GAMBAR 4) */}
-                {(modalType === 'nonaktifkan' || modalType === 'hapus') && (
-                    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                        <div className="bg-[#2B4184] text-white w-full max-w-sm rounded-3xl p-6 text-center shadow-2xl">
-                            <div className="text-3xl mb-2">{modalType === 'nonaktifkan' ? '⚠️' : '🗑️'}</div>
-                            <h3 className="font-bold text-base mb-2">{modalType === 'nonaktifkan' ? 'Nonaktifkan User Ini?' : 'Hapus User Ini?'}</h3>
-                            <p className="text-xs text-red-300 mb-6">
-                                {modalType === 'nonaktifkan' ? 'User tidak dapat login hingga diaktifkan kembali' : 'Data akun akan dihapus permanen.'}
-                            </p>
-                            <div className="flex gap-3">
-                                <button onClick={() => setModalType(null)} className="flex-1 bg-slate-400 py-2.5 rounded-xl text-xs font-bold">Batal</button>
-                                <button
-                                    onClick={modalType === 'nonaktifkan' ? handleToggleStatus : handleHapusUser}
-                                    className="flex-1 bg-red-500 py-2.5 rounded-xl text-xs font-bold"
-                                >
-                                    Ya
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
             </div>
-        </>
+
+            {/* Daftar siswa: komponen Tabel (UCS6 bagian 3). */}
+            <div className="rounded border bg-white p-4">
+                <h2 className="mb-3 font-semibold text-gray-800">Daftar Siswa</h2>
+
+                {siswaList.length === 0 ? (
+                    <p className="text-sm text-gray-500">Belum ada siswa.</p>
+                ) : (
+                    <table className="w-full text-left text-sm">
+                        <thead className="border-b text-gray-500">
+                            <tr>
+                                <th className="py-2">Nama</th>
+                                <th className="py-2">Kelas</th>
+                                <th className="py-2">Status</th>
+                                <th className="py-2">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y text-gray-800">
+                            {siswaList.map((siswa) => (
+                                <tr key={siswa.id}>
+                                    <td className="py-2">{siswa.namaLengkap}</td>
+                                    <td className="py-2">{siswa.kelasLabel ?? '-'}</td>
+                                    <td className="py-2">{siswa.isActive ? 'Aktif' : 'Nonaktif'}</td>
+                                    <td className="py-2">
+                                        <SecondaryButton onClick={() => setPopUp({ jenis: 'infoSiswa', siswa })}>
+                                            Informasi Akun
+                                        </SecondaryButton>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                )}
+            </div>
+
+            <Modal show={popUp !== null} onClose={tutup} maxWidth="md">
+                <div className="p-6">{popUp && isiPopUp(popUp)}</div>
+            </Modal>
+        </AdminLayout>
     );
 }
