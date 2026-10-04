@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\AdminSoalController;
 use App\Http\Controllers\BattleController;
 use App\Http\Controllers\BerandaController;
@@ -103,9 +105,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         // Rute Admin (UCS6 Mengelola User): hanya role admin; role lain mendapat 403.
         Route::prefix('admin')->middleware('peran:admin')->group(function () {
-            // Halaman template tujuan setelah admin login; belum butuh data dari server.
-            Route::inertia('/', 'Dashboard/Admin')->name('admin.index');
-            // Kelola User menyusul, dengan nama rute admin.user.*
+            // Dashboard Admin: jumlah siswa/editor, siswa aktif hari ini, audit log admin dan editor.
+            Route::get('/', [DashboardController::class, 'index'])->name('admin.index');
+
+            // Daftar User. whereUuid: id yang bukan UUID langsung 404, bukan error query Postgres.
+            Route::prefix('users')->name('admin.user.')->group(function () {
+                Route::get('/', [UserController::class, 'index'])->name('index');
+                Route::post('/editor', [UserController::class, 'tambahEditor'])->name('tambahEditor');
+                Route::put('/{user}/reset-password', [UserController::class, 'resetPassword'])->whereUuid('user')->name('resetPassword');
+                Route::put('/{user}/nonaktifkan', [UserController::class, 'nonaktifkan'])->whereUuid('user')->name('nonaktifkan');
+                Route::delete('/{user}', [UserController::class, 'hapus'])->whereUuid('user')->name('hapus');
+            });
         });
 
         // Rute Editor (UCS7 Bank Soal, UCS8 Paket Try Out, UCS9 Dashboard Analitik): hanya role admin_editor.
