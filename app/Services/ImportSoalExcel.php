@@ -75,6 +75,7 @@ class ImportSoalExcel
      * Link gambar ikut diperiksa di sini (diunduh), jadi butuh koneksi internet. Rumus LaTeX diperiksa dengan
      * KaTeX lewat Node.js.
      *
+     * @param  int|null  $maksBaris  batas baris soal (upload dari web); lebih dari itu file langsung ditolak
      * @return array{
      *     sheet: string|null,
      *     peringatan: string[],
@@ -87,14 +88,18 @@ class ImportSoalExcel
      *     jumlah_rumus: int,
      * }
      */
-    public function periksa(string $path): array
+    public function periksa(string $path, ?int $maksBaris = null): array
     {
         $hasil = [
             'sheet' => null, 'peringatan' => [], 'error' => [], 'peringatan_baris' => [], 'soal' => [], 'topik' => [],
             'dilewati' => 0, 'jumlah_gambar' => 0, 'jumlah_rumus' => 0,
         ];
 
-        $spreadsheet = IOFactory::createReader('Xlsx')->load($path);
+        // Sel yang hanya berformat tanpa isi tidak dimuat. Template SA diformat sampai ribuan baris; tanpa ini
+        // membacanya butuh belasan detik dan hampir 100 MB memori. Sel berisi nilai, rumus, atau gambar tetap dibaca.
+        $reader = IOFactory::createReader('Xlsx');
+        $reader->setReadEmptyCells(false);
+        $spreadsheet = $reader->load($path);
         [$sheet, $kolom] = $this->pilihSheet($spreadsheet->getAllSheets(), $hasil);
 
         if (! $sheet) {
@@ -115,6 +120,7 @@ class ImportSoalExcel
         $tautan = [];
         $rumusDipakai = [];
         $kosongBeruntun = 0;
+        $jumlahBaris = 0;
         $opsionalHilang = array_diff(self::KOLOM_OPSIONAL, array_keys($kolom));
 
         for ($baris = 2; $baris <= $sheet->getHighestDataRow(); $baris++) {
@@ -131,6 +137,16 @@ class ImportSoalExcel
             }
 
             $kosongBeruntun = 0;
+
+            // File yang terlalu besar ditolak tanpa memeriksa sisanya.
+            if ($maksBaris !== null && ++$jumlahBaris > $maksBaris) {
+                $hasil['error'][] = ['baris' => $baris, 'kolom' => null,
+                    'pesan' => "File berisi lebih dari {$maksBaris} baris soal. Bagi soalnya ke beberapa file."];
+                $hasil['soal'] = [];
+
+                return $hasil;
+            }
+
             $errorBaris = [];
             $tambahError = function (string $kunci, string $pesan) use (&$errorBaris, $baris, $kolom) {
                 $errorBaris[] = ['baris' => $baris, 'kolom' => $kolom[$kunci]['nama'], 'pesan' => $pesan];
@@ -183,17 +199,78 @@ class ImportSoalExcel
     }
 
     /**
-     * Simpan topik dan soal hasil periksa() dalam satu transaksi. Soal dengan kode yang sudah ada diperbarui.
+     * Periksa satu soal dari formulir halaman editor dengan aturan yang sama seperti satu baris Excel, termasuk
+     * rumus (KaTeX) dan link gambar. Kode soal yang sudah ada berarti soal itu yang diperbarui.
      *
+     * @param  array<string, string|null>  $nilai  kunci kolom (lihat daftarHeader()) => isi; yang tidak ada dianggap kosong
+     * @return array{soal: array<string, mixed>|null, error: array<string, string[]>} error per kunci kolom ('' = umum)
+     */
+    public function periksaSatu(array $nilai): array
+    {
+        $sel = [];
+        foreach (array_keys($this->daftarHeader()) as $kunci) {
+            $isi = trim(str_replace(["\r\n", "\r"], "\n", (string) ($nilai[$kunci] ?? '')));
+            $sel[$kunci] = ['nilai' => $isi === '' ? null : $isi, 'masalah' => null, 'kosong' => $isi === ''];
+        }
+
+        $error = [];
+        $tambahError = function (string $kunci, string $pesan) use (&$error) {
+            $error[$kunci][] = $pesan;
+        };
+
+        $subtes = Subtes::pluck('id', 'kode_subtes')->all();
+        $kodeDipakai = [];
+        $soal = $this->periksaBaris($sel, $tambahError, $subtes, $this->petaTopik($subtes, []), $this->batasPanjangKolom(), $kodeDipakai, 1);
+
+        // Rumus dan link diperiksa seperti di periksa(); kolomnya diisi kunci internal, bukan judul kolom Excel.
+        $tautan = [];
+        foreach ($this->linkGambar($soal) as $kunci => $url) {
+            $tautan[$url][] = ['baris' => 1, 'kolom' => $kunci];
+
+            if ($pesan = self::masalahLokasiGambar($url, $soal['kode_subtes'], $soal['kode_soal'])) {
+                $tambahError($kunci, $pesan);
+            }
+        }
+
+        $rumusDipakai = [];
+        foreach ($this->kolomRumus() as $kunci) {
+            foreach (TeksMatematika::rumus((string) $sel[$kunci]['nilai']) as $rumus) {
+                $rumusDipakai[$rumus][] = ['baris' => 1, 'kolom' => $kunci];
+            }
+        }
+
+        $hasil = ['error' => [], 'jumlah_gambar' => 0, 'jumlah_rumus' => 0];
+        $this->periksaRumus($rumusDipakai, $hasil);
+        $this->periksaLink($tautan, $hasil);
+
+        foreach ($hasil['error'] as $e) {
+            $tambahError($e['kolom'] ?? '', $e['pesan']);
+        }
+
+        return ['soal' => $error ? null : $soal, 'error' => $error];
+    }
+
+    /**
+     * Simpan topik dan soal hasil periksa() dalam satu transaksi. Soal dengan kode yang sudah ada diperbarui.
+     * Tanpa $status, soal baru berstatus draft (default kolom) dan status soal yang sudah ada tidak diubah.
+     *
+     * @param  string|null  $status  status untuk semua soal di $soalList (draft/published)
+     * @param  string|null  $editorId  pembuat soal baru (admin_editor.user_id); soal yang sudah ada tidak diubah
+     * @param  bool  $hanyaBaru  tolak bila ada kode yang sudah dipakai (soal baru dari formulir), bukan memperbaruinya
      * @return array{baru: int, diperbarui: int, topik_baru: int, topik_diperbarui: int}
      */
-    public function simpan(array $soalList, array $topikList = []): array
+    public function simpan(array $soalList, array $topikList = [], ?string $status = null, ?string $editorId = null, bool $hanyaBaru = false): array
     {
         // Query dibuat sesedikit mungkin: database ada di server jauh, jadi tiap query terasa.
-        return DB::transaction(function () use ($soalList, $topikList) {
+        return DB::transaction(function () use ($soalList, $topikList, $status, $editorId, $hanyaBaru) {
             [$idTopik, $jumlahTopik] = $this->simpanTopik($topikList);
 
             $soalLama = Soal::whereIn('kode_soal', array_column($soalList, 'kode_soal'))->get()->keyBy('kode_soal');
+
+            // Kode yang dipakai transaksi lain sesudah query ini tetap ditolak oleh unique index kode_soal.
+            if ($hanyaBaru && $soalLama->isNotEmpty()) {
+                throw new RuntimeException('Kode '.$soalLama->keys()->implode(', ').' sudah dipakai soal lain. Muat ulang halaman untuk mendapat kode baru.');
+            }
             $opsiLama = OpsiJawaban::whereIn('soal_id', $soalLama->pluck('id'))->get()->groupBy('soal_id');
 
             $jumlah = ['baru' => 0, 'diperbarui' => 0] + $jumlahTopik;
@@ -203,7 +280,7 @@ class ImportSoalExcel
 
             foreach ($soalList as $data) {
                 $data['topik_id'] = $idTopik[$data['subtes_id'].'|'.mb_strtolower($data['nama_topik'])];
-                $atribut = Arr::only($data, self::KOLOM_SOAL);
+                $atribut = Arr::only($data, self::KOLOM_SOAL) + ($status === null ? [] : ['status' => $status]);
                 $soal = $soalLama->get($data['kode_soal']);
 
                 if (! $soal) {
@@ -211,7 +288,7 @@ class ImportSoalExcel
                     // Insert massal melewati cast Eloquent, jadi kolom jsonb ditulis sebagai JSON.
                     $kolomTabel = isset($atribut['kolom_tabel']) ? json_encode($atribut['kolom_tabel'], JSON_UNESCAPED_UNICODE) : null;
                     $soalBaru[] = ['kolom_tabel' => $kolomTabel] + $atribut
-                        + ['id' => $soalId, 'kode_soal' => $data['kode_soal'], 'editor_id' => null];
+                        + ['id' => $soalId, 'kode_soal' => $data['kode_soal'], 'editor_id' => $editorId];
 
                     foreach ($data['opsi'] as $opsi) {
                         $opsiBaru[] = $opsi + ['id' => (string) Str::orderedUuid(), 'soal_id' => $soalId];
@@ -236,8 +313,9 @@ class ImportSoalExcel
                     }
                 }
 
+                // Soal dari formulir web tidak punya nomor baris.
                 foreach ($lama as $label => $o) {
-                    $opsiHapus[$o->id] = "baris {$data['baris']} ({$soal->kode_soal}) opsi {$label}";
+                    $opsiHapus[$o->id] = "{$soal->kode_soal} opsi {$label}".(isset($data['baris']) ? " (baris {$data['baris']})" : '');
                 }
             }
 
@@ -274,6 +352,80 @@ class ImportSoalExcel
             SQL, [Penguasaan::JENDELA]);
 
         return array_map(fn ($b) => ['kode_subtes' => $b->kode_subtes, 'nama_topik' => $b->nama_topik, 'mudah' => (int) $b->mudah], $baris);
+    }
+
+    /**
+     * Upload dari halaman Bank Soal satu subtes: soal dan topik subtes lain dijadikan error, supaya tidak ikut
+     * tersimpan tanpa disadari editor.
+     *
+     * @param  array<string, mixed>  $hasil  hasil periksa()
+     * @return array<string, mixed>
+     */
+    public static function batasiSubtes(array $hasil, string $kodeSubtes): array
+    {
+        $soal = [];
+        foreach ($hasil['soal'] as $s) {
+            if ($s['kode_subtes'] === $kodeSubtes) {
+                $soal[] = $s;
+            } else {
+                $hasil['error'][] = ['baris' => $s['baris'], 'kolom' => 'Nama Subtes',
+                    'pesan' => "Soal {$s['kode_subtes']} tidak bisa diunggah dari Bank Soal {$kodeSubtes}. Unggah dari halaman Bank Soal {$s['kode_subtes']}."];
+            }
+        }
+
+        foreach ($hasil['topik'] as $t) {
+            if ($t['kode_subtes'] !== $kodeSubtes) {
+                $hasil['error'][] = ['baris' => null, 'kolom' => 'Sheet '.self::NAMA_SHEET_TOPIK,
+                    'pesan' => "Topik \"{$t['nama_topik']}\" milik {$t['kode_subtes']} tidak bisa didaftarkan dari Bank Soal {$kodeSubtes}."];
+            }
+        }
+
+        $hasil['soal'] = $soal;
+        $hasil['topik'] = array_values(array_filter($hasil['topik'], fn ($t) => $t['kode_subtes'] === $kodeSubtes));
+
+        return $hasil;
+    }
+
+    /**
+     * Kelompokkan error atau peringatan yang sama agar laporan tetap ringkas, mis. "Wajib diisi" di baris 3–40.
+     * Dipakai laporan edvora:import-soal dan hasil upload di halaman Bank Soal.
+     *
+     * @param  array<int, array{baris: int|null, kolom: string|null, pesan: string}>  $daftar
+     * @return array<int, array{baris: string, kolom: string, pesan: string}> urut baris pertama; '-' bila tanpa baris/kolom
+     */
+    public static function kelompokkanMasalah(array $daftar): array
+    {
+        return collect($daftar)
+            ->groupBy(fn ($e) => $e['kolom']."\0".$e['pesan'])
+            ->map(fn ($grup) => [
+                'baris' => self::rentangBaris($grup->pluck('baris')->filter()->all()) ?: '-',
+                'kolom' => $grup[0]['kolom'] ?? '-',
+                'pesan' => $grup[0]['pesan'],
+                'urut' => $grup->min('baris') ?? 0,
+            ])
+            ->sortBy('urut')
+            ->map(fn ($e) => Arr::except($e, 'urut'))
+            ->values()
+            ->all();
+    }
+
+    // [3, 4, 5, 9] => "3–5, 9"
+    private static function rentangBaris(array $baris): string
+    {
+        sort($baris);
+        $rentang = [];
+
+        foreach ($baris as $b) {
+            $akhir = array_key_last($rentang);
+
+            if ($akhir !== null && $rentang[$akhir][1] === $b - 1) {
+                $rentang[$akhir][1] = $b;
+            } elseif ($akhir === null || $rentang[$akhir][1] !== $b) {
+                $rentang[] = [$b, $b];
+            }
+        }
+
+        return implode(', ', array_map(fn ($r) => $r[0] === $r[1] ? $r[0] : "{$r[0]}–{$r[1]}", $rentang));
     }
 
     /**
@@ -870,9 +1022,9 @@ class ImportSoalExcel
 
         $jenis = $tipe === 'pilihan_ganda' ? 'opsi' : 'pernyataan';
 
-        // Opsi harus berurutan dari A tanpa ada yang dilewati.
+        // Opsi harus berurutan dari A tanpa ada yang dilewati. Tanpa opsi sama sekali cukup pesan "Minimal 2" di bawah.
         $terakhir = $terisi ? end($terisi) : null;
-        foreach (self::LABEL_OPSI as $label) {
+        foreach ($terakhir === null ? [] : self::LABEL_OPSI as $label) {
             if ($label === $terakhir) {
                 break;
             }

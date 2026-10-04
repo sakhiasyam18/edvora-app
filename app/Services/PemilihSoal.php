@@ -12,7 +12,8 @@ use Random\Randomizer;
  * Soal hanya muncul sekali per siswa: soal yang sudah pernah dijawab di sesi yang selesai, dalam mode apa pun,
  * tidak disajikan lagi di mode fleksibel maupun simulasi. Soal yang dijawab salah nanti dikerjakan ulang
  * lewat mode remedial. Soal yang tampil tetapi tidak dijawab tidak tercatat, jadi tetap bisa muncul lagi.
- * Soal paket Try Out yang belum Ditutup tidak disajikan di latihan (RANCANGAN-tryout.md T9).
+ * Soal paket Try Out yang belum Ditutup tidak disajikan di latihan (RANCANGAN-tryout.md T9), begitu juga soal yang
+ * belum published (Draft dari halaman editor).
  */
 class PemilihSoal
 {
@@ -61,7 +62,7 @@ class PemilihSoal
             select soal.id, soal.topik_id, soal.tingkat_kesulitan::text as tingkat,
                    (select pt.tahap from penguasaan_topik pt where pt.user_id = ? and pt.topik_id = soal.topik_id) as tahap
             from soal
-            where soal.topik_id in (%s) and %s and %s
+            where soal.topik_id in (%s) and soal.status = 'published' and %s and %s
             SQL, $tanda, self::BELUM_DIKERJAKAN, self::bukanSoalTryOutAktif()), [$userId, ...$topikIds, $userId]);
 
         // Topik yang soalnya sudah habis tidak muncul di hasil query; tahapnya tidak berpengaruh.
@@ -87,7 +88,7 @@ class PemilihSoal
         $baris = DB::select(sprintf(<<<'SQL'
             select soal.id, soal.topik_id, soal.tingkat_kesulitan::text as tingkat
             from soal
-            where soal.subtes_id = ? and %s and %s
+            where soal.subtes_id = ? and soal.status = 'published' and %s and %s
             SQL, self::BELUM_DIKERJAKAN, self::bukanSoalTryOutAktif()), [$subtesId, $userId]);
 
         $kandidat = array_map(fn ($b) => ['id' => $b->id, 'topik_id' => $b->topik_id, 'tingkat' => $b->tingkat], $baris);

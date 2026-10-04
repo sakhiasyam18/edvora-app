@@ -36,7 +36,7 @@ class AuthenticatedSessionController extends Controller
         // Admin (UCS6) dan editor (UCS7-9) punya halaman sendiri; siswa ke Beranda.
         $tujuan = match ($request->user()->role) {
             'admin' => route('admin.index', absolute: false),
-            'admin_editor' => route('editor.soal.index', absolute: false),
+            'admin_editor' => route('editor.dashboard', absolute: false),
             default => route('dashboard', absolute: false),
         };
 
