@@ -86,13 +86,14 @@ class ImportSoalExcel
      *     dilewati: int,
      *     jumlah_gambar: int,
      *     jumlah_rumus: int,
+     *     gambar_belum_ada: string[],
      * }
      */
     public function periksa(string $path, ?int $maksBaris = null): array
     {
         $hasil = [
             'sheet' => null, 'peringatan' => [], 'error' => [], 'peringatan_baris' => [], 'soal' => [], 'topik' => [],
-            'dilewati' => 0, 'jumlah_gambar' => 0, 'jumlah_rumus' => 0,
+            'dilewati' => 0, 'jumlah_gambar' => 0, 'jumlah_rumus' => 0, 'gambar_belum_ada' => [],
         ];
 
         // Sel yang hanya berformat tanpa isi tidak dimuat. Template SA diformat sampai ribuan baris; tanpa ini
@@ -239,7 +240,7 @@ class ImportSoalExcel
             }
         }
 
-        $hasil = ['error' => [], 'jumlah_gambar' => 0, 'jumlah_rumus' => 0];
+        $hasil = ['error' => [], 'jumlah_gambar' => 0, 'jumlah_rumus' => 0, 'gambar_belum_ada' => []];
         $this->periksaRumus($rumusDipakai, $hasil);
         $this->periksaLink($tautan, $hasil);
 
@@ -1183,6 +1184,11 @@ class ImportSoalExcel
         foreach ($this->pemeriksaLink->periksa(array_keys($tautan)) as $url => $masalah) {
             if ($masalah === null) {
                 continue;
+            }
+
+            // Gambar yang belum diunggah ditawarkan untuk diunggah dari modal upload Excel.
+            if (PemeriksaLinkGambar::belumAda($masalah)) {
+                $hasil['gambar_belum_ada'][] = (string) $url;
             }
 
             foreach ($tautan[$url] as $pakai) {

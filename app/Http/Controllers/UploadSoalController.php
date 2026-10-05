@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Subtes;
 use App\Services\ImportSoalExcel;
+use App\Services\PengunggahGambarSoal;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -52,7 +53,41 @@ class UploadSoalController extends Controller
             return self::fileTidakTerbaca();
         }
 
-        return response()->json(self::ringkasan($hasil));
+        return response()->json(self::ringkasan($hasil, $subtes->kode_subtes));
+    }
+
+    /**
+     * Langkah 3 modal upload: satu gambar yang disebut Excel tetapi belum ada di Storage, diunggah dengan nama persis
+     * dari Excel. Browser memilih file dari folder yang dipilih editor dan mengirimnya satu per satu.
+     */
+    public function gambar(Request $request, Subtes $subtes, PengunggahGambarSoal $pengunggah): JsonResponse
+    {
+        $data = $request->validate([
+            'path' => ['required', 'string', 'max:200'],
+            'file' => ['required', 'file', 'max:1024'],
+        ], [
+            'path.required' => 'Nama gambar dari Excel tidak terkirim. Muat ulang halaman.',
+            'file.required' => 'Pilih gambar dulu.',
+            'file.uploaded' => 'Gagal diunggah. Ukuran maksimal 1 MB.',
+            'file.file' => 'Gagal diunggah. Ukuran maksimal 1 MB.',
+            'file.max' => 'Ukuran maksimal 1 MB. Kecilkan dulu, mis. dengan squoosh.app.',
+        ]);
+
+        if ($masalah = PengunggahGambarSoal::masalahPathExcel($data['path'], $subtes->kode_subtes)) {
+            return response()->json(['pesan' => $masalah], 422);
+        }
+
+        try {
+            $hasil = $pengunggah->unggahDenganNama($request->file('file')->get(), $data['path']);
+        } catch (Throwable $e) {
+            report($e);
+
+            return response()->json(['pesan' => 'Gagal disimpan ke Storage. Coba lagi; bila terus gagal, hubungi tim BE.'], 502);
+        }
+
+        return $hasil['masalah']
+            ? response()->json(['pesan' => $hasil['masalah']], 422)
+            : response()->json(['url' => $hasil['url']]);
     }
 
     public function simpan(Request $request, Subtes $subtes, ImportSoalExcel $importer): JsonResponse
@@ -63,7 +98,7 @@ class UploadSoalController extends Controller
             return self::fileTidakTerbaca();
         }
 
-        $ringkasan = self::ringkasan($hasil);
+        $ringkasan = self::ringkasan($hasil, $subtes->kode_subtes);
 
         if (! $ringkasan['valid']) {
             return response()->json($ringkasan, 422);
@@ -114,13 +149,21 @@ class UploadSoalController extends Controller
     }
 
     /**
-     * Hasil periksa() untuk modal upload: jumlah soal, masalah yang dikelompokkan, dan peringatan.
+     * Hasil periksa() untuk modal upload: jumlah soal, masalah yang dikelompokkan, peringatan, dan gambar yang
+     * disebut Excel tetapi belum ada di Storage (path relatif bucket, hanya folder subtes ini).
      *
      * @param  array<string, mixed>  $hasil
      * @return array<string, mixed>
      */
-    private static function ringkasan(array $hasil): array
+    private static function ringkasan(array $hasil, string $kodeSubtes): array
     {
+        $dasar = rtrim((string) config('services.supabase.url_gambar_soal'), '/').'/';
+        $gambarKurang = array_values(array_unique(array_filter(
+            array_map(fn ($url) => str_starts_with($url, $dasar) ? substr($url, strlen($dasar)) : '', $hasil['gambar_belum_ada'] ?? []),
+            fn ($path) => PengunggahGambarSoal::masalahPathExcel($path, $kodeSubtes) === null,
+        )));
+        sort($gambarKurang, SORT_NATURAL);
+
         $baru = array_values(array_filter($hasil['soal'], fn ($s) => ! $s['sudah_ada']));
         $diperbarui = array_values(array_filter($hasil['soal'], fn ($s) => $s['sudah_ada']));
         $masalah = ImportSoalExcel::kelompokkanMasalah($hasil['error']);
@@ -138,6 +181,7 @@ class UploadSoalController extends Controller
             'barisError' => count(array_unique(array_filter(array_column($hasil['error'], 'baris')))),
             'jumlahMasalah' => count($masalah),
             'masalah' => array_slice($masalah, 0, self::MAKS_MASALAH),
+            'gambarKurang' => $gambarKurang,
             'peringatan' => [
                 ...$hasil['peringatan'],
                 ...array_map(fn ($p) => "Baris {$p['baris']} ({$p['kolom']}): {$p['pesan']}", ImportSoalExcel::kelompokkanMasalah($hasil['peringatan_baris'])),

@@ -136,6 +136,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('/bank-soal/{subtes:kode_subtes}/upload/periksa', [UploadSoalController::class, 'periksa'])
                 ->middleware('throttle:20,1')
                 ->name('editor.soal.upload.periksa');
+            // Langkah 3 modal upload: gambar yang disebut Excel tetapi belum ada di Storage, satu file per request.
+            Route::post('/bank-soal/{subtes:kode_subtes}/upload/gambar', [UploadSoalController::class, 'gambar'])
+                ->middleware('throttle:300,1')
+                ->name('editor.soal.upload.gambar');
             Route::post('/bank-soal/{subtes:kode_subtes}/upload', [UploadSoalController::class, 'simpan'])
                 ->middleware('throttle:20,1')
                 ->block(60, 60)

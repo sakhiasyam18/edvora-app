@@ -42,6 +42,47 @@ class PengunggahGambarSoal
         return ['url' => rtrim((string) config('services.supabase.url_gambar_soal'), '/').'/'.$path, 'masalah' => null];
     }
 
+    /**
+     * Unggah gambar dengan nama yang sudah ditulis di Excel (mis. PU/PU-104-A.png), untuk gambar yang belum ada di
+     * bucket. File yang sudah ada tidak ditimpa: versi baru harus memakai nama baru (PU-104-A-v2.png).
+     *
+     * @return array{url: string|null, masalah: string|null}
+     */
+    public function unggahDenganNama(string $isi, string $path): array
+    {
+        if ($masalah = PemeriksaLinkGambar::periksaIsi($isi)) {
+            return ['url' => null, 'masalah' => $masalah];
+        }
+
+        $disk = Storage::disk('gambar_soal');
+
+        if ($disk->exists($path)) {
+            return ['url' => null, 'masalah' => 'Sudah ada di Storage dan tidak ditimpa. Untuk versi baru, pakai nama baru (mis. -v2) di Excel.'];
+        }
+
+        $disk->put($path, $isi, [
+            'ContentType' => image_type_to_mime_type(getimagesizefromstring($isi)[2]),
+            'CacheControl' => 'public, max-age=31536000, immutable',
+        ]);
+
+        return ['url' => rtrim((string) config('services.supabase.url_gambar_soal'), '/').'/'.$path, 'masalah' => null];
+    }
+
+    /**
+     * Masalah nama gambar dari Excel yang akan diunggah lewat modal upload, atau null bila sesuai aturan
+     * 1 soal 1 gambar: <kode subtes>/<kode soal>[akhiran].png|jpg|jpeg|webp.
+     */
+    public static function masalahPathExcel(string $path, string $kodeSubtes): ?string
+    {
+        $kode = preg_quote($kodeSubtes, '#');
+
+        if (! preg_match("#^{$kode}/{$kode}-\\d{3,}(?!\\d)[A-Za-z0-9_-]*\\.(png|jpe?g|webp)$#i", $path)) {
+            return "Nama \"{$path}\" tidak sesuai aturan: {$kodeSubtes}/<kode soal>.png, mis. {$kodeSubtes}/{$kodeSubtes}-104-A.png.";
+        }
+
+        return null;
+    }
+
     // ('PU', 'PU-631', 'A', 'png', 'x7k2f9') => "PU/PU-631-A-x7k2f9.png"
     public static function path(string $kodeSubtes, string $kodeSoal, string $bagian, string $ekstensi, string $acak): string
     {
