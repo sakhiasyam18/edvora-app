@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Mail\OtpMail;
+use App\Mail\ResetSandiMail;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -43,6 +44,20 @@ class User extends Authenticatable implements MustVerifyEmail
     public function adminEditor()
     {
         return $this->hasOne(AdminEditor::class, 'user_id', 'id');
+    }
+
+    /**
+     * Nama rute beranda role ini: tujuan setelah login dan saat membuka halaman role lain.
+     * Null untuk role yang tidak punya halaman.
+     */
+    public function ruteBeranda(): ?string
+    {
+        return match ($this->role) {
+            'siswa' => 'dashboard',
+            'admin' => 'admin.index',
+            'admin_editor' => 'editor.dashboard',
+            default => null,
+        };
     }
 
     /**
@@ -88,6 +103,17 @@ class User extends Authenticatable implements MustVerifyEmail
         // 3. Simpan di Cache selama 10 menit menggunakan ID User, beserta waktu kirimnya untuk jeda Kirim Ulang.
         Cache::put('otp_'.$this->id, $otp, now()->addMinutes(10));
         Cache::put('otp_dikirim_'.$this->id, now()->getTimestamp(), self::JEDA_KIRIM_OTP_DETIK);
+    }
+
+    /**
+     * Override email reset sandi bawaan (bahasa Inggris) dengan email berbahasa Indonesia, seperti OTP daftar.
+     */
+    public function sendPasswordResetNotification($token)
+    {
+        $url = route('password.reset', ['token' => $token, 'email' => $this->getEmailForPasswordReset()]);
+        $menitBerlaku = (int) config('auth.passwords.'.config('auth.defaults.passwords').'.expire');
+
+        Mail::to($this->email)->send(new ResetSandiMail($url, $menitBerlaku));
     }
 
     /**

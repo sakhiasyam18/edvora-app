@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Middleware\TolakSesiLogout;
 use App\Http\Requests\Auth\LoginRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -10,6 +11,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class AuthenticatedSessionController extends Controller
 {
@@ -34,11 +36,8 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerate();
 
         // Admin (UCS6) dan editor (UCS7-9) punya halaman sendiri; siswa ke Beranda.
-        $tujuan = match ($request->user()->role) {
-            'admin' => route('admin.index', absolute: false),
-            'admin_editor' => route('editor.dashboard', absolute: false),
-            default => route('dashboard', absolute: false),
-        };
+        // URL intended milik role lain dibelokkan PastikanPeran ke beranda role ini.
+        $tujuan = route($request->user()->ruteBeranda() ?? 'dashboard', absolute: false);
 
         return redirect()->intended($tujuan);
     }
@@ -46,14 +45,19 @@ class AuthenticatedSessionController extends Controller
     /**
      * Destroy an authenticated session.
      */
-    public function destroy(Request $request): RedirectResponse
+    public function destroy(Request $request): SymfonyResponse
     {
+        // Request lama yang selesai setelah logout bisa menghidupkan lagi sesi ini; TolakSesiLogout menolaknya.
+        TolakSesiLogout::tandai($request->session()->getId());
+
         Auth::guard('web')->logout();
 
         $request->session()->invalidate();
 
         $request->session()->regenerateToken();
 
-        return redirect('/');
+        // Muat ulang penuh, bukan kunjungan Inertia: cache prefetch dan state halaman akun lama
+        // ada di memori browser dan bisa tampil ke akun berikutnya selama 30 detik.
+        return Inertia::location(url('/'));
     }
 }

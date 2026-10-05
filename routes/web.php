@@ -35,10 +35,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/biodata', [BiodataController::class, 'simpan'])->name('biodata.simpan');
 
     // ==========================================
-    // LEVEL 2: Wajib Login, Email Verified, & Biodata Lengkap
-    // (Akses ke aplikasi utama dan profil)
+    // LEVEL 2 SISWA: Wajib Login, Email Verified, Role Siswa, & Biodata Lengkap
+    // (Admin/editor yang membuka halaman ini diarahkan ke berandanya sendiri oleh PastikanPeran)
     // ==========================================
-    Route::middleware(['biodata.lengkap'])->group(function () {
+    Route::middleware(['peran:siswa', 'biodata.lengkap'])->group(function () {
 
         // Dasbor Utama
         Route::get('/dashboard', [BerandaController::class, 'index'])->name('dashboard');
@@ -107,54 +107,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('/simpan', [JadwalController::class, 'simpan'])->name('jadwal.simpan');
         });
 
-        // Rute Admin (UCS6 Mengelola User): hanya role admin; role lain mendapat 403.
-        Route::prefix('admin')->middleware('peran:admin')->group(function () {
-            // Dashboard Admin: jumlah siswa/editor, siswa aktif hari ini, audit log admin dan editor.
-            Route::get('/', [DashboardController::class, 'index'])->name('admin.index');
-
-            // Daftar User. whereUuid: id yang bukan UUID langsung 404, bukan error query Postgres.
-            Route::prefix('users')->name('admin.user.')->group(function () {
-                Route::get('/', [UserController::class, 'index'])->name('index');
-                Route::post('/editor', [UserController::class, 'tambahEditor'])->name('tambahEditor');
-                Route::put('/{user}/reset-password', [UserController::class, 'resetPassword'])->whereUuid('user')->name('resetPassword');
-                Route::put('/{user}/nonaktifkan', [UserController::class, 'nonaktifkan'])->whereUuid('user')->name('nonaktifkan');
-                Route::put('/{user}/aktifkan', [UserController::class, 'aktifkan'])->whereUuid('user')->name('aktifkan');
-                Route::delete('/{user}', [UserController::class, 'hapus'])->whereUuid('user')->name('hapus');
-            });
-        });
-
-        // Rute Editor (UCS7 Bank Soal, UCS8 Paket Try Out, UCS9 Dashboard Analitik): hanya role admin_editor.
-        Route::prefix('editor')->middleware('peran:admin_editor')->group(function () {
-            Route::get('/', [AdminSoalController::class, 'dashboard'])->name('editor.dashboard');
-            Route::get('/analitik', [AnalitikController::class, 'index'])->name('editor.analitik');
-
-            // Bank soal per subtes; kode subtes tak dikenal → 404.
-            Route::get('/bank-soal/template', [UploadSoalController::class, 'template'])->name('editor.soal.template');
-            Route::get('/bank-soal/{subtes:kode_subtes}', [AdminSoalController::class, 'index'])->name('editor.soal.index');
-            Route::get('/bank-soal/{subtes:kode_subtes}/tambah', [AdminSoalController::class, 'tambah'])->name('editor.soal.tambah');
-            Route::post('/bank-soal/{subtes:kode_subtes}', [AdminSoalController::class, 'simpan'])->name('editor.soal.simpan');
-            // Upload Excel: periksa dulu, lalu kirim ulang file yang sama untuk disimpan (JSON, dipanggil dari modal).
-            Route::post('/bank-soal/{subtes:kode_subtes}/upload/periksa', [UploadSoalController::class, 'periksa'])
-                ->middleware('throttle:20,1')
-                ->name('editor.soal.upload.periksa');
-            // Langkah 3 modal upload: gambar yang disebut Excel tetapi belum ada di Storage, satu file per request.
-            Route::post('/bank-soal/{subtes:kode_subtes}/upload/gambar', [UploadSoalController::class, 'gambar'])
-                ->middleware('throttle:300,1')
-                ->name('editor.soal.upload.gambar');
-            Route::post('/bank-soal/{subtes:kode_subtes}/upload', [UploadSoalController::class, 'simpan'])
-                ->middleware('throttle:20,1')
-                ->block(60, 60)
-                ->name('editor.soal.upload');
-            // Unggah satu gambar dari formulir soal (JSON); link hasilnya diisi ke kolom URL gambar.
-            Route::post('/bank-soal/{subtes:kode_subtes}/gambar', [GambarSoalController::class, 'unggah'])
-                ->middleware('throttle:60,1')
-                ->name('editor.soal.gambar');
-
-            Route::get('/soal/{soal:kode_soal}/edit', [AdminSoalController::class, 'edit'])->name('editor.soal.edit');
-            Route::put('/soal/{soal:kode_soal}', [AdminSoalController::class, 'ubah'])->name('editor.soal.ubah');
-            Route::patch('/soal/{soal:kode_soal}/status', [AdminSoalController::class, 'ubahStatus'])->name('editor.soal.status');
-        });
-
         // Rute Try Out (RANCANGAN-tryout.md 5.1). whereUuid: id yang bukan UUID langsung 404, bukan error query Postgres.
         Route::prefix('tryout')->group(function () {
             Route::get('/', [TryOutController::class, 'index'])->name('tryout.index');
@@ -167,16 +119,63 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/{tryOut}/pembahasan/{urutan}', [TryOutController::class, 'pembahasan'])->whereUuid('tryOut')->where('urutan', '[0-9]{1,3}')->name('tryout.pembahasan');
             Route::get('/{tryOut}/peringkat', [TryOutController::class, 'peringkat'])->whereUuid('tryOut')->name('tryout.peringkat');
         });
+    });
 
-        Route::prefix('editor')->name('editor.')->middleware(['peran:admin_editor'])->group(function () {
-            Route::get('/tryout', [EditorTryOutEditorController::class, 'index'])->name('tryout.index');
-            Route::get('/tryout/tambah', [EditorTryOutEditorController::class, 'create'])->name('tryout.tambah');
-            Route::post('/tryout', [EditorTryOutEditorController::class, 'store'])->name('tryout.store');
-            Route::get('/tryout/{id}/edit', [EditorTryOutEditorController::class, 'edit'])->name('tryout.edit');
-            Route::put('/tryout/{id}', [EditorTryOutEditorController::class, 'update'])->name('tryout.update');
-            Route::delete('/tryout/{id}', [EditorTryOutEditorController::class, 'destroy'])->name('tryout.destroy');
+    // Rute Admin (UCS6 Mengelola User): hanya role admin; role lain diarahkan ke berandanya (GET) atau 403.
+    Route::prefix('admin')->middleware('peran:admin')->group(function () {
+        // Dashboard Admin: jumlah siswa/editor, siswa aktif hari ini, audit log admin dan editor.
+        Route::get('/', [DashboardController::class, 'index'])->name('admin.index');
+
+        // Daftar User. whereUuid: id yang bukan UUID langsung 404, bukan error query Postgres.
+        Route::prefix('users')->name('admin.user.')->group(function () {
+            Route::get('/', [UserController::class, 'index'])->name('index');
+            Route::post('/editor', [UserController::class, 'tambahEditor'])->name('tambahEditor');
+            Route::put('/{user}/reset-password', [UserController::class, 'resetPassword'])->whereUuid('user')->name('resetPassword');
+            Route::put('/{user}/nonaktifkan', [UserController::class, 'nonaktifkan'])->whereUuid('user')->name('nonaktifkan');
+            Route::put('/{user}/aktifkan', [UserController::class, 'aktifkan'])->whereUuid('user')->name('aktifkan');
+            Route::delete('/{user}', [UserController::class, 'hapus'])->whereUuid('user')->name('hapus');
         });
+    });
+
+    // Rute Editor (UCS7 Bank Soal, UCS8 Paket Try Out, UCS9 Dashboard Analitik): hanya role admin_editor.
+    Route::prefix('editor')->middleware('peran:admin_editor')->group(function () {
+        Route::get('/', [AdminSoalController::class, 'dashboard'])->name('editor.dashboard');
+        Route::get('/analitik', [AnalitikController::class, 'index'])->name('editor.analitik');
+
+        // Bank soal per subtes; kode subtes tak dikenal → 404.
+        Route::get('/bank-soal/template', [UploadSoalController::class, 'template'])->name('editor.soal.template');
+        Route::get('/bank-soal/{subtes:kode_subtes}', [AdminSoalController::class, 'index'])->name('editor.soal.index');
+        Route::get('/bank-soal/{subtes:kode_subtes}/tambah', [AdminSoalController::class, 'tambah'])->name('editor.soal.tambah');
+        Route::post('/bank-soal/{subtes:kode_subtes}', [AdminSoalController::class, 'simpan'])->name('editor.soal.simpan');
+        // Upload Excel: periksa dulu, lalu kirim ulang file yang sama untuk disimpan (JSON, dipanggil dari modal).
+        Route::post('/bank-soal/{subtes:kode_subtes}/upload/periksa', [UploadSoalController::class, 'periksa'])
+            ->middleware('throttle:20,1')
+            ->name('editor.soal.upload.periksa');
+        // Langkah 3 modal upload: gambar yang disebut Excel tetapi belum ada di Storage, satu file per request.
+        Route::post('/bank-soal/{subtes:kode_subtes}/upload/gambar', [UploadSoalController::class, 'gambar'])
+            ->middleware('throttle:300,1')
+            ->name('editor.soal.upload.gambar');
+        Route::post('/bank-soal/{subtes:kode_subtes}/upload', [UploadSoalController::class, 'simpan'])
+            ->middleware('throttle:20,1')
+            ->block(60, 60)
+            ->name('editor.soal.upload');
+        // Unggah satu gambar dari formulir soal (JSON); link hasilnya diisi ke kolom URL gambar.
+        Route::post('/bank-soal/{subtes:kode_subtes}/gambar', [GambarSoalController::class, 'unggah'])
+            ->middleware('throttle:60,1')
+            ->name('editor.soal.gambar');
+
+        Route::get('/soal/{soal:kode_soal}/edit', [AdminSoalController::class, 'edit'])->name('editor.soal.edit');
+        Route::put('/soal/{soal:kode_soal}', [AdminSoalController::class, 'ubah'])->name('editor.soal.ubah');
+        Route::patch('/soal/{soal:kode_soal}/status', [AdminSoalController::class, 'ubahStatus'])->name('editor.soal.status');
+
+        // Paket Try Out (UCS8). whereUuid: id yang bukan UUID langsung 404, bukan error query Postgres.
+        Route::get('/tryout', [EditorTryOutEditorController::class, 'index'])->name('editor.tryout.index');
+        Route::get('/tryout/tambah', [EditorTryOutEditorController::class, 'create'])->name('editor.tryout.tambah');
+        Route::post('/tryout', [EditorTryOutEditorController::class, 'store'])->name('editor.tryout.store');
+        Route::get('/tryout/{id}/edit', [EditorTryOutEditorController::class, 'edit'])->whereUuid('id')->name('editor.tryout.edit');
+        Route::put('/tryout/{id}', [EditorTryOutEditorController::class, 'update'])->whereUuid('id')->name('editor.tryout.update');
+        Route::delete('/tryout/{id}', [EditorTryOutEditorController::class, 'destroy'])->whereUuid('id')->name('editor.tryout.destroy');
     });
 });
 
-require __DIR__ . '/auth.php';
+require __DIR__.'/auth.php';
