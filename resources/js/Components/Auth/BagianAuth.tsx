@@ -152,3 +152,27 @@ export function PesanStatus({ children }: { children: ReactNode }) {
         </div>
     );
 }
+
+// Tautan kembali di bawah kartu auth: teks putih dengan panah yang bergeser saat di-hover.
+export function TautanKembali({ href, label }: { href: string; label: string }) {
+    return (
+        <Link
+            href={href}
+            className="group mt-5 inline-flex animate-muncul-halus items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white transition-colors duration-150 [animation-delay:160ms] [animation-fill-mode:both] hover:bg-white/15"
+        >
+            <svg
+                className="h-[18px] w-[18px] transition-transform duration-200 group-hover:-translate-x-1"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2.4}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+            >
+                <path d="M19 12H5M11 6l-6 6 6 6" />
+            </svg>
+            {label}
+        </Link>
+    );
+}

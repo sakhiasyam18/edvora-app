@@ -1,6 +1,6 @@
 import { FormEventHandler } from 'react';
-import { Link, useForm } from '@inertiajs/react';
-import { HalamanAuth, KartuAuth, KELAS_TOMBOL_UTAMA, KolomAuth, PesanStatus } from '@/Components/Auth/BagianAuth';
+import { useForm } from '@inertiajs/react';
+import { HalamanAuth, KartuAuth, KELAS_TOMBOL_UTAMA, KolomAuth, PesanStatus, TautanKembali } from '@/Components/Auth/BagianAuth';
 
 // Minta tautan ubah sandi lewat email, dengan tampilan yang sama dengan Login, Daftar, dan Verifikasi Email.
 export default function ForgotPassword({ status }: { status?: string }) {
@@ -83,24 +83,7 @@ export default function ForgotPassword({ status }: { status?: string }) {
             </KartuAuth>
 
             {/* Kembali ke halaman Login, di bawah kartu supaya tidak bersaing dengan tombol formulir. */}
-            <Link
-                href={route('login')}
-                className="group mt-5 inline-flex animate-muncul-halus items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white transition-colors duration-150 [animation-delay:160ms] [animation-fill-mode:both] hover:bg-white/15"
-            >
-                <svg
-                    className="h-[18px] w-[18px] transition-transform duration-200 group-hover:-translate-x-1"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={2.4}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                >
-                    <path d="M19 12H5M11 6l-6 6 6 6" />
-                </svg>
-                Kembali ke halaman Login
-            </Link>
+            <TautanKembali href={route('login')} label="Kembali ke halaman Login" />
         </HalamanAuth>
     );
 }
