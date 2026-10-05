@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\AdminSoalController;
+use App\Http\Controllers\AnalitikController;
 use App\Http\Controllers\BattleController;
 use App\Http\Controllers\BerandaController;
 use App\Http\Controllers\BiodataController;
@@ -124,6 +125,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // Rute Editor (UCS7 Bank Soal, UCS8 Paket Try Out, UCS9 Dashboard Analitik): hanya role admin_editor.
         Route::prefix('editor')->middleware('peran:admin_editor')->group(function () {
             Route::get('/', [AdminSoalController::class, 'dashboard'])->name('editor.dashboard');
+            Route::get('/analitik', [AnalitikController::class, 'index'])->name('editor.analitik');
 
             // Bank soal per subtes; kode subtes tak dikenal → 404.
             Route::get('/bank-soal/template', [UploadSoalController::class, 'template'])->name('editor.soal.template');

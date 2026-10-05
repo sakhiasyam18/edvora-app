@@ -95,15 +95,19 @@ function Sidebar({ menuBankSoal, subtesAktif }: { menuBankSoal: MenuSubtes[]; su
                     </ul>
                 )}
 
-                {/* Halamannya belum dibuat (UCS8 dan UCS9). */}
+                {/* Halamannya belum dibuat (UCS8). */}
                 <span aria-disabled="true" title="Segera hadir" className={`${KELAS_BARIS} cursor-not-allowed opacity-60`}>
                     <IkonMenu d="M9 4h6v3H9zM7 5.5H5.5A1.5 1.5 0 004 7v12.5A1.5 1.5 0 005.5 21h13a1.5 1.5 0 001.5-1.5V7a1.5 1.5 0 00-1.5-1.5H17M8.5 13l2.5 2.5 4.5-4.5" />
                     Paket Try Out
                 </span>
-                <span aria-disabled="true" title="Segera hadir" className={`${KELAS_BARIS} cursor-not-allowed opacity-60`}>
+                <Link
+                    href={route('editor.analitik')}
+                    aria-current={route().current('editor.analitik') ? 'page' : undefined}
+                    className={`${KELAS_BARIS} transition ${route().current('editor.analitik') ? KELAS_AKTIF : 'hover:bg-white/10'}`}
+                >
                     <IkonMenu d="M5 20V11M12 20V4M19 20v-6M3 20h18" />
                     Analitik
-                </span>
+                </Link>
             </nav>
         </aside>
     );
