@@ -21,7 +21,7 @@ class RingkasanPenguasaan
     {
         $baris = DB::select(<<<'SQL'
             select t.id, t.subtes_id, t.nama_topik, t.urutan, t.jumlah_soal_simulasi, s.jumlah_soal as jumlah_soal_subtes,
-                   exists (select 1 from soal q where q.topik_id = t.id) as ada_soal,
+                   exists (select 1 from soal q where q.topik_id = t.id and q.status = 'published') as ada_soal,
                    pt.tahap, pt.skor, pt.skor_sementara, pt.n_jendela, pt.n_di_tahap
             from topik t
             join subtes s on s.id = t.subtes_id

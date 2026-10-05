@@ -10,7 +10,7 @@ use Random\Randomizer;
  * Soal remedial siswa per subtes (RANCANGAN-penyesuaian-sdd.md bagian 6): soal yang pernah dijawab salah di
  * fleksibel atau simulasi dan belum pernah dijawab benar. Daftarnya tidak dibatasi dan dihitung dari log
  * jawaban, tanpa tabel status (K5). Jawaban Try Out (mode_latihan null) tidak ikut. Soal paket Try Out yang
- * belum Ditutup juga tidak ikut.
+ * belum Ditutup juga tidak ikut, begitu pula soal yang dikembalikan ke Draft oleh editor (mis. sedang diperbaiki).
  */
 class SoalRemedial
 {
@@ -35,7 +35,7 @@ class SoalRemedial
         select q.id, q.subtes_id, q.kode_soal, js.salah_terakhir
         from jawaban_siswa js
         join soal q on q.id = js.soal_id
-        where js.salah_di_latihan and not js.pernah_benar
+        where js.salah_di_latihan and not js.pernah_benar and q.status = 'published'
         SQL;
 
     // Daftar remedial sebagai subquery bernama "remedial". Soal paket Try Out yang belum Ditutup tidak ikut
