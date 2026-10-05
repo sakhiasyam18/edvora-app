@@ -81,6 +81,7 @@ export interface HasilPeriksaUpload {
     barisError: number;
     jumlahMasalah: number;
     masalah: MasalahUpload[]; // maksimal 50 kelompok
+    gambarKurang: string[]; // gambar yang disebut Excel tetapi belum ada di Storage, mis. 'PU/PU-104-A.png'
     peringatan: string[];
 }
 

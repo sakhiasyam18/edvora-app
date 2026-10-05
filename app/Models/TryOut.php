@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\TryOutSoal;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -80,4 +81,10 @@ class TryOut extends Model
     {
         return $this->hasMany(TryOutSubtes::class, 'try_out_id')->orderBy('urutan');
     }
+
+    public function pengerjaan()
+    {
+        return $this->hasMany(Pengerjaan::class, 'try_out_id');
+    }
+
 }

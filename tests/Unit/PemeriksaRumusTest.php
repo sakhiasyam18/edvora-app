@@ -28,6 +28,23 @@ class PemeriksaRumusTest extends TestCase
         $this->assertNull($hasil['\$5 + \$3']);
     }
 
+    public function test_tetap_jalan_tanpa_systemroot_seperti_di_php_artisan_serve(): void
+    {
+        if (PHP_OS_FAMILY !== 'Windows' || ! is_file(base_path('node_modules/katex/package.json')) || Process::run(['node', '--version'])->failed()) {
+            $this->markTestSkipped('Hanya relevan di Windows dengan Node.js dan KaTeX terpasang.');
+        }
+
+        // php artisan serve membuang SystemRoot; tanpa itu Node di Windows crash (ncrypto::CSPRNG).
+        $asli = getenv('SystemRoot');
+        putenv('SystemRoot');
+
+        try {
+            $this->assertSame(['x^2' => null], (new PemeriksaRumus)->periksa(['x^2']));
+        } finally {
+            putenv("SystemRoot={$asli}");
+        }
+    }
+
     public function test_node_yang_gagal_dijalankan_dilaporkan_sebagai_exception(): void
     {
         Process::fake(['*' => Process::result(errorOutput: "'node' is not recognized", exitCode: 1)]);

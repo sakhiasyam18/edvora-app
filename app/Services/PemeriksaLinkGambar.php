@@ -27,6 +27,15 @@ class PemeriksaLinkGambar
     // Jumlah link yang diunduh bersamaan.
     private const SEKALIGUS = 10;
 
+    // Awal pesan untuk link yang file-nya tidak ada di Storage (Supabase menjawab 400/404).
+    private const PESAN_BELUM_ADA = 'File tidak ditemukan di Storage';
+
+    // Apakah pesan dari periksa() berarti file-nya belum diunggah, bukan isi gambarnya yang bermasalah.
+    public static function belumAda(string $pesan): bool
+    {
+        return str_starts_with($pesan, self::PESAN_BELUM_ADA);
+    }
+
     /**
      * Setiap link diunduh sekali walau dipakai beberapa soal.
      *
@@ -124,7 +133,7 @@ class PemeriksaLinkGambar
         }
 
         if (! $respons->successful()) {
-            return "File tidak ditemukan di Storage (HTTP {$respons->status()}). Pastikan sudah diunggah, dan nama folder/file di link sama persis, termasuk huruf besar/kecil.";
+            return self::PESAN_BELUM_ADA." (HTTP {$respons->status()}). Pastikan sudah diunggah, dan nama folder/file di link sama persis, termasuk huruf besar/kecil.";
         }
 
         return self::periksaIsi($respons->body());

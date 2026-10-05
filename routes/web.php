@@ -2,7 +2,9 @@
 
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\AdminEditor\EditorTryOutEditorController;
 use App\Http\Controllers\AdminSoalController;
+use App\Http\Controllers\AnalitikController;
 use App\Http\Controllers\BattleController;
 use App\Http\Controllers\BerandaController;
 use App\Http\Controllers\BiodataController;
@@ -138,6 +140,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Rute Editor (UCS7 Bank Soal, UCS8 Paket Try Out, UCS9 Dashboard Analitik): hanya role admin_editor.
     Route::prefix('editor')->middleware('peran:admin_editor')->group(function () {
         Route::get('/', [AdminSoalController::class, 'dashboard'])->name('editor.dashboard');
+        Route::get('/analitik', [AnalitikController::class, 'index'])->name('editor.analitik');
 
         // Bank soal per subtes; kode subtes tak dikenal → 404.
         Route::get('/bank-soal/template', [UploadSoalController::class, 'template'])->name('editor.soal.template');
@@ -148,6 +151,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/bank-soal/{subtes:kode_subtes}/upload/periksa', [UploadSoalController::class, 'periksa'])
             ->middleware('throttle:20,1')
             ->name('editor.soal.upload.periksa');
+        // Langkah 3 modal upload: gambar yang disebut Excel tetapi belum ada di Storage, satu file per request.
+        Route::post('/bank-soal/{subtes:kode_subtes}/upload/gambar', [UploadSoalController::class, 'gambar'])
+            ->middleware('throttle:300,1')
+            ->name('editor.soal.upload.gambar');
         Route::post('/bank-soal/{subtes:kode_subtes}/upload', [UploadSoalController::class, 'simpan'])
             ->middleware('throttle:20,1')
             ->block(60, 60)
@@ -160,6 +167,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/soal/{soal:kode_soal}/edit', [AdminSoalController::class, 'edit'])->name('editor.soal.edit');
         Route::put('/soal/{soal:kode_soal}', [AdminSoalController::class, 'ubah'])->name('editor.soal.ubah');
         Route::patch('/soal/{soal:kode_soal}/status', [AdminSoalController::class, 'ubahStatus'])->name('editor.soal.status');
+
+        // Paket Try Out (UCS8). whereUuid: id yang bukan UUID langsung 404, bukan error query Postgres.
+        Route::get('/tryout', [EditorTryOutEditorController::class, 'index'])->name('editor.tryout.index');
+        Route::get('/tryout/tambah', [EditorTryOutEditorController::class, 'create'])->name('editor.tryout.tambah');
+        Route::post('/tryout', [EditorTryOutEditorController::class, 'store'])->name('editor.tryout.store');
+        Route::get('/tryout/{id}/edit', [EditorTryOutEditorController::class, 'edit'])->whereUuid('id')->name('editor.tryout.edit');
+        Route::put('/tryout/{id}', [EditorTryOutEditorController::class, 'update'])->whereUuid('id')->name('editor.tryout.update');
+        Route::delete('/tryout/{id}', [EditorTryOutEditorController::class, 'destroy'])->whereUuid('id')->name('editor.tryout.destroy');
     });
 });
 

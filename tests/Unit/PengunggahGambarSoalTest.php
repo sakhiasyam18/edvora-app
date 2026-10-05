@@ -3,7 +3,9 @@
 namespace Tests\Unit;
 
 use App\Services\ImportSoalExcel;
+use App\Services\PemeriksaLinkGambar;
 use App\Services\PengunggahGambarSoal;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -63,6 +65,43 @@ class PengunggahGambarSoalTest extends TestCase
         $this->assertNull($hasil['url']);
         $this->assertStringStartsWith('Bukan gambar PNG, JPG, atau WebP', $hasil['masalah']);
         $this->assertSame([], Storage::disk('gambar_soal')->allFiles());
+    }
+
+    public function test_nama_gambar_dari_excel_harus_sesuai_aturan(): void
+    {
+        foreach (['PU/PU-104.png', 'PU/PU-104-A.png', 'PU/PU-104-pembahasan.JPG', 'PU/PU-1040-v2.webp'] as $path) {
+            $this->assertNull(PengunggahGambarSoal::masalahPathExcel($path, 'PU'), $path);
+        }
+
+        foreach (['PK/PK-104.png', 'PU/PK-104.png', 'PU/stimulus.png', 'PU/PU-10.png', 'PU/../PU-104.png', 'PU/PU-104.gif', 'PU/sub/PU-104.png'] as $path) {
+            $this->assertNotNull(PengunggahGambarSoal::masalahPathExcel($path, 'PU'), $path);
+        }
+    }
+
+    public function test_unggah_dengan_nama_excel_tidak_menimpa_file_lama(): void
+    {
+        Storage::fake('gambar_soal');
+        config(['services.supabase.url_gambar_soal' => self::DASAR]);
+        $pengunggah = new PengunggahGambarSoal;
+
+        $pertama = $pengunggah->unggahDenganNama($this->gambar('png'), 'PU/PU-104-A.png');
+        $kedua = $pengunggah->unggahDenganNama($this->gambar('png'), 'PU/PU-104-A.png');
+
+        $this->assertSame(self::DASAR.'/PU/PU-104-A.png', $pertama['url']);
+        $this->assertNull($kedua['url']);
+        $this->assertStringContainsString('tidak ditimpa', $kedua['masalah']);
+        $this->assertStringStartsWith('Bukan gambar', $pengunggah->unggahDenganNama('bukan gambar', 'PU/PU-105.png')['masalah']);
+    }
+
+    public function test_pesan_file_belum_ada_dikenali(): void
+    {
+        Http::fake(['*' => Http::response('', 400)]);
+        $url = self::DASAR.'/PU/PU-104.png';
+
+        $pesan = (new PemeriksaLinkGambar)->periksa([$url])[$url];
+
+        $this->assertTrue(PemeriksaLinkGambar::belumAda($pesan));
+        $this->assertFalse(PemeriksaLinkGambar::belumAda('Ukuran file 1,5 MB, maksimal 1 MB.'));
     }
 
     private function gambar(string $format): string

@@ -28,7 +28,8 @@ class PemeriksaRumus
             return [];
         }
 
-        $proses = Process::input(json_encode($rumus, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE))
+        $proses = Process::env(self::envNode())
+            ->input(json_encode($rumus, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE))
             ->timeout(120)
             ->run(['node', base_path('scripts/periksa-rumus.cjs')]);
 
@@ -43,5 +44,21 @@ class PemeriksaRumus
         }
 
         return array_combine($rumus, $pesan);
+    }
+
+    /**
+     * Di Windows, Node butuh SystemRoot untuk menyiapkan pembangkit angka acaknya; tanpa itu Node langsung berhenti
+     * dengan "Assertion failed: ncrypto::CSPRNG". `php artisan serve` membuang variabel ini dari request web, karena
+     * daftar izinnya menulis SYSTEMROOT sedangkan nama aslinya SystemRoot. Jadi variabelnya selalu dikirim ulang.
+     *
+     * @return array<string, string>
+     */
+    private static function envNode(): array
+    {
+        if (PHP_OS_FAMILY !== 'Windows') {
+            return [];
+        }
+
+        return ['SystemRoot' => getenv('SystemRoot') ?: getenv('SYSTEMROOT') ?: getenv('windir') ?: 'C:\\Windows'];
     }
 }
