@@ -31,21 +31,26 @@ class PasswordResetLinkController extends Controller
     {
         $request->validate([
             'email' => 'required|email',
+        ], [
+            'email.required' => 'Email wajib diisi.',
+            'email.email' => 'Format email tidak valid.',
         ]);
 
-        // We will send the password reset link to this user. Once we have attempted
-        // to send the link, we will examine the response then see the message we
-        // need to show to the user. Finally, we'll send out a proper response.
+        // Email tautan dikirim User::sendPasswordResetNotification(); pesan status broker diterjemahkan di sini.
         $status = Password::sendResetLink(
             $request->only('email')
         );
 
         if ($status == Password::RESET_LINK_SENT) {
-            return back()->with('status', __($status));
+            return back()->with('status', 'Tautan ubah kata sandi sudah dikirim ke email Anda.');
         }
 
         throw ValidationException::withMessages([
-            'email' => [trans($status)],
+            'email' => [match ($status) {
+                Password::INVALID_USER => 'Email ini tidak terdaftar.',
+                Password::RESET_THROTTLED => 'Tautan baru saja dikirim. Tunggu sebentar sebelum meminta lagi.',
+                default => trans($status),
+            }],
         ]);
     }
 }

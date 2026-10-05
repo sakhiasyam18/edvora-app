@@ -16,6 +16,8 @@ use Inertia\Response;
 
 class NewPasswordController extends Controller
 {
+    private const PESAN_TAUTAN_TIDAK_VALID = 'Tautan ubah kata sandi tidak valid atau sudah kedaluwarsa. Silakan minta tautan baru.';
+
     /**
      * Display the password reset view.
      */
@@ -36,10 +38,17 @@ class NewPasswordController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        // Email dan token berasal dari tautan (tidak diketik user), jadi kesalahannya ditampilkan sebagai tautan tidak valid.
         $request->validate([
             'token' => 'required',
             'email' => 'required|email',
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
+        ], [
+            'email.required' => self::PESAN_TAUTAN_TIDAK_VALID,
+            'email.email' => self::PESAN_TAUTAN_TIDAK_VALID,
+            'password.required' => 'Kata sandi wajib diisi.',
+            'password.confirmed' => 'Konfirmasi kata sandi tidak cocok.',
+            'password.min' => 'Kata sandi minimal 8 karakter.',
         ]);
 
         // Here we will attempt to reset the user's password. If it is successful we
@@ -65,7 +74,11 @@ class NewPasswordController extends Controller
         }
 
         throw ValidationException::withMessages([
-            'email' => [trans($status)],
+            'email' => [match ($status) {
+                Password::INVALID_TOKEN => self::PESAN_TAUTAN_TIDAK_VALID,
+                Password::INVALID_USER => 'Email ini tidak terdaftar.',
+                default => trans($status),
+            }],
         ]);
     }
 }
