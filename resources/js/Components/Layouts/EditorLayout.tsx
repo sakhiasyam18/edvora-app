@@ -1,5 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import { ReactNode, useState } from 'react';
+import FlashPesan from '@/Components/Editor/FlashPesan';
 import LambangEdvora from './LambangEdvora';
 
 interface MenuSubtes {
@@ -34,7 +35,11 @@ export default function EditorLayout({ breadcrumb, subtesAktif, children }: Edit
 
             <div className="flex min-w-0 flex-1 flex-col">
                 <Topbar breadcrumb={breadcrumb} nama={nama} />
-                <main className="flex-1 px-4 py-6 md:px-10 md:py-8">{children}</main>
+                <main className="flex-1 px-4 py-6 md:px-10 md:py-8">
+                    {/* Pesan ->with('sukses'/'gagal') dari halaman Paket Try Out. */}
+                    <FlashPesan />
+                    {children}
+                </main>
             </div>
         </div>
     );
@@ -95,11 +100,14 @@ function Sidebar({ menuBankSoal, subtesAktif }: { menuBankSoal: MenuSubtes[]; su
                     </ul>
                 )}
 
-                {/* Halamannya belum dibuat (UCS8). */}
-                <span aria-disabled="true" title="Segera hadir" className={`${KELAS_BARIS} cursor-not-allowed opacity-60`}>
+                <Link
+                    href={route('editor.tryout.index')}
+                    aria-current={route().current('editor.tryout.*') ? 'page' : undefined}
+                    className={`${KELAS_BARIS} transition ${route().current('editor.tryout.*') ? KELAS_AKTIF : 'hover:bg-white/10'}`}
+                >
                     <IkonMenu d="M9 4h6v3H9zM7 5.5H5.5A1.5 1.5 0 004 7v12.5A1.5 1.5 0 005.5 21h13a1.5 1.5 0 001.5-1.5V7a1.5 1.5 0 00-1.5-1.5H17M8.5 13l2.5 2.5 4.5-4.5" />
                     Paket Try Out
-                </span>
+                </Link>
                 <Link
                     href={route('editor.analitik')}
                     aria-current={route().current('editor.analitik') ? 'page' : undefined}
