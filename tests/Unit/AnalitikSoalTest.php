@@ -3,28 +3,56 @@
 namespace Tests\Unit;
 
 use App\Services\AnalitikSoal;
+use Illuminate\Support\Carbon;
 use PHPUnit\Framework\TestCase;
 
-/**
- * Aturan butir bermasalah di Dashboard Analitik editor.
- */
+
 class AnalitikSoalTest extends TestCase
 {
-    public function test_butir_wajar_tidak_bermasalah(): void
+    public function test_topik_kurang_bila_salah_satu_tingkat_di_bawah_target(): void
     {
-        $this->assertNull(AnalitikSoal::alasanBermasalah(0.517, null));
-        $this->assertNull(AnalitikSoal::alasanBermasalah(0.10, 1.2));
-        $this->assertNull(AnalitikSoal::alasanBermasalah(0.95, AnalitikSoal::IRT_A_RENDAH));
+        $stok = [
+            ['kodeSubtes' => 'PU', 'topik' => 'Logika', 'mudah' => 25, 'sedang' => 20, 'sulit' => 15],
+            ['kodeSubtes' => 'PU', 'topik' => 'Pola', 'mudah' => 10, 'sedang' => 9, 'sulit' => 0],
+        ];
+
+        $this->assertSame(
+            [['kodeSubtes' => 'PU', 'topik' => 'Pola', 'kurang' => ['sedang' => 1, 'sulit' => 10]]],
+            AnalitikSoal::kekuranganTopik($stok),
+        );
     }
 
-    public function test_hampir_semua_salah_atau_benar(): void
+    public function test_rata_penguasaan_hanya_dari_siswa_yang_punya_skor(): void
     {
-        $this->assertSame('Hampir semua siswa salah (5,0% benar). Cek kuncinya.', AnalitikSoal::alasanBermasalah(0.05, null));
-        $this->assertSame('Hampir semua siswa benar (98,0% benar). Soal terlalu mudah.', AnalitikSoal::alasanBermasalah(0.98, 1.0));
+        $topik = ['S1' => ['T1', 'T2']];
+        $baris = [
+            // Siswa A: T1 tahap 3 skor 75 (100%), T2 belum ada baris (0%) => 50%.
+            ['user_id' => 'A', 'subtes_id' => 'S1', 'topik_id' => 'T1', 'tahap' => 3, 'skor' => 75.0],
+            // Siswa B: T1 tahap 1 skor 37,5 (setengah sepertiga = 16,7%), T2 0% => 8,4%; rata-rata dengan A = 29,2%.
+            ['user_id' => 'B', 'subtes_id' => 'S1', 'topik_id' => 'T1', 'tahap' => 1, 'skor' => 37.5],
+            // Siswa C baru mulai: jendela belum penuh, jadi tidak ikut dirata-rata.
+            ['user_id' => 'C', 'subtes_id' => 'S1', 'topik_id' => 'T2', 'tahap' => 1, 'skor' => null],
+        ];
+
+        $this->assertSame(['S1' => ['persen' => 29.2, 'siswa' => 2]], AnalitikSoal::rataPenguasaan($topik, $baris));
     }
 
-    public function test_daya_beda_irt_rendah(): void
+    public function test_subtes_tanpa_siswa_berskor_tidak_ada(): void
     {
-        $this->assertSame('Daya beda rendah (a = 0,30).', AnalitikSoal::alasanBermasalah(0.6, 0.3));
+        $baris = [['user_id' => 'C', 'subtes_id' => 'S1', 'topik_id' => 'T1', 'tahap' => 1, 'skor' => null]];
+
+        $this->assertSame([], AnalitikSoal::rataPenguasaan(['S1' => ['T1']], $baris));
+    }
+
+    public function test_data_harian_dihitung_ulang_setelah_tengah_malam_wib(): void
+    {
+        // 6 Okt 00.30 WIB = 5 Okt 17.30 UTC.
+        $sekarang = Carbon::parse('2026-10-05 17:30', 'UTC');
+
+        $this->assertTrue(AnalitikSoal::perluDihitungUlang(null, $sekarang));
+        // Dihitung 5 Okt 23.59 WIB: sudah basi.
+        $this->assertTrue(AnalitikSoal::perluDihitungUlang(Carbon::parse('2026-10-05 16:59', 'UTC'), $sekarang));
+        // Dihitung tepat 6 Okt 00.00 WIB: masih berlaku.
+        $this->assertFalse(AnalitikSoal::perluDihitungUlang(Carbon::parse('2026-10-05 17:00', 'UTC'), $sekarang));
     }
 }
