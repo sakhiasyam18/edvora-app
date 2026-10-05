@@ -24,6 +24,8 @@ class NewPasswordController extends Controller
         return Inertia::render('Auth/ResetPassword', [
             'email' => $request->email,
             'token' => $request->route('token'),
+            // Layar "Ubah kata sandi berhasil" ditampilkan di halaman ini setelah store() sukses.
+            'berhasil' => (bool) session('sandiDiperbarui', false),
         ]);
     }
 
@@ -55,11 +57,11 @@ class NewPasswordController extends Controller
             }
         );
 
-        // If the password was successfully reset, we will redirect the user back to
-        // the application's home authenticated view. If there is an error we can
-        // redirect them back to where they came from with their error message.
+        // Berhasil: kembali ke halaman reset yang sama untuk menampilkan layar berhasil
+        // (tombolnya mengarah ke Login). Gagal: pesan dikirim di kunci email.
         if ($status == Password::PASSWORD_RESET) {
-            return redirect()->route('login')->with('status', __($status));
+            return redirect()->route('password.reset', ['token' => $request->token, 'email' => $request->email])
+                ->with('sandiDiperbarui', true);
         }
 
         throw ValidationException::withMessages([
