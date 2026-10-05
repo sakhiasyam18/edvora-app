@@ -87,10 +87,11 @@ export function KolomAuth({ id, label, ikon, error, sandiTerlihat, onUbahTerliha
                 >
                     {IKON_KOLOM[ikon]}
                 </svg>
+                {/* [&::-ms-reveal]: Edge menambah tombol mata sendiri di kolom password; disembunyikan supaya tidak dobel. */}
                 <input
                     id={id}
                     {...input}
-                    className={`h-11 w-full rounded-xl border border-brand-inputBorder bg-brand-inputBg pl-11 text-sm text-brand-navy placeholder-[#8ea6c2] shadow-inner transition-all focus:border-transparent focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue ${
+                    className={`h-11 w-full rounded-xl border border-brand-inputBorder bg-brand-inputBg pl-11 text-sm text-brand-navy placeholder-[#8ea6c2] shadow-inner transition-all focus:border-transparent focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue [&::-ms-reveal]:hidden ${
                         adaMata ? 'pr-11' : 'pr-4'
                     }`}
                 />
