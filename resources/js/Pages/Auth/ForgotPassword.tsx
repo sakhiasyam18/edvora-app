@@ -1,6 +1,6 @@
 import { FormEventHandler } from 'react';
-import InputError from '@/Components/InputError';
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Link, useForm } from '@inertiajs/react';
+import { HalamanAuth, KartuAuth, KELAS_TOMBOL_UTAMA, KolomAuth, PesanStatus } from '@/Components/Auth/BagianAuth';
 
 // Minta tautan ubah sandi lewat email, dengan tampilan yang sama dengan Login, Daftar, dan Verifikasi Email.
 export default function ForgotPassword({ status }: { status?: string }) {
@@ -15,76 +15,92 @@ export default function ForgotPassword({ status }: { status?: string }) {
     };
 
     return (
-        <div className="bg-gradient-edvora flex min-h-screen flex-col items-center justify-center p-4 font-poppins antialiased selection:bg-[#5B88DD] selection:text-white sm:p-6">
-            <Head title="Lupa Kata Sandi - EDVORA" />
+        <HalamanAuth judulTab="Lupa Kata Sandi - EDVORA">
+            {/* Kartu putih seperti panel formulir di Login; isi rata tengah untuk judul, rata kiri untuk formulir. */}
+            <KartuAuth className="px-6 py-8 sm:px-9 sm:py-9">
+                <div className="flex flex-col items-center text-center">
+                    {/* Ikon kunci di lingkaran biru muda sebagai penanda halaman. */}
+                    <span className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-lightBlue text-brand-blue">
+                        <svg className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <rect x="4" y="10.5" width="16" height="10" rx="2.5" />
+                            <path d="M8 10.5V7.5a4 4 0 018 0v3M12 14.5v2.5" />
+                        </svg>
+                    </span>
 
-            <main className="flex w-full max-w-[480px] flex-col items-center">
-                <header className="mb-5 text-center sm:mb-6">
-                    <Link href="/">
-                        <h1 className="brand-title-shadow text-3xl font-extrabold tracking-widest text-white sm:text-4xl md:text-[40px]">EDVORA</h1>
-                    </Link>
-                </header>
-
-                <section className="main-card-shadow w-full rounded-2xl border border-white/60 bg-brand-lightBlue px-6 py-8 text-center sm:rounded-3xl sm:px-10 sm:py-9">
-                    <h2 className="text-2xl font-bold tracking-wide text-brand-navy sm:text-[26px]">LUPA KATA SANDI?</h2>
-                    <p className="mt-3 text-sm text-brand-grayText">
+                    <h2 className="mt-4 text-[22px] font-bold tracking-wide text-brand-navy sm:text-2xl">LUPA KATA SANDI?</h2>
+                    <p className="mt-2 text-[13px] leading-relaxed text-brand-grayText sm:text-sm">
                         Masukkan alamat email yang terdaftar pada akun Anda. Kami akan mengirimkan tautan untuk mengatur ulang kata sandi.
                     </p>
+                </div>
 
-                    {status && (
-                        <div role="status" className="mt-4 rounded-lg bg-green-50 p-2 text-sm font-medium text-green-600">
-                            {status}
-                        </div>
-                    )}
-
-                    <form onSubmit={submit} className="mt-6 space-y-4 text-left">
-                        <div>
-                            <label className="mb-1.5 block text-sm font-semibold text-brand-navy" htmlFor="email">
-                                Email
-                            </label>
-                            <input
-                                className="w-full rounded-xl border border-brand-inputBorder bg-brand-inputBg px-4 py-2.5 text-sm text-brand-navy placeholder-[#8ea6c2] shadow-inner transition-all focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-blue"
-                                id="email"
-                                name="email"
-                                placeholder="Masukkan Email"
-                                required
-                                type="email"
-                                value={data.email}
-                                autoComplete="username"
-                                onChange={(e) => setData('email', e.target.value)}
-                            />
-                            <InputError message={errors.email} className="mt-1.5" />
-                        </div>
-
-                        <div className="flex justify-center pt-3">
-                            <button
-                                type="submit"
-                                disabled={processing}
-                                className="rounded-xl bg-brand-blue px-6 py-2.5 text-sm font-bold tracking-wider text-white shadow-[0_4px_12px_rgba(91,136,221,0.45)] transition-all duration-150 hover:bg-brand-blueHover active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                                {processing ? 'MEMPROSES...' : 'KIRIM TAUTAN PEMULIHAN'}
-                            </button>
-                        </div>
-                    </form>
-
-                    <p className="mt-4 text-xs text-brand-grayText sm:text-sm">Silahkan klik tautan yang berada di dalam email untuk mengubah kata sandi</p>
-
-                    <hr className="my-5 border-brand-inputBorder" />
-
-                    <p className="text-xs text-brand-grayText sm:text-sm">Tidak menerima email? tidak masalah</p>
-
-                    <div className="flex justify-center pt-3">
-                        <button
-                            type="button"
-                            onClick={submit}
-                            disabled={processing}
-                            className="rounded-xl bg-brand-blue px-6 py-2.5 text-sm font-bold tracking-wider text-white shadow-[0_4px_12px_rgba(91,136,221,0.45)] transition-all duration-150 hover:bg-brand-blueHover active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                            KIRIM ULANG TAUTAN
-                        </button>
+                {status && (
+                    <div className="mt-5">
+                        <PesanStatus>{status}</PesanStatus>
                     </div>
-                </section>
-            </main>
-        </div>
+                )}
+
+                <form onSubmit={submit} className="mt-6 space-y-5">
+                    <KolomAuth
+                        id="email"
+                        label="Email"
+                        ikon="email"
+                        name="email"
+                        type="email"
+                        placeholder="Masukkan Email"
+                        required
+                        autoComplete="username"
+                        value={data.email}
+                        onChange={(e) => setData('email', e.target.value)}
+                        error={errors.email}
+                    />
+
+                    <button type="submit" disabled={processing} className={KELAS_TOMBOL_UTAMA}>
+                        {processing ? 'MEMPROSES...' : 'KIRIM TAUTAN PEMULIHAN'}
+                    </button>
+                </form>
+
+                {/* Petunjuk langkah berikutnya sebagai kotak info, bukan teks lepas. */}
+                <div className="mt-5 flex items-start gap-2.5 rounded-xl bg-brand-inputBg px-4 py-3 text-[13px] leading-relaxed text-brand-grayText">
+                    <svg className="mt-0.5 h-4 w-4 shrink-0 text-brand-blue" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <circle cx="12" cy="12" r="9" />
+                        <path d="M12 11v5M12 8h.01" />
+                    </svg>
+                    <p>Silahkan klik tautan yang berada di dalam email untuk mengubah kata sandi</p>
+                </div>
+
+                {/* Kirim ulang dibuat tombol garis supaya tidak bersaing dengan tombol utama di atas. */}
+                <div className="mt-6 border-t border-brand-inputBorder pt-5 text-center">
+                    <p className="text-[13px] text-brand-grayText">Tidak menerima email? tidak masalah</p>
+                    <button
+                        type="button"
+                        onClick={submit}
+                        disabled={processing}
+                        className="mt-3 inline-flex h-10 items-center justify-center rounded-xl border-2 border-brand-blue bg-white px-6 text-[13px] font-bold tracking-wider text-brand-blue transition-all duration-150 hover:-translate-y-0.5 hover:bg-brand-blue hover:text-white active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        KIRIM ULANG TAUTAN
+                    </button>
+                </div>
+            </KartuAuth>
+
+            {/* Kembali ke halaman Login, di bawah kartu supaya tidak bersaing dengan tombol formulir. */}
+            <Link
+                href={route('login')}
+                className="group mt-5 inline-flex animate-muncul-halus items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white transition-colors duration-150 [animation-delay:160ms] [animation-fill-mode:both] hover:bg-white/15"
+            >
+                <svg
+                    className="h-[18px] w-[18px] transition-transform duration-200 group-hover:-translate-x-1"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2.4}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                >
+                    <path d="M19 12H5M11 6l-6 6 6 6" />
+                </svg>
+                Kembali ke halaman Login
+            </Link>
+        </HalamanAuth>
     );
 }
