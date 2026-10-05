@@ -6,11 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\Subtes;
 use App\Models\TryOut;
 use App\Models\Soal;
-use App\Models\TryOutSubtes;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Throwable;
 
@@ -87,15 +88,14 @@ class EditorTryOutEditorController extends Controller
                     'dibuat_oleh' => auth()->id(),
                 ]);
 
-                foreach ($data['subtes'] as $i => $s) {
-                    $st = $paket->subtesPaket()->create([
-                        'subtes_id' => $s['subtes_id'],
-                        'urutan' => $i + 1,
-                        'jumlah_soal' => $s['jumlah_soal'],
-                        'waktu_menit' => $s['waktu_menit'],
-                    ]);
-                    $this->isiSoal($st);
-                }
+                $subtesPaket = collect($data['subtes'])->map(fn ($s, $i) => $paket->subtesPaket()->create([
+                    'subtes_id' => $s['subtes_id'],
+                    'urutan' => $i + 1,
+                    'jumlah_soal' => $s['jumlah_soal'],
+                    'waktu_menit' => $s['waktu_menit'],
+                ]));
+
+                $this->isiSoal($subtesPaket);
             });
         } catch (Throwable $e) {
             Log::error('Gagal menambah paket try out: ' . $e->getMessage());
@@ -144,12 +144,13 @@ class EditorTryOutEditorController extends Controller
                     'selesai_at' => $data['selesai_at'],
                 ]);
 
+                // Satu query untuk semua subtes paket, bukan satu query per baris form.
+                $subtesPaket = $paket->subtesPaket()->get()->keyBy('subtes_id');
                 foreach ($data['subtes'] as $s) {
-                    $st = $paket->subtesPaket()->where('subtes_id', $s['subtes_id'])->first();
-                    if (! $st) continue;
-                    $st->update(['jumlah_soal' => $s['jumlah_soal'], 'waktu_menit' => $s['waktu_menit']]);
-                    $this->isiSoal($st);
+                    $subtesPaket->get($s['subtes_id'])?->update(['jumlah_soal' => $s['jumlah_soal'], 'waktu_menit' => $s['waktu_menit']]);
                 }
+
+                $this->isiSoal($subtesPaket->values());
             });
         } catch (Throwable $e) {
             Log::error('Gagal mengubah paket try out: ' . $e->getMessage());
@@ -196,7 +197,8 @@ class EditorTryOutEditorController extends Controller
             'selesai_at' => ['required', 'date', 'after:mulai_at'],
             'peraturan' => ['nullable', 'string', 'max:3000'],
             'subtes' => ['required', 'array', 'min:1'],
-            'subtes.*.subtes_id' => ['required', 'distinct', 'exists:subtes,id'],
+            // Rule::in dengan satu query, bukan exists (satu query per baris subtes).
+            'subtes.*.subtes_id' => ['required', 'distinct', Rule::in(Subtes::pluck('id')->all())],
             'subtes.*.jumlah_soal' => ['required', 'integer', 'min:1', 'max:200'],
             'subtes.*.waktu_menit' => ['required', 'numeric', 'min:1', 'max:300'],
         ], [
@@ -209,35 +211,65 @@ class EditorTryOutEditorController extends Controller
         ]);
     }
 
-    // Samakan jumlah soal paket dengan target. Satu soal hanya boleh di satu paket (unique try_out_soal.soal_id).
-    private function isiSoal(TryOutSubtes $st): void
+    // Samakan jumlah soal setiap subtes paket dengan target. Satu soal hanya boleh di satu paket (unique try_out_soal.soal_id).
+    // Semua subtes diproses sekaligus dengan query yang jumlahnya tetap: satu query ke Supabase ±0,3–0,7 detik,
+    // jadi INSERT per soal (±160 per paket) membuat request melewati batas 30 detik PHP.
+    private function isiSoal(Collection $subtesPaket): void
     {
         $ada = DB::table('try_out_soal')
-            ->where('try_out_subtes_id', $st->id)
+            ->whereIn('try_out_subtes_id', $subtesPaket->pluck('id'))
             ->orderBy('urutan')
-            ->get(['soal_id', 'urutan']);
+            ->get(['try_out_subtes_id', 'soal_id', 'urutan'])
+            ->groupBy('try_out_subtes_id');
 
-        $kurang = $st->jumlah_soal - $ada->count();
+        $buang = [];
+        $kurang = []; // subtes_id => [subtes paket, jumlah kurang, urutan terakhir]
+        foreach ($subtesPaket as $st) {
+            $punya = $ada->get($st->id, collect());
+            $selisih = $st->jumlah_soal - $punya->count();
 
-        if ($kurang < 0) {
-            // Buang soal dengan urutan paling akhir.
-            $st->soal()->detach($ada->slice($st->jumlah_soal)->pluck('soal_id')->all());
+            if ($selisih < 0) {
+                // Buang soal dengan urutan paling akhir.
+                array_push($buang, ...$punya->slice($st->jumlah_soal)->pluck('soal_id'));
+            } elseif ($selisih > 0) {
+                $kurang[$st->subtes_id] = ['st' => $st, 'jumlah' => $selisih, 'urutan' => (int) $punya->max('urutan')];
+            }
+        }
+
+        if ($buang !== []) {
+            DB::table('try_out_soal')
+                ->whereIn('try_out_subtes_id', $subtesPaket->pluck('id'))
+                ->whereIn('soal_id', $buang)
+                ->delete();
+        }
+        if ($kurang === []) {
             return;
         }
-        if ($kurang === 0) {
-            return;
-        }
 
-        $baru = Soal::where('subtes_id', $st->subtes_id)
+        // Soal published yang belum dipakai paket mana pun, diacak per subtes di database.
+        // Cukup ambil sebanyak kebutuhan terbesar per subtes, lalu dipotong sesuai kebutuhan masing-masing.
+        $acak = Soal::query()
+            ->select('id', 'subtes_id')
+            ->selectRaw('row_number() over (partition by subtes_id order by random()) as nomor')
+            ->whereIn('subtes_id', array_keys($kurang))
             ->where('status', 'published')
-            ->whereNotIn('id', DB::table('try_out_soal')->select('soal_id'))
-            ->inRandomOrder()
-            ->limit($kurang)
-            ->pluck('id');
+            ->whereNotIn('id', DB::table('try_out_soal')->select('soal_id'));
+        $kandidat = DB::query()->fromSub($acak, 'acak')
+            ->where('nomor', '<=', max(array_column($kurang, 'jumlah')))
+            ->orderBy('nomor')
+            ->get(['id', 'subtes_id'])
+            ->groupBy('subtes_id');
 
-        $urutan = (int) $ada->max('urutan'); // 0 jika belum ada
-        foreach ($baru as $id) {
-            $st->soal()->attach($id, ['urutan' => ++$urutan]);
+        $baris = [];
+        foreach ($kurang as $subtesId => $k) {
+            $urutan = $k['urutan'];
+            foreach ($kandidat->get($subtesId, collect())->take($k['jumlah']) as $soal) {
+                $baris[] = ['try_out_subtes_id' => $k['st']->id, 'soal_id' => $soal->id, 'urutan' => ++$urutan];
+            }
+        }
+
+        if ($baris !== []) {
+            DB::table('try_out_soal')->insert($baris);
         }
     }
 }
