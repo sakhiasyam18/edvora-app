@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class AuthenticatedSessionController extends Controller
 {
@@ -34,11 +35,8 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerate();
 
         // Admin (UCS6) dan editor (UCS7-9) punya halaman sendiri; siswa ke Beranda.
-        $tujuan = match ($request->user()->role) {
-            'admin' => route('admin.index', absolute: false),
-            'admin_editor' => route('editor.dashboard', absolute: false),
-            default => route('dashboard', absolute: false),
-        };
+        // URL intended milik role lain dibelokkan PastikanPeran ke beranda role ini.
+        $tujuan = route($request->user()->ruteBeranda() ?? 'dashboard', absolute: false);
 
         return redirect()->intended($tujuan);
     }
@@ -46,7 +44,7 @@ class AuthenticatedSessionController extends Controller
     /**
      * Destroy an authenticated session.
      */
-    public function destroy(Request $request): RedirectResponse
+    public function destroy(Request $request): SymfonyResponse
     {
         Auth::guard('web')->logout();
 
@@ -54,6 +52,8 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerateToken();
 
-        return redirect('/');
+        // Muat ulang penuh, bukan kunjungan Inertia: cache prefetch dan state halaman akun lama
+        // ada di memori browser dan bisa tampil ke akun berikutnya selama 30 detik.
+        return Inertia::location(url('/'));
     }
 }

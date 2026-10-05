@@ -46,6 +46,20 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
+     * Nama rute beranda role ini: tujuan setelah login dan saat membuka halaman role lain.
+     * Null untuk role yang tidak punya halaman.
+     */
+    public function ruteBeranda(): ?string
+    {
+        return match ($this->role) {
+            'siswa' => 'dashboard',
+            'admin' => 'admin.index',
+            'admin_editor' => 'editor.dashboard',
+            default => null,
+        };
+    }
+
+    /**
      * The attributes that should be hidden for serialization.
      *
      * @var array<int, string>

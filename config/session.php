@@ -105,6 +105,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Session Blocking
+    |--------------------------------------------------------------------------
+    |
+    | Request dengan session yang sama diproses bergantian (lock di cache store
+    | default). Tanpa ini, request lambat seperti prefetch Inertia yang mulai
+    | sebelum logout menulis ulang session lama setelah logout selesai, dan
+    | cookie-nya mengembalikan user ke akun tersebut. Rute yang memakai
+    | ->block() tetap memakai durasi lock miliknya sendiri.
+    |
+    */
+
+    'block' => env('SESSION_BLOCK', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Session Sweeping Lottery
     |--------------------------------------------------------------------------
     |
