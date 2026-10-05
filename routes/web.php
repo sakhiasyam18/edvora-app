@@ -43,7 +43,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // Dasbor Utama
         Route::get('/dashboard', [BerandaController::class, 'index'])->name('dashboard');
 
-        // Manajemen Profil Akun
+// Manajemen Profil Akun
         Route::get('/akun/profil/utama', [ProfileController::class, 'profilUtama'])
             ->name('akun.profil.utama');
 
@@ -52,6 +52,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::patch('/akun/profil', [ProfileController::class, 'updateBiodata'])
             ->name('akun.profil.update');
+
+        Route::get('/akun/badge', [ProfileController::class, 'badge'])
+            ->name('akun.badge');
+
+        // Halaman Toko Avatar
+        Route::get('/akun/avatar', [ProfileController::class, 'avatar'])
+            ->name('akun.avatar');
+
+        // Beli Avatar
+        Route::post('/akun/avatar/beli', [ProfileController::class, 'beliAvatar'])
+            ->name('akun.avatar.beli');
+
+        // Aksi Pakai Avatar
+        Route::post('/akun/avatar/pakai', [ProfileController::class, 'pakaiAvatar'])
+            ->name('akun.avatar.pakai');
 
         Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
         Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
@@ -178,4 +193,4 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 });
 
-require __DIR__.'/auth.php';
+require __DIR__ . '/auth.php';
