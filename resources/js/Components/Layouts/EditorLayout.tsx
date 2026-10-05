@@ -1,6 +1,7 @@
 import { Link, usePage } from '@inertiajs/react';
 import { ReactNode, useState } from 'react';
 import LambangEdvora from './LambangEdvora';
+import FlashPesan from '../Editor/FlashPesan';
 
 interface MenuSubtes {
     kode: string;
@@ -34,7 +35,10 @@ export default function EditorLayout({ breadcrumb, subtesAktif, children }: Edit
 
             <div className="flex min-w-0 flex-1 flex-col">
                 <Topbar breadcrumb={breadcrumb} nama={nama} />
-                <main className="flex-1 px-4 py-6 md:px-10 md:py-8">{children}</main>
+                <main className="flex-1 px-4 py-6 md:px-10 md:py-8">
+                    <FlashPesan />      {/* ← tambah ini */}
+                    {children}
+                </main>
             </div>
         </div>
     );
@@ -83,9 +87,8 @@ function Sidebar({ menuBankSoal, subtesAktif }: { menuBankSoal: MenuSubtes[]; su
                                     href={route('editor.soal.index', s.kode)}
                                     title={s.nama}
                                     aria-current={s.kode === subtesAktif ? 'page' : undefined}
-                                    className={`flex gap-2 rounded-full px-2.5 py-1.5 text-[11px] text-white transition ${
-                                        s.kode === subtesAktif ? 'bg-white/25 font-semibold' : 'hover:bg-white/10'
-                                    }`}
+                                    className={`flex gap-2 rounded-full px-2.5 py-1.5 text-[11px] text-white transition ${s.kode === subtesAktif ? 'bg-white/25 font-semibold' : 'hover:bg-white/10'
+                                        }`}
                                 >
                                     <span className="w-7 shrink-0 font-semibold">{s.kode}</span>
                                     <span className="truncate">{s.nama}</span>
@@ -95,11 +98,21 @@ function Sidebar({ menuBankSoal, subtesAktif }: { menuBankSoal: MenuSubtes[]; su
                     </ul>
                 )}
 
-                {/* Halamannya belum dibuat (UCS8 dan UCS9). */}
-                <span aria-disabled="true" title="Segera hadir" className={`${KELAS_BARIS} cursor-not-allowed opacity-60`}>
-                    <IkonMenu d="M9 4h6v3H9zM7 5.5H5.5A1.5 1.5 0 004 7v12.5A1.5 1.5 0 005.5 21h13a1.5 1.5 0 001.5-1.5V7a1.5 1.5 0 00-1.5-1.5H17M8.5 13l2.5 2.5 4.5-4.5" />
-                    Paket Try Out
-                </span>
+                {/* Halamannya belum dibuat (UCS8 dan UCS9). try out otw(ucs 8)*/}
+                <Link
+                    href={route('editor.tryout.index')}
+                    className={`flex items-center gap-3 rounded-xl px-4 py-3 font-medium transition ${route().current('editor.tryout.*')
+                        ? 'bg-[#5F8DDD] text-white'
+                        : 'text-white/80 hover:bg-white/10 hover:text-white'
+                        }`}
+                >
+                    {/* Ikon Paket Try Out */}
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    <span>Paket Try Out</span>
+                </Link>
+
                 <span aria-disabled="true" title="Segera hadir" className={`${KELAS_BARIS} cursor-not-allowed opacity-60`}>
                     <IkonMenu d="M5 20V11M12 20V4M19 20v-6M3 20h18" />
                     Analitik

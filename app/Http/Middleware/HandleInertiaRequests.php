@@ -35,11 +35,15 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user(),
             ],
-            // Submenu Bank Soal di sidebar editor. Closure: query hanya jalan untuk editor.
-            'menuBankSoal' => fn () => $request->user()?->role === 'admin_editor'
+            'menuBankSoal' => fn() => $request->user()?->role === 'admin_editor'
                 ? Subtes::orderBy('urutan')->get(['kode_subtes', 'nama_subtes'])
-                    ->map(fn (Subtes $s) => ['kode' => $s->kode_subtes, 'nama' => $s->nama_subtes])
+                ->map(fn(Subtes $s) => ['kode' => $s->kode_subtes, 'nama' => $s->nama_subtes])
                 : null,
+            // Notifikasi sukses/gagal untuk FlashPesan
+            'flash' => [
+                'sukses' => fn() => $request->session()->get('sukses'),
+                'gagal' => fn() => $request->session()->get('gagal'),
+            ],
         ];
     }
 }

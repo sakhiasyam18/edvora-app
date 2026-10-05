@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\AdminEditor\EditorTryOutEditorController;
 use App\Http\Controllers\AdminSoalController;
 use App\Http\Controllers\BattleController;
 use App\Http\Controllers\BerandaController;
@@ -160,7 +161,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/{tryOut}/pembahasan/{urutan}', [TryOutController::class, 'pembahasan'])->whereUuid('tryOut')->where('urutan', '[0-9]{1,3}')->name('tryout.pembahasan');
             Route::get('/{tryOut}/peringkat', [TryOutController::class, 'peringkat'])->whereUuid('tryOut')->name('tryout.peringkat');
         });
+
+        Route::prefix('editor')->name('editor.')->middleware(['peran:admin_editor'])->group(function () {
+            Route::get('/tryout', [EditorTryOutEditorController::class, 'index'])->name('tryout.index');
+            Route::get('/tryout/tambah', [EditorTryOutEditorController::class, 'create'])->name('tryout.tambah');
+            Route::post('/tryout', [EditorTryOutEditorController::class, 'store'])->name('tryout.store');
+            Route::get('/tryout/{id}/edit', [EditorTryOutEditorController::class, 'edit'])->name('tryout.edit');
+            Route::put('/tryout/{id}', [EditorTryOutEditorController::class, 'update'])->name('tryout.update');
+            Route::delete('/tryout/{id}', [EditorTryOutEditorController::class, 'destroy'])->name('tryout.destroy');
+        });
     });
 });
 
-require __DIR__.'/auth.php';
+require __DIR__ . '/auth.php';
