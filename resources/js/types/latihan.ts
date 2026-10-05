@@ -8,8 +8,8 @@ export interface OpsiJawaban {
   label: 'A' | 'B' | 'C' | 'D' | 'E';
   teks_opsi: string; // Database mapped; boleh kosong bila opsi hanya berisi gambar
   gambar_opsi?: string | null; // link gambar di Supabase Storage
-  is_kunci: boolean;
-  kunci_kolom?: number | null; // majemuk_tabel: nomor kolom (mulai 1) yang benar untuk pernyataan ini
+  is_kunci: boolean;              // tidak ada di props halaman ujian; hanya di pembahasan
+  kunci_kolom?: number | null; // majemuk_tabel: nomor kolom (mulai 1) yang benar; sama, hanya di pembahasan
 }
 
 export interface Soal {
@@ -21,12 +21,12 @@ export interface Soal {
   opsi_jawaban: OpsiJawaban[]; // DB mapped relation; majemuk_tabel: satu opsi = satu pernyataan (baris tabel)
   kolom_tabel?: string[] | null; // majemuk_tabel: judul kolom tabel, mis. ["Benar", "Salah", "Tidak Bisa Ditentukan"]
   pembahasan: string;
-  gambar_pembahasan?: string | null; // DB mapped; link gambar di Supabase Storage, tampil di bawah teks pembahasan
+  gambar_pembahasan?: string | null; // DB mapped; link gambar di Supabase Storage. Di halaman ujian dikirim lewat UmpanBalikJawaban
   ada_hint?: boolean; // teks hint tidak ikut dikirim; diambil lewat latihan.hint supaya pemakaiannya tercatat
 }
 
 export interface KonfigurasiSesiLatihan {
-  sesiId?: string;                // dibuat server di ujian(); dipakai latihan.cek, latihan.hint, dan latihan.simpan
+  sesiId?: string;                // id sesi di session (remedial, simulasi) atau id pengerjaan (fleksibel); dipakai latihan.jawab, latihan.hint, latihan.simpan
   subtesId: string | number;
   namaSubtes: string;
   topikIds?: string[];            // mode fleksibel: minimal satu topik
@@ -35,6 +35,26 @@ export interface KonfigurasiSesiLatihan {
   jumlahSoal: number;
   waktuPengerjaanMenit?: number;  // dipakai kalau mode === 'simulasi'
   iceBreakingAktif?: boolean;     // dipakai kalau mode bukan simulasi
+}
+
+// Balasan latihan.jawab, sekaligus isi JawabanTersimpan.hasil (RANCANGAN-RENCANA-save-fleksibel.md 6.1).
+// Dikirim setelah jawaban final, jadi halaman ujian tidak menerima kunci sebelum siswa menjawab.
+export interface UmpanBalikJawaban {
+  benar: boolean;
+  kunciOpsiIds: string[];         // opsi ber-kunci, untuk mewarnai pilihan; kosong untuk isian dan majemuk_tabel
+  kunciKolom: Record<string, number | null> | null; // majemuk_tabel: id pernyataan => nomor kolom kunci; null untuk tipe lain
+  kunci: string;                  // siap tampil: "A. Vierzna", "Vierzna dan Dewi", "1. Benar; 2. Salah", kunci isian, atau "-"
+  pembahasan: string | null;
+  gambarPembahasan: string | null;
+}
+
+// Prop halaman kerjakan fleksibel: jawaban yang sudah tersimpan saat siswa melanjutkan sesi.
+export interface JawabanTersimpan {
+  soalId: string;
+  opsiIds: string[];
+  jawabanIsian: string | null;
+  pilihanKolom: Record<string, number> | null; // majemuk_tabel: id pernyataan => nomor kolom
+  hasil: UmpanBalikJawaban;
 }
 
 // Dibaca dari tahap, bukan dari skor saja: skor 80 di tahap 1 (soal mudah) belum berarti dikuasai.

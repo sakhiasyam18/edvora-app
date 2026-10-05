@@ -12,7 +12,7 @@ class PenilaianJawabanTest extends TestCase
     public function test_pilihan_ganda_benar_dan_salah(): void
     {
         $this->assertSame(
-            ['opsiIds' => ['o-c'], 'jawabanIsian' => null, 'benar' => true],
+            ['opsiIds' => ['o-c'], 'jawabanIsian' => null, 'pilihanKolom' => null, 'benar' => true],
             PenilaianJawaban::nilai('pilihan_ganda', self::OPSI, ['o-c'], null, ['o-c'], null),
         );
         $this->assertFalse(PenilaianJawaban::nilai('pilihan_ganda', self::OPSI, ['o-c'], null, ['o-a'], null)['benar']);
@@ -50,7 +50,7 @@ class PenilaianJawabanTest extends TestCase
     public function test_isian_dirapikan_lalu_dicocokkan(): void
     {
         $this->assertSame(
-            ['opsiIds' => [], 'jawabanIsian' => '12', 'benar' => true],
+            ['opsiIds' => [], 'jawabanIsian' => '12', 'pilihanKolom' => null, 'benar' => true],
             PenilaianJawaban::nilai('isian_singkat', [], [], '12|dua belas', [], "  12\u{00A0}"),
         );
         $this->assertFalse(PenilaianJawaban::nilai('isian_singkat', [], [], '12', [], '13')['benar']);
@@ -60,5 +60,27 @@ class PenilaianJawabanTest extends TestCase
     {
         $this->assertFalse(PenilaianJawaban::nilai('pilihan_ganda', self::OPSI, [], null, ['o-a'], null)['benar']);
         $this->assertFalse(PenilaianJawaban::nilai('isian_singkat', [], [], null, [], 'apa saja')['benar']);
+    }
+
+    public function test_majemuk_tabel_semua_baris_harus_sesuai_kunci(): void
+    {
+        $kunci = ['p1' => 1, 'p2' => 2];
+
+        $this->assertSame(
+            ['opsiIds' => [], 'jawabanIsian' => null, 'pilihanKolom' => ['p1' => 1, 'p2' => 2], 'benar' => true],
+            PenilaianJawaban::nilai('majemuk_tabel', ['p1', 'p2'], [], null, [], null, $kunci, ['p1' => '1', 'p2' => 2]),
+        );
+        $this->assertFalse(PenilaianJawaban::nilai('majemuk_tabel', ['p1', 'p2'], [], null, [], null, $kunci, ['p1' => 1, 'p2' => 1])['benar']);
+        // Baris yang tidak dipilih dihitung salah.
+        $this->assertFalse(PenilaianJawaban::nilai('majemuk_tabel', ['p1', 'p2'], [], null, [], null, $kunci, ['p1' => 1])['benar']);
+    }
+
+    public function test_majemuk_tabel_mengabaikan_pernyataan_asing_dan_pilihan_kosong(): void
+    {
+        $kunci = ['p1' => 1];
+
+        $this->assertSame(['p1' => 1], PenilaianJawaban::nilai('majemuk_tabel', ['p1'], [], null, [], null, $kunci, ['p1' => 1, 'asing' => 2])['pilihanKolom']);
+        $this->assertNull(PenilaianJawaban::nilai('majemuk_tabel', ['p1'], [], null, [], null, $kunci, ['asing' => 2]));
+        $this->assertNull(PenilaianJawaban::nilai('majemuk_tabel', ['p1'], [], null, [], null, $kunci, []));
     }
 }

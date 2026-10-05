@@ -62,12 +62,14 @@ export default function PilihMode({ subtes, topikList, batasSoal, simulasi, reme
     const ubahJumlahSoal = (selisih: number) =>
         setJumlahSoal((jumlah) => Math.min(batasSoal.maks, Math.max(batasSoal.min, jumlah + selisih)));
 
-    // Soal dipilih server; klien hanya mengirim pilihan mode, topik, dan jumlah soal.
-    const mulai = (data: Record<string, unknown>) =>
-        router.get(route('latihan.ujian'), { subtesId: subtes.id, ...data }, {
-            onStart: () => setMemuat(true),
-            onFinish: () => setMemuat(false),
-        });
+    // Soal dipilih server; klien hanya mengirim pilihan mode, topik, dan jumlah soal. Fleksibel memakai POST karena
+    // langsung membuat sesi tersimpan (latihan.mulai); simulasi dan remedial dibuka lewat latihan.ujian.
+    const mulai = (data: Record<string, unknown>) => {
+        const muat = { onStart: () => setMemuat(true), onFinish: () => setMemuat(false) };
+
+        if (data.mode === 'fleksibel') router.post(route('latihan.mulai'), { subtesId: subtes.id, ...data }, muat);
+        else router.get(route('latihan.ujian'), { subtesId: subtes.id, ...data }, muat);
+    };
 
     return (
         <>

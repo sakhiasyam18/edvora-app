@@ -1,5 +1,6 @@
 import { Head, Link } from '@inertiajs/react';
 import { ReactNode } from 'react';
+import KartuStat from '@/Components/Beranda/KartuStat';
 import SiswaLayout from '@/Components/Layouts/SiswaLayout';
 
 interface LevelXp {
@@ -30,13 +31,14 @@ const LABEL_JENIS_KELAMIN = { 'laki-laki': 'Laki-laki', perempuan: 'Perempuan' }
 
 function Isian({ label, isi }: { label: string; isi: string }) {
     return (
-        <div>
-            <dt className="text-xs font-semibold uppercase text-gray-400">{label}</dt>
-            <dd className="mt-1 font-semibold text-[#1F2D5C]">{isi}</dd>
+        <div className="rounded-subtes bg-siswa-laman-awal px-4 py-3 transition duration-200 hover:bg-siswa-panel-fleksibel">
+            <dt className="text-[12px] font-medium text-siswa-teks">{label}</dt>
+            <dd className="mt-0.5 truncate text-[15px] font-medium text-siswa-judul-seksi">{isi}</dd>
         </div>
     );
 }
 
+// Akun Pribadi. Ukuran huruf, warna, kartu, dan bayangan mengikuti Beranda.
 export default function ProfilUtama({ user, siswa, bergabung, level }: ProfilUtamaProps) {
     const nama = siswa.namaLengkap || user.name || 'Siswa';
     const kelas = siswa.kelasLabel ?? '-';
@@ -50,17 +52,17 @@ export default function ProfilUtama({ user, siswa, bergabung, level }: ProfilUta
             <Head title="Akun Pribadi" />
 
             {/* Pesan sukses setelah edit biodata kini berupa pop-up di halaman edit, jadi tidak ditampilkan di sini. */}
-            <div className="mx-auto w-full max-w-[1000px] space-y-6 text-[#1F2D5C]">
-                {/* Kartu Profil Utama (Header Biru Gradasi) */}
-                <section className="relative flex flex-wrap items-center gap-6 rounded-2xl bg-gradient-to-r from-[#628EFF] to-[#87A8FF] p-6 text-white shadow-sm">
+            <div className="w-full space-y-4 font-poppins text-siswa-judul">
+                {/* Kartu Profil Utama: gaya sama dengan banner sapaan Beranda; XP dan Point memakai kotak angka yang sama. */}
+                <section className="flex animate-muncul-halus flex-wrap items-center gap-5 rounded-kartu bg-gradient-to-l from-siswa-banner-awal to-siswa-banner-akhir px-[26px] py-5 text-white shadow-kartu">
                     {/* Avatar Inisial & Tombol Edit Avatar */}
                     <div className="relative shrink-0">
-                        <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-white/40 bg-white/20 text-3xl font-semibold backdrop-blur-sm">
+                        <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-white/50 bg-white/25 text-[26px] font-semibold backdrop-blur-sm md:h-[72px] md:w-[72px]">
                             {nama.trim().charAt(0).toUpperCase()}
                         </div>
                         <button
                             type="button"
-                            className="absolute bottom-0 right-0 flex h-6 w-6 items-center justify-center rounded-full bg-white text-gray-600 shadow transition hover:bg-gray-100"
+                            className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-white text-siswa-teks shadow-panel transition duration-200 hover:scale-110 hover:text-edvora-primary"
                             title="Ubah Foto Profil"
                         >
                             <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -70,22 +72,22 @@ export default function ProfilUtama({ user, siswa, bergabung, level }: ProfilUta
                     </div>
 
                     {/* Informasi Pengguna & Progress Level */}
-                    <div className="min-w-[240px] flex-1">
-                        <h1 className="text-2xl font-bold">{nama}</h1>
-                        <p className="mt-0.5 text-xs text-white/80">
+                    <div className="min-w-[220px] flex-1">
+                        <h1 className="text-[24px] font-semibold leading-tight">{nama}</h1>
+                        <p className="mt-1 text-[13px] text-white/90">
                             {kelas} · Bergabung {tanggalBergabung}
                         </p>
 
-                        <div className="mt-4 max-w-md">
-                            <div className="mb-1.5 flex justify-between text-xs font-medium">
-                                <span className="opacity-90">Level {level.level}</span>
-                                <span className="opacity-90">
+                        <div className="mt-3 max-w-md">
+                            <div className="mb-1.5 flex justify-between text-[12px] font-medium text-white/90">
+                                <span>Level {level.level}</span>
+                                <span>
                                     {angka(level.xp)}/{angka(level.xpLevelBerikutnya)} XP
                                 </span>
                             </div>
-                            <div className="h-2.5 w-full overflow-hidden rounded-full bg-black/10">
+                            <div className="h-2 w-full overflow-hidden rounded-full bg-white/25">
                                 <div
-                                    className="h-full rounded-full bg-white transition-all duration-300"
+                                    className="h-full rounded-full bg-white transition-[width] duration-700 ease-out"
                                     style={{ width: `${Math.min(100, Math.max(0, level.persen))}%` }}
                                 />
                             </div>
@@ -93,37 +95,29 @@ export default function ProfilUtama({ user, siswa, bergabung, level }: ProfilUta
                     </div>
 
                     {/* Stat Total XP & Point */}
-                    <div className="flex gap-3">
-                        <div className="flex min-w-[90px] flex-col items-center justify-center rounded-xl bg-white/20 px-4 py-2.5 text-center backdrop-blur-sm">
-                            <span className="text-[10px] font-semibold tracking-wider text-white/80 uppercase">XP</span>
-                            <span className="text-2xl font-extrabold leading-tight">{angka(siswa.xp)}</span>
-                            <span className="text-[9px] font-medium tracking-wider text-white/70 uppercase">TOTAL XP</span>
-                        </div>
-                        <div className="flex min-w-[90px] flex-col items-center justify-center rounded-xl bg-white/20 px-4 py-2.5 text-center backdrop-blur-sm">
-                            <span className="text-[10px] font-semibold tracking-wider text-white/80 uppercase">💡</span>
-                            <span className="text-2xl font-extrabold leading-tight">{angka(siswa.point)}</span>
-                            <span className="text-[9px] font-medium tracking-wider text-white/70 uppercase">TOTAL POINT</span>
-                        </div>
-                    </div>
+                    <dl className="flex shrink-0 gap-4">
+                        <KartuStat label="Total XP" nilai={angka(siswa.xp)} />
+                        <KartuStat label="Total Point" nilai={angka(siswa.point)} />
+                    </dl>
                 </section>
 
                 {/* Kartu Biodata */}
-                <section className="rounded-2xl bg-white p-6 shadow-sm">
-                    <div className="flex items-center justify-between border-b border-gray-100 pb-4">
-                        <h2 className="text-lg font-bold text-[#1F2D5C]">Biodata</h2>
+                <section className="animate-muncul-halus rounded-kartu bg-white px-[26px] py-5 shadow-kartu [animation-delay:80ms] [animation-fill-mode:both]">
+                    <div className="flex items-center justify-between gap-3">
+                        <h2 className="text-[18px] font-semibold leading-tight text-siswa-judul-seksi">Biodata</h2>
                         <Link
                             href={route('akun.profil')}
                             prefetch
-                            className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-4 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+                            className="inline-flex h-9 items-center gap-1.5 rounded-[10px] border border-siswa-garis-halus bg-white px-4 text-[13px] font-semibold text-siswa-judul-seksi shadow-panel transition duration-200 hover:-translate-y-0.5 hover:bg-siswa-panel-fleksibel"
                         >
-                            <svg className="h-3.5 w-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="h-3.5 w-3.5 text-edvora-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                             </svg>
                             Edit Biodata
                         </Link>
                     </div>
 
-                    <dl className="mt-5 grid grid-cols-1 gap-y-5 sm:grid-cols-2">
+                    <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <Isian label="Nama Lengkap" isi={nama} />
                         <Isian label="Email" isi={user.email} />
                         <Isian label="Kelas" isi={kelas} />

@@ -6,6 +6,9 @@ use App\Models\Pengerjaan;
 use App\Models\TransaksiPoin;
 use App\Models\TransaksiXp;
 use App\Models\TryOut;
+use App\Services\MajemukTabel;
+use App\Services\PembahasanPengerjaan;
+use App\Services\PeringkatTryOut;
 use App\Services\SesiTryOut;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
@@ -19,6 +22,9 @@ use Inertia\Inertia;
  */
 class TryOutController extends Controller
 {
+    // Sama dengan teks pop-up di TryOut/Hasil.tsx (RANCANGAN-peringkat-pembahasan-tryout.md P2).
+    public const PESAN_PERINGKAT_BELUM = 'Peringkat belum tersedia, silakan menunggu event Try Out berakhir.';
+
     public function index(SesiTryOut $sesi)
     {
         $userId = Auth::id();
@@ -109,15 +115,17 @@ class TryOutController extends Controller
         $indeks = $subtesPaket->search(fn ($s) => $s->id === $posisi['aktif']);
         $aktif = $subtesPaket[$indeks];
 
-        // Kunci, pembahasan, dan hint tidak dikirim ke browser.
+        // Kunci (termasuk kunci_kolom majemuk_tabel), pembahasan, dan hint tidak dikirim ke browser.
         $soalList = $aktif->soal()
             ->with('opsiJawaban:id,soal_id,label,teks_opsi,gambar_opsi,urutan')
-            ->get(['soal.id', 'soal.tipe', 'soal.teks_soal', 'soal.gambar_soal'])
+            ->get(['soal.id', 'soal.tipe', 'soal.teks_soal', 'soal.gambar_soal', 'soal.kolom_tabel'])
             ->map(fn ($soal) => [
                 'id' => $soal->id,
                 'tipe' => $soal->tipe,
                 'teks_soal' => $soal->teks_soal,
                 'gambar_soal' => $soal->gambar_soal,
+                // Majemuk_tabel: judul kolom, mis. ["Benar", "Salah", "Tidak Bisa Ditentukan"]; null untuk tipe lain.
+                'kolom_tabel' => $soal->kolom_tabel,
                 'opsi' => $soal->opsiJawaban->map(fn ($o) => [
                     'id' => $o->id,
                     'label' => $o->label,
@@ -151,6 +159,9 @@ class TryOutController extends Controller
             'jawaban.*.opsiIds' => ['nullable', 'array'],
             'jawaban.*.opsiIds.*' => ['uuid'],
             'jawaban.*.jawabanIsian' => ['nullable', 'string', 'max:100'],
+            // Majemuk_tabel: { idOpsi: nomor kolom }.
+            'jawaban.*.pilihanKolom' => ['nullable', 'array'],
+            'jawaban.*.pilihanKolom.*' => ['integer', 'between:1,'.MajemukTabel::MAKS_KOLOM],
         ]);
 
         $pengerjaan = $this->pengerjaanMilik($tryOut);
@@ -171,6 +182,7 @@ class TryOutController extends Controller
             ->mapWithKeys(fn ($j) => [$j['soalId'] => [
                 'opsiIds' => array_values($j['opsiIds'] ?? []),
                 'jawabanIsian' => $j['jawabanIsian'] ?? null,
+                'pilihanKolom' => $j['pilihanKolom'] ?? [],
             ]])
             ->all();
 
@@ -232,6 +244,78 @@ class TryOutController extends Controller
             // XP dan poin dibaca dari catatan saat diberikan (K12).
             'xp' => (int) TransaksiXp::where('pengerjaan_id', $pengerjaan->id)->sum('jumlah'),
             'poin' => (int) TransaksiPoin::where('pengerjaan_id', $pengerjaan->id)->sum('jumlah'),
+        ]);
+    }
+
+    public function pembahasan(TryOut $tryOut, int $urutan, SesiTryOut $sesi, PembahasanPengerjaan $pembahasan)
+    {
+        $pengerjaan = $this->pengerjaanMilik($tryOut);
+
+        if (! $pengerjaan) {
+            return redirect()->route('tryout.index');
+        }
+
+        if ($pengerjaan->status === 'berjalan') {
+            if (! $sesi->rapikan($pengerjaan)['selesai']) {
+                return redirect()->route('tryout.kerjakan', $tryOut);
+            }
+
+            $pengerjaan->refresh();
+        }
+
+        // Dibuka setelah paket ditutup: semua siswa mendapat soal yang sama, jadi kunci tidak boleh bocor ke
+        // peserta yang belum mengerjakan (RANCANGAN-peringkat-pembahasan-tryout.md P3).
+        if ($tryOut->status() !== TryOut::DITUTUP) {
+            Inertia::flash('error', 'Pembahasan tersedia setelah periode berakhir.');
+
+            return redirect()->route('tryout.hasil', $tryOut);
+        }
+
+        $subtesPaket = $tryOut->subtesPaket()->with('subtes:id,nama_subtes')->get();
+        $daftarUrutan = $subtesPaket->pluck('urutan')->map(fn ($u) => (int) $u)->all();
+        $posisi = array_search($urutan, $daftarUrutan, true);
+
+        if ($posisi === false) {
+            abort(404);
+        }
+
+        $tryOutSubtes = $subtesPaket[$posisi];
+
+        return Inertia::render('TryOut/Pembahasan', [
+            'paket' => ['id' => $tryOut->id, 'judul' => $tryOut->judul],
+            'subtes' => ['urutan' => $urutan, 'nama' => $tryOutSubtes->subtes->nama_subtes, 'jumlahSubtes' => count($daftarUrutan)],
+            'daftarSubtes' => $subtesPaket->map(fn ($s) => ['urutan' => (int) $s->urutan, 'nama' => $s->subtes->nama_subtes])->values(),
+            'sebelumnya' => $daftarUrutan[$posisi - 1] ?? null,
+            'berikutnya' => $daftarUrutan[$posisi + 1] ?? null,
+            'soalList' => $pembahasan->untukSubtesTryOut($pengerjaan, $tryOutSubtes),
+        ]);
+    }
+
+    public function peringkat(Request $request, TryOut $tryOut, PeringkatTryOut $peringkat)
+    {
+        $pengerjaan = $this->pengerjaanMilik($tryOut);
+
+        // Hanya peserta yang sudah selesai; siswa lain tidak boleh melihat peringkat paket ini (P15).
+        if (! $pengerjaan || $pengerjaan->status !== 'selesai') {
+            return redirect()->route('tryout.index');
+        }
+
+        // Skor IRT baru ada setelah paket ditutup dan dinilai (RANCANGAN-irt.md I2).
+        if ($tryOut->dinilai_at === null || $pengerjaan->total_skor === null) {
+            Inertia::flash('error', self::PESAN_PERINGKAT_BELUM);
+
+            return redirect()->route('tryout.hasil', $tryOut);
+        }
+
+        return Inertia::render('TryOut/Peringkat', [
+            'paket' => ['id' => $tryOut->id, 'judul' => $tryOut->judul],
+            'skorSaya' => (float) $pengerjaan->total_skor,
+            ...$peringkat->untuk(
+                $tryOut,
+                Auth::id(),
+                PeringkatTryOut::bacaJenis($request->query('jenis')),
+                PeringkatTryOut::bacaHalaman($request->query('halaman')),
+            ),
         ]);
     }
 

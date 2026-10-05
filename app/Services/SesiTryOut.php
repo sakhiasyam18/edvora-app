@@ -77,7 +77,7 @@ class SesiTryOut
      *   jawaban tetap dicatat.
      * - Selain itu (tab lama, tombol Back, subtes yang belum dimulai) kiriman diabaikan.
      *
-     * @param  array<string, array{opsiIds: string[], jawabanIsian: ?string}>  $jawaban  soal_id => jawaban, sudah disaring ke soal subtes ini
+     * @param  array<string, array{opsiIds: string[], jawabanIsian: ?string, pilihanKolom: array<string, int>}>  $jawaban  soal_id => jawaban, sudah disaring ke soal subtes ini
      */
     public static function terimaKiriman(array $subtesList, array $catatan, CarbonImmutable $mulaiPengerjaan, CarbonImmutable $selesaiAt, CarbonImmutable $sekarang, string $subtesId, array $jawaban): array
     {
@@ -115,7 +115,7 @@ class SesiTryOut
     }
 
     /**
-     * @param  array<string, array{opsiIds: string[], jawabanIsian: ?string}>  $jawaban
+     * @param  array<string, array{opsiIds: string[], jawabanIsian: ?string, pilihanKolom: array<string, int>}>  $jawaban
      */
     public function terima(Pengerjaan $pengerjaan, string $subtesId, array $jawaban): array
     {

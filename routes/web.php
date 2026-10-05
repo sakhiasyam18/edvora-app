@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\AdminSoalController;
 use App\Http\Controllers\BattleController;
 use App\Http\Controllers\BerandaController;
@@ -62,11 +64,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
             // Segmen subtes/ mencegah bentrok dengan /latihan/ujian dan /latihan/hasil; kode tak dikenal → 404.
             Route::get('/subtes/{subtes:kode_subtes}', [LatihanSoalController::class, 'pilihMode'])->name('latihan.mode');
             Route::get('/ujian', [LatihanSoalController::class, 'ujian'])->name('latihan.ujian');
+            // Fleksibel tersimpan di database: Mulai membuat sesi berjalan, lalu dikerjakan dan dilanjutkan di kerjakan.
+            Route::post('/mulai', [LatihanSoalController::class, 'mulai'])->block(10, 10)->name('latihan.mulai');
+            Route::get('/kerjakan/{pengerjaan}', [LatihanSoalController::class, 'kerjakan'])->whereUuid('pengerjaan')->name('latihan.kerjakan');
             // block(): request dengan session yang sama diproses bergantian, jadi klik ganda tidak saling timpa.
-            Route::post('/ujian/cek-jawaban', [LatihanSoalController::class, 'cekJawaban'])
+            // Fleksibel dan remedial: nilai dan simpan satu jawaban; balasannya membawa kunci dan pembahasan.
+            Route::post('/ujian/jawab', [LatihanSoalController::class, 'jawab'])
                 ->middleware('throttle:30,1')
                 ->block(10, 10)
-                ->name('latihan.cek');
+                ->name('latihan.jawab');
             // Membuka hint dicatat di session supaya jawaban benar dengan hint bernilai 0,5.
             Route::post('/ujian/hint', [LatihanSoalController::class, 'bukaHint'])
                 ->middleware('throttle:30,1')
@@ -101,9 +107,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         // Rute Admin (UCS6 Mengelola User): hanya role admin; role lain mendapat 403.
         Route::prefix('admin')->middleware('peran:admin')->group(function () {
-            // Halaman template tujuan setelah admin login; belum butuh data dari server.
-            Route::inertia('/', 'Dashboard/Admin')->name('admin.index');
-            // Kelola User menyusul, dengan nama rute admin.user.*
+            // Dashboard Admin: jumlah siswa/editor, siswa aktif hari ini, audit log admin dan editor.
+            Route::get('/', [DashboardController::class, 'index'])->name('admin.index');
+
+            // Daftar User. whereUuid: id yang bukan UUID langsung 404, bukan error query Postgres.
+            Route::prefix('users')->name('admin.user.')->group(function () {
+                Route::get('/', [UserController::class, 'index'])->name('index');
+                Route::post('/editor', [UserController::class, 'tambahEditor'])->name('tambahEditor');
+                Route::put('/{user}/reset-password', [UserController::class, 'resetPassword'])->whereUuid('user')->name('resetPassword');
+                Route::put('/{user}/nonaktifkan', [UserController::class, 'nonaktifkan'])->whereUuid('user')->name('nonaktifkan');
+                Route::put('/{user}/aktifkan', [UserController::class, 'aktifkan'])->whereUuid('user')->name('aktifkan');
+                Route::delete('/{user}', [UserController::class, 'hapus'])->whereUuid('user')->name('hapus');
+            });
         });
 
         // Rute Editor (UCS7 Bank Soal, UCS8 Paket Try Out, UCS9 Dashboard Analitik): hanya role admin_editor.
@@ -141,6 +156,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/{tryOut}/kerjakan', [TryOutController::class, 'kerjakan'])->whereUuid('tryOut')->name('tryout.kerjakan');
             Route::post('/{tryOut}/kirim', [TryOutController::class, 'kirim'])->whereUuid('tryOut')->block(10, 10)->name('tryout.kirim');
             Route::get('/{tryOut}/hasil', [TryOutController::class, 'hasil'])->whereUuid('tryOut')->name('tryout.hasil');
+            // urutan dibatasi 1–3 digit: angka yang terlalu panjang tidak muat di parameter int dan menjadi error 500.
+            Route::get('/{tryOut}/pembahasan/{urutan}', [TryOutController::class, 'pembahasan'])->whereUuid('tryOut')->where('urutan', '[0-9]{1,3}')->name('tryout.pembahasan');
+            Route::get('/{tryOut}/peringkat', [TryOutController::class, 'peringkat'])->whereUuid('tryOut')->name('tryout.peringkat');
         });
     });
 });

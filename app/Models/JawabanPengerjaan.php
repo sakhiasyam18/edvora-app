@@ -47,6 +47,26 @@ class JawabanPengerjaan extends Model
         );
     }
 
+    /**
+     * Kolom jawaban menurut tipe soal, untuk insert massal. Jalur itu melewati mutator Eloquent, jadi literal array
+     * Postgres dan JSON ditulis manual. Pilihan ganda memakai opsi_dipilih_id supaya FK-nya terjaga; benar_salah memakai
+     * opsi_dipilih_ids; isian memakai jawaban_isian; majemuk_tabel memakai pilihan_kolom. Keempat kolom selalu ada,
+     * karena insert massal mensyaratkan setiap baris memiliki kolom yang sama.
+     *
+     * @param  array<int, string>  $opsiIds
+     * @param  array<string, int>|null  $pilihanKolom  majemuk_tabel: id opsi => nomor kolom
+     * @return array{opsi_dipilih_id: ?string, opsi_dipilih_ids: ?string, jawaban_isian: ?string, pilihan_kolom: ?string}
+     */
+    public static function kolomJawaban(string $tipe, array $opsiIds, ?string $jawabanIsian, ?array $pilihanKolom = null): array
+    {
+        return [
+            'opsi_dipilih_id' => $tipe === 'pilihan_ganda' ? ($opsiIds[0] ?? null) : null,
+            'opsi_dipilih_ids' => $tipe === 'benar_salah' ? '{'.implode(',', $opsiIds).'}' : null,
+            'jawaban_isian' => $tipe === 'isian_singkat' ? $jawabanIsian : null,
+            'pilihan_kolom' => $tipe === 'majemuk_tabel' && $pilihanKolom !== null ? json_encode($pilihanKolom) : null,
+        ];
+    }
+
     public function pengerjaan()
     {
         return $this->belongsTo(Pengerjaan::class, 'pengerjaan_id');

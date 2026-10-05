@@ -32,11 +32,17 @@ class User extends Authenticatable implements MustVerifyEmail
         'password',
         'role',
         'is_active',
+        'email_verified_at',
     ];
 
     public function siswa()
     {
         return $this->hasOne(Siswa::class, 'user_id', 'id');
+    }
+
+    public function adminEditor()
+    {
+        return $this->hasOne(AdminEditor::class, 'user_id', 'id');
     }
 
     /**
@@ -58,6 +64,7 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return [
             'email_verified_at' => 'datetime',
+            'terakhir_login_at' => 'datetime',
             'password' => 'hashed',
         ];
     }

@@ -5,6 +5,9 @@ namespace App\Services;
 use App\Models\JawabanPengerjaan;
 use App\Models\Pengerjaan;
 use App\Models\Soal;
+use App\Models\TryOutSubtes;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Isi halaman pembahasan satu pengerjaan: setiap soal sesi beserta jawaban siswa, status, dan kunci siap tampil.
@@ -23,6 +26,38 @@ class PembahasanPengerjaan
 
         $urutan = self::urutanSoal($pengerjaan->soal_ids, $jawaban->map(fn ($j) => (string) $j->waktu_menjawab)->all());
 
+        return $this->susun($urutan, $jawaban);
+    }
+
+    /**
+     * Pembahasan satu subtes Try Out (RANCANGAN-peringkat-pembahasan-tryout.md 4.3): semua soal subtes paket sesuai
+     * urutan try_out_soal, termasuk yang dikosongkan, karena pengerjaan Try Out tidak menyimpan soal_ids.
+     *
+     * @return array<int, array<string, mixed>> urut nomor soal
+     */
+    public function untukSubtesTryOut(Pengerjaan $pengerjaan, TryOutSubtes $tryOutSubtes): array
+    {
+        $urutan = DB::table('try_out_soal')
+            ->where('try_out_subtes_id', $tryOutSubtes->id)
+            ->orderBy('urutan')
+            ->pluck('soal_id')
+            ->all();
+
+        $jawaban = JawabanPengerjaan::where('pengerjaan_id', $pengerjaan->id)
+            ->whereIn('soal_id', $urutan)
+            ->get(['soal_id', 'opsi_dipilih_id', 'opsi_dipilih_ids', 'jawaban_isian', 'pilihan_kolom', 'is_correct'])
+            ->keyBy('soal_id');
+
+        return $this->susun($urutan, $jawaban);
+    }
+
+    /**
+     * @param  string[]  $urutan  id soal urut nomor
+     * @param  Collection<string, JawabanPengerjaan>  $jawaban  soal_id => jawaban
+     * @return array<int, array<string, mixed>>
+     */
+    private function susun(array $urutan, Collection $jawaban): array
+    {
         $soalMap = Soal::with(['opsiJawaban' => fn ($q) => $q->orderBy('urutan')])
             ->whereIn('id', $urutan)
             ->get(['id', 'tipe', 'teks_soal', 'gambar_soal', 'pembahasan', 'gambar_pembahasan', 'kunci_jawaban', 'kolom_tabel'])
@@ -107,9 +142,59 @@ class PembahasanPengerjaan
         return "{$kunci[0]['label']}. {$kunci[0]['teks_opsi']}";
     }
 
-    private static function satuSoal(Soal $soal, ?JawabanPengerjaan $jawaban): array
+    /**
+     * Umpan balik satu jawaban yang sudah final (latihan.jawab, RANCANGAN-RENCANA-save-fleksibel.md SF7): benar/salah,
+     * opsi kunci untuk mewarnai pilihan, teks kunci siap tampil, dan pembahasan. Hanya dikirim setelah jawaban
+     * dikunci, jadi kunci tidak bisa dipakai untuk menebak.
+     *
+     * kunciKolom (majemuk_tabel: id opsi => nomor kolom kunci) mewarnai sel tabel, karena kunci_kolom tidak ikut di
+     * props halaman ujian.
+     *
+     * @param  array<int, array{id: string, label: string, teks_opsi: string, is_kunci: bool, kunci_kolom?: ?int}>  $opsi  urut `urutan`
+     * @param  string[]|null  $kolomTabel  judul kolom soal majemuk_tabel
+     * @return array{benar: bool, kunciOpsiIds: string[], kunciKolom: ?array<string, ?int>, kunci: string, pembahasan: ?string, gambarPembahasan: ?string}
+     */
+    public static function umpanBalik(
+        string $tipe,
+        array $opsi,
+        ?string $kunciJawaban,
+        ?string $pembahasan,
+        bool $benar,
+        ?array $kolomTabel = null,
+        ?string $gambarPembahasan = null,
+    ): array {
+        return [
+            'benar' => $benar,
+            'kunciOpsiIds' => array_values(array_column(array_filter($opsi, fn (array $o) => $o['is_kunci']), 'id')),
+            'kunciKolom' => $tipe === 'majemuk_tabel' ? array_column($opsi, 'kunci_kolom', 'id') : null,
+            'kunci' => self::teksKunci($tipe, $opsi, $kunciJawaban, $kolomTabel),
+            'pembahasan' => $pembahasan,
+            'gambarPembahasan' => $gambarPembahasan,
+        ];
+    }
+
+    /** umpanBalik() dari model Soal yang opsiJawaban-nya sudah dimuat urut `urutan`. */
+    public static function umpanBalikSoal(Soal $soal, bool $benar): array
     {
-        $opsi = $soal->opsiJawaban->map(fn ($o) => [
+        return self::umpanBalik(
+            $soal->tipe,
+            self::opsiTampil($soal),
+            $soal->kunci_jawaban,
+            $soal->pembahasan,
+            $benar,
+            $soal->kolom_tabel,
+            $soal->gambar_pembahasan,
+        );
+    }
+
+    /**
+     * Opsi soal dalam bentuk yang dipakai teksKunci() dan umpanBalik().
+     *
+     * @return array<int, array{id: string, label: string, teks_opsi: string, is_kunci: bool}>
+     */
+    private static function opsiTampil(Soal $soal): array
+    {
+        return $soal->opsiJawaban->map(fn ($o) => [
             'id' => $o->id,
             'label' => $o->label,
             'teks_opsi' => $o->teks_opsi,
@@ -117,6 +202,11 @@ class PembahasanPengerjaan
             'is_kunci' => (bool) $o->is_kunci,
             'kunci_kolom' => $o->kunci_kolom,
         ])->all();
+    }
+
+    private static function satuSoal(Soal $soal, ?JawabanPengerjaan $jawaban): array
+    {
+        $opsi = self::opsiTampil($soal);
 
         return [
             'id' => $soal->id,

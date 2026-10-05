@@ -27,7 +27,8 @@ export interface SoalTryOut {
     tipe: TipeSoal;
     teks_soal: string;
     gambar_soal: string | null;
-    opsi: OpsiTryOut[];
+    kolom_tabel: string[] | null; // majemuk_tabel: judul kolom, mis. ["Benar", "Salah", "Tidak Bisa Ditentukan"]
+    opsi: OpsiTryOut[]; // majemuk_tabel: satu opsi = satu pernyataan (baris tabel)
 }
 
 export interface SubtesAktifTryOut {
@@ -41,6 +42,7 @@ export interface SubtesAktifTryOut {
 export interface JawabanTryOut {
     opsiIds: string[];
     jawabanIsian: string | null;
+    pilihanKolom?: Record<string, number>; // majemuk_tabel: id pernyataan => nomor kolom (mulai 1)
 }
 
 export interface HasilSubtesTryOut {
@@ -51,4 +53,16 @@ export interface HasilSubtesTryOut {
     salah: number;
     kosong: number;
     skor: number | null; // skor IRT subtes (0–1000), null sampai paket dinilai
+}
+
+export type JenisPeringkat = 'umum' | 'khusus';
+
+// Satu baris peringkat Try Out (RANCANGAN-peringkat-pembahasan-tryout.md 5.3).
+export interface BarisPeringkat {
+    peringkat: number;
+    nama: string;
+    universitas: string | null;
+    prodi: string | null; // mis. "S1 Teknik Informatika"
+    skor: number;
+    saya: boolean; // baris milik siswa yang login
 }

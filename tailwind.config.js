@@ -196,6 +196,15 @@ export default {
                 ubin: '1.51px 1.51px 4.305px 0 rgba(0,0,0,0.17)',
             },
             keyframes: {
+                // Daftar dropdown muncul memudar sambil sedikit membesar dari atas.
+                'buka-menu': {
+                    from: { opacity: '0', transform: 'translateY(-4px) scale(0.97)' },
+                    to: { opacity: '1', transform: 'translateY(0) scale(1)' },
+                },
+                // Garis Grafik Try Out tergambar dari kiri ke kanan (dipakai dengan pathLength 1).
+                'gambar-garis': {
+                    to: { strokeDashoffset: '0' },
+                },
                 // Isi tab yang baru dibuka muncul pelan sambil sedikit naik.
                 'muncul-halus': {
                     from: { opacity: '0', transform: 'translateY(8px)' },
@@ -208,6 +217,8 @@ export default {
                 },
             },
             animation: {
+                'buka-menu': 'buka-menu 160ms ease-out',
+                'gambar-garis': 'gambar-garis 900ms ease-out forwards',
                 'muncul-halus': 'muncul-halus 350ms ease-out',
                 // Pantulan cahaya yang lewat di lencana "Direkomendasikan": 1,6 detik bergerak, lalu jeda sebelum lewat lagi.
                 kilau: 'kilau 2.8s ease-in-out infinite',
@@ -224,6 +235,10 @@ export default {
                 'ujian-biru': 'linear-gradient(to right, #658FDF, #4F77C2)',
                 'ujian-hijau': 'linear-gradient(to right, #74C255, #4C9A3A)',
                 'ujian-merah': 'linear-gradient(to right, #EE7B7B, #D55252)',
+                // Lencana peringkat 1, 2, dan 3 di podium Peringkat Try Out (Figma node 1234:2372).
+                'podium-perak': 'linear-gradient(to bottom, #D7D9DD, #8F949B)',
+                'podium-perunggu': 'linear-gradient(to bottom, #F2A15E, #C4532A)',
+                'podium-emas': 'linear-gradient(to bottom, #FFD66B, #E9A010)',
             },
             fontSize: {
                 "label-md": ["13px", { "lineHeight": "18px", "fontWeight": "600" }],

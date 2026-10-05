@@ -4,6 +4,7 @@ import LatihanLayout from '@/Components/Layouts/LatihanLayout';
 import Modal from '@/Components/Modal';
 import ArenaPengerjaan, { NavigasiSoal } from '@/Components/Ujian/ArenaPengerjaan';
 import KartuSoal from '@/Components/Ujian/KartuSoal';
+import TabelMajemuk from '@/Components/Ujian/TabelMajemuk';
 import TombolOpsi from '@/Components/Ujian/TombolOpsi';
 import { batasEfektif, sisaDetikDari } from '@/lib/batasSubtes';
 import { JawabanTryOut, SoalTryOut, SubtesAktifTryOut } from '@/types/tryout';
@@ -166,6 +167,11 @@ function PengerjaanSubtes({ paket, pengerjaanId, subtes, soalList, sisaDetik }: 
 
     const isiIsian = (teks: string) => aturJawaban(soal.id, teks.trim() ? { opsiIds: [], jawabanIsian: teks } : null);
 
+    // Majemuk tabel: satu kolom per pernyataan; memilih kolom lain di baris yang sama mengganti pilihannya.
+    // Soal sudah terhitung dijawab begitu satu baris dipilih; baris yang kosong dinilai salah di server.
+    const pilihKolom = (opsiId: string, nomorKolom: number) =>
+        aturJawaban(soal.id, { opsiIds: [], jawabanIsian: null, pilihanKolom: { ...(jawaban?.pilihanKolom ?? {}), [opsiId]: nomorKolom } });
+
     const toggleRaguRagu = () => setDraf((d) => ({ ...d, ragu: { ...d.ragu, [soal.id]: !d.ragu[soal.id] } }));
 
     const terjawab = (i: number) => !!draf.jawaban[soalList[i].id];
@@ -267,8 +273,17 @@ function PengerjaanSubtes({ paket, pengerjaanId, subtes, soalList, sisaDetik }: 
 
                     {soal.tipe === 'benar_salah' && <p className="mt-3 px-1 text-xs font-medium text-siswa-teks">Pilih semua pernyataan yang benar.</p>}
 
-                    {/* JAWABAN: kolom isian, atau opsi (pilihan ganda: satu; benar-salah: centang banyak) */}
-                    {soal.tipe === 'isian_singkat' ? (
+                    {/* JAWABAN: tabel (majemuk: satu kolom per pernyataan), kolom isian, atau opsi (pilihan ganda: satu; benar-salah: centang banyak) */}
+                    {soal.tipe === 'majemuk_tabel' ? (
+                        <div className="mt-3">
+                            <TabelMajemuk
+                                kolom={soal.kolom_tabel ?? []}
+                                pernyataan={soal.opsi}
+                                pilihan={jawaban?.pilihanKolom ?? {}}
+                                onPilih={(o, nomor) => pilihKolom(o.id, nomor)}
+                            />
+                        </div>
+                    ) : soal.tipe === 'isian_singkat' ? (
                         <input
                             type="text"
                             maxLength={100}

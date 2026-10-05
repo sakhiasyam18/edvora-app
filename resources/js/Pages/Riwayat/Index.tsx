@@ -20,11 +20,6 @@ const PILIHAN_STATUS = {
 type JenisSesi = keyof typeof PILIHAN_JENIS;
 type StatusFilter = keyof typeof PILIHAN_STATUS;
 
-// Tombol "Lanjut Kerjakan" disembunyikan sampai fitur simpan per soal selesai (RANCANGAN-dashboard-topik-remedial.md).
-// Saat itu, aktifkan lagi dan arahkan ke rute pengerjaan yang baru; cabang Ulangi di latihan.ujian sudah dihapus.
-// Try Out tidak memakai flag ini: pengerjaan Try Out yang berjalan selalu bisa dilanjutkan (RANCANGAN-tryout.md 6.4).
-const LANJUT_KERJAKAN_TERSEDIA = false;
-
 // Interface Data
 interface RiwayatItem {
     id: string;
@@ -295,14 +290,10 @@ export default function Index({ title = 'Riwayat Pengerjaan', riwayat, filters }
                                                                 Lanjut Kerjakan
                                                             </Link>
                                                         ) : (
-                                                            LANJUT_KERJAKAN_TERSEDIA && (
-                                                                <Link
-                                                                    href={route('latihan.ujian', { subtesId: item.subtes_id, pengerjaanId: item.id })}
-                                                                    className={`${KELAS_AKSI} bg-ujian-hijau`}
-                                                                >
-                                                                    Lanjut Kerjakan
-                                                                </Link>
-                                                            )
+                                                            // Latihan yang belum selesai hanya fleksibel (UCS3 2c), dilanjutkan dari database.
+                                                            <Link href={route('latihan.kerjakan', item.id)} className={`${KELAS_AKSI} bg-ujian-hijau`}>
+                                                                Lanjut Kerjakan
+                                                            </Link>
                                                         )
                                                     ) : (
                                                         <Link

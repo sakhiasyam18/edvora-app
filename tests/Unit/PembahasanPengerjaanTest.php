@@ -63,6 +63,64 @@ class PembahasanPengerjaanTest extends TestCase
         $this->assertSame('-', PembahasanPengerjaan::teksKunci('isian_singkat', [], null));
     }
 
+    public function test_umpan_balik_pilihan_ganda_berisi_opsi_kunci_teks_dan_pembahasan(): void
+    {
+        $opsi = [$this->opsi('A', 'Vierzna', false), $this->opsi('B', 'Paramita', true)];
+
+        $this->assertSame([
+            'benar' => false,
+            'kunciOpsiIds' => ['B'],
+            'kunciKolom' => null,
+            'kunci' => 'B. Paramita',
+            'pembahasan' => 'Karena B.',
+            'gambarPembahasan' => null,
+        ], PembahasanPengerjaan::umpanBalik('pilihan_ganda', $opsi, null, 'Karena B.', false));
+    }
+
+    public function test_umpan_balik_majemuk_tabel_berisi_kunci_per_baris_dan_judul_kolom(): void
+    {
+        $opsi = [
+            ['id' => 'p1', 'label' => 'A', 'teks_opsi' => 'P', 'is_kunci' => false, 'kunci_kolom' => 2],
+            ['id' => 'p2', 'label' => 'B', 'teks_opsi' => 'Q', 'is_kunci' => false, 'kunci_kolom' => 1],
+        ];
+
+        $hasil = PembahasanPengerjaan::umpanBalik('majemuk_tabel', $opsi, null, null, true, ['Benar', 'Salah'], 'https://contoh/gambar.png');
+
+        $this->assertSame(['p1' => 2, 'p2' => 1], $hasil['kunciKolom']);
+        $this->assertSame('1. Salah; 2. Benar', $hasil['kunci']);
+        $this->assertSame([], $hasil['kunciOpsiIds']);
+        $this->assertSame('https://contoh/gambar.png', $hasil['gambarPembahasan']);
+    }
+
+    public function test_umpan_balik_benar_salah_memuat_semua_pernyataan_yang_benar(): void
+    {
+        $opsi = [$this->opsi('A', 'P', true), $this->opsi('B', 'Q', false), $this->opsi('C', 'R', true)];
+
+        $hasil = PembahasanPengerjaan::umpanBalik('benar_salah', $opsi, null, null, true);
+
+        $this->assertSame(['A', 'C'], $hasil['kunciOpsiIds']);
+        $this->assertSame('P dan R', $hasil['kunci']);
+        $this->assertTrue($hasil['benar']);
+        $this->assertNull($hasil['pembahasan']);
+    }
+
+    public function test_umpan_balik_isian_tanpa_opsi_kunci_dan_memakai_alternatif_pertama(): void
+    {
+        $hasil = PembahasanPengerjaan::umpanBalik('isian_singkat', [], 'delapan|8', 'Hitung ulang.', true);
+
+        $this->assertSame([], $hasil['kunciOpsiIds']);
+        $this->assertSame('delapan', $hasil['kunci']);
+        $this->assertSame('Hitung ulang.', $hasil['pembahasan']);
+    }
+
+    public function test_umpan_balik_soal_tanpa_kunci(): void
+    {
+        $hasil = PembahasanPengerjaan::umpanBalik('pilihan_ganda', [$this->opsi('A', 'X', false)], null, null, false);
+
+        $this->assertSame([], $hasil['kunciOpsiIds']);
+        $this->assertSame('-', $hasil['kunci']);
+    }
+
     private function opsi(string $label, string $teks, bool $kunci): array
     {
         return ['id' => $label, 'label' => $label, 'teks_opsi' => $teks, 'is_kunci' => $kunci];
