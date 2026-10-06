@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Models\TryOutSoal;
+use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -22,6 +22,9 @@ class TryOut extends Model
     public const DIBUKA = 'dibuka';
 
     public const DITUTUP = 'ditutup';
+
+    // Editor mengisi jam di form (input datetime-local, tanpa zona waktu) dalam WIB; aplikasi dan database memakai UTC.
+    public const ZONA_FORM = 'Asia/Jakarta';
 
     protected $table = 'try_out';
 
@@ -52,6 +55,21 @@ class TryOut extends Model
         }
 
         return $sekarang->lt($selesai) ? self::DIBUKA : self::DITUTUP;
+    }
+
+    /**
+     * Nilai input datetime-local dari form editor ("2026-10-06T17:10", WIB) menjadi waktu UTC untuk disimpan.
+     * utc() wajib: Eloquent menulis jam dinding Carbon apa adanya, tanpa mengubah zona waktunya.
+     */
+    public static function dariInputForm(string $nilai): CarbonImmutable
+    {
+        return CarbonImmutable::parse($nilai, self::ZONA_FORM)->utc();
+    }
+
+    /** Kebalikan dariInputForm(): waktu tersimpan menjadi nilai input datetime-local dalam WIB. */
+    public static function keInputForm(CarbonInterface $waktu): string
+    {
+        return $waktu->copy()->setTimezone(self::ZONA_FORM)->format('Y-m-d\TH:i');
     }
 
     /**
@@ -86,5 +104,4 @@ class TryOut extends Model
     {
         return $this->hasMany(Pengerjaan::class, 'try_out_id');
     }
-
 }
