@@ -3,10 +3,9 @@
 namespace App\Http\Controllers\AdminEditor;
 
 use App\Http\Controllers\Controller;
+use App\Models\Soal;
 use App\Models\Subtes;
 use App\Models\TryOut;
-use App\Models\Soal;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -14,7 +13,6 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Throwable;
-
 
 class EditorTryOutEditorController extends Controller
 {
@@ -30,20 +28,21 @@ class EditorTryOutEditorController extends Controller
     // ];
 
     private const PERATURAN_DEFAULT = "1. Subtes dikerjakan berurutan dan tidak dapat dibuka kembali setelah selesai\n"
-        . "2. Setiap subtes memiliki waktu masing-masing; jawaban dikirim otomatis saat waktu habis\n"
-        . '3. Skor dihitung dengan IRT. Skor final tersedia setelah periode Try Out ditutup';
+        ."2. Setiap subtes memiliki waktu masing-masing; jawaban dikirim otomatis saat waktu habis\n"
+        .'3. Skor dihitung dengan IRT. Skor final tersedia setelah periode Try Out ditutup';
 
     public function index()
     {
-        $paketList = TryOut::with(['subtesPaket' => fn($q) => $q->withCount('soal')])
+        $paketList = TryOut::with(['subtesPaket' => fn ($q) => $q->withCount('soal')])
             ->withCount('pengerjaan') // sesuaikan: hanya yang sudah selesai, mis. ->withCount(['pengerjaan' => fn ($q) => $q->whereNotNull('selesai_at')])
             ->orderByDesc('mulai_at')
             ->get()
-            ->map(fn($to) => [
+            ->map(fn ($to) => [
                 'id' => $to->id,
                 'judul' => $to->judul,
-                'mulaiAt' => Carbon::parse($to->mulai_at)->translatedFormat('d M Y, H.i'),
-                'selesaiAt' => Carbon::parse($to->selesai_at)->translatedFormat('d M Y, H.i'),
+                // Ditampilkan dalam WIB, zona yang sama dengan isian form.
+                'mulaiAt' => $to->mulai_at->copy()->setTimezone(TryOut::ZONA_FORM)->translatedFormat('d M Y, H.i').' WIB',
+                'selesaiAt' => $to->selesai_at->copy()->setTimezone(TryOut::ZONA_FORM)->translatedFormat('d M Y, H.i').' WIB',
                 'soalTerkumpul' => (int) $to->subtesPaket->sum('soal_count'),
                 'totalTargetSoal' => (int) $to->subtesPaket->sum('jumlah_soal'),
                 'jumlahPeserta' => $to->pengerjaan_count,
@@ -55,7 +54,7 @@ class EditorTryOutEditorController extends Controller
 
     public function create()
     {
-        $baris = Subtes::orderBy('urutan')->get()->map(fn($s) => [
+        $baris = Subtes::orderBy('urutan')->get()->map(fn ($s) => [
             'subtes_id' => $s->id,
             'nama' => $s->nama_subtes,
             'jumlah_soal' => $s->jumlah_soal,
@@ -66,8 +65,8 @@ class EditorTryOutEditorController extends Controller
             'paket' => [
                 'id' => null,
                 'judul' => '',
-                'mulai_at' => now()->format('Y-m-d\TH:i'),
-                'selesai_at' => now()->addHours(4)->format('Y-m-d\TH:i'),
+                'mulai_at' => TryOut::keInputForm(now()),
+                'selesai_at' => TryOut::keInputForm(now()->addHours(4)),
                 'peraturan' => self::PERATURAN_DEFAULT,
             ],
             'baris' => $baris,
@@ -83,8 +82,9 @@ class EditorTryOutEditorController extends Controller
                 $paket = TryOut::create([
                     'judul' => $data['judul'],
                     'peraturan' => $data['peraturan'] ?? null,
-                    'mulai_at' => $data['mulai_at'],
-                    'selesai_at' => $data['selesai_at'],
+                    // Isian form dalam WIB; disimpan dalam UTC.
+                    'mulai_at' => TryOut::dariInputForm($data['mulai_at']),
+                    'selesai_at' => TryOut::dariInputForm($data['selesai_at']),
                     'dibuat_oleh' => auth()->id(),
                 ]);
 
@@ -98,7 +98,7 @@ class EditorTryOutEditorController extends Controller
                 $this->isiSoal($subtesPaket);
             });
         } catch (Throwable $e) {
-            Log::error('Gagal menambah paket try out: ' . $e->getMessage());
+            Log::error('Gagal menambah paket try out: '.$e->getMessage());
 
             return back()->withInput()->with('gagal', 'Paket Try Out gagal ditambahkan. Silakan coba lagi.');
         }
@@ -117,11 +117,11 @@ class EditorTryOutEditorController extends Controller
             'paket' => [
                 'id' => $paket->id,
                 'judul' => $paket->judul,
-                'mulai_at' => Carbon::parse($paket->mulai_at)->format('Y-m-d\TH:i'),
-                'selesai_at' => Carbon::parse($paket->selesai_at)->format('Y-m-d\TH:i'),
+                'mulai_at' => TryOut::keInputForm($paket->mulai_at),
+                'selesai_at' => TryOut::keInputForm($paket->selesai_at),
                 'peraturan' => $paket->peraturan ?? '',
             ],
-            'baris' => $paket->subtesPaket->map(fn($st) => [
+            'baris' => $paket->subtesPaket->map(fn ($st) => [
                 'subtes_id' => $st->subtes_id,
                 'nama' => $st->subtes?->nama_subtes ?? '-',
                 'jumlah_soal' => $st->jumlah_soal,
@@ -140,8 +140,8 @@ class EditorTryOutEditorController extends Controller
                 $paket->update([
                     'judul' => $data['judul'],
                     'peraturan' => $data['peraturan'] ?? null,
-                    'mulai_at' => $data['mulai_at'],
-                    'selesai_at' => $data['selesai_at'],
+                    'mulai_at' => TryOut::dariInputForm($data['mulai_at']),
+                    'selesai_at' => TryOut::dariInputForm($data['selesai_at']),
                 ]);
 
                 // Satu query untuk semua subtes paket, bukan satu query per baris form.
@@ -153,7 +153,7 @@ class EditorTryOutEditorController extends Controller
                 $this->isiSoal($subtesPaket->values());
             });
         } catch (Throwable $e) {
-            Log::error('Gagal mengubah paket try out: ' . $e->getMessage());
+            Log::error('Gagal mengubah paket try out: '.$e->getMessage());
 
             return back()->withInput()->with('gagal', 'Paket Try Out gagal diperbarui. Silakan coba lagi.');
         }
@@ -169,7 +169,7 @@ class EditorTryOutEditorController extends Controller
         }
 
         if ($paket->pengerjaan_count > 0) {
-            return back()->with('gagal', 'Paket tidak bisa dihapus karena sudah dikerjakan ' . $paket->pengerjaan_count . ' peserta.');
+            return back()->with('gagal', 'Paket tidak bisa dihapus karena sudah dikerjakan '.$paket->pengerjaan_count.' peserta.');
         }
 
         try {
@@ -181,7 +181,7 @@ class EditorTryOutEditorController extends Controller
                 $paket->delete();
             });
         } catch (Throwable $e) {
-            Log::error('Gagal menghapus paket try out: ' . $e->getMessage());
+            Log::error('Gagal menghapus paket try out: '.$e->getMessage());
 
             return back()->with('gagal', 'Paket Try Out gagal dihapus. Silakan coba lagi.');
         }
