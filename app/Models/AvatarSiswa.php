@@ -7,13 +7,13 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Badge yang sudah diperoleh siswa. UNIQUE (user_id, badge_id): tiap badge hanya sekali (SDD 5.3.8).
+ * Avatar yang sudah dibeli siswa. UNIQUE (user_id, avatar_id): avatar tidak bisa dibeli dua kali.
  */
-class BadgeSiswa extends Model
+class AvatarSiswa extends Model
 {
     use HasFactory, HasUuids;
 
-    protected $table = 'siswa_badge';
+    protected $table = 'siswa_avatar';
 
     public $incrementing = false;
 
@@ -23,16 +23,11 @@ class BadgeSiswa extends Model
 
     protected $fillable = [
         'user_id',
-        'badge_id',
-        'diperoleh_at',
+        'avatar_id',
+        'dibeli_at',
     ];
 
     protected $casts = [
-        'diperoleh_at' => 'datetime',
+        'dibeli_at' => 'datetime',
     ];
-
-    public function badge()
-    {
-        return $this->belongsTo(Badge::class, 'badge_id');
-    }
 }

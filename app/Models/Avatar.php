@@ -7,13 +7,13 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Badge yang sudah diperoleh siswa. UNIQUE (user_id, badge_id): tiap badge hanya sekali (SDD 5.3.8).
+ * Avatar yang dijual di toko (SDD 8.3). Default tidak disimpan di tabel ini: siswa.avatar_aktif_id kosong berarti Default.
  */
-class BadgeSiswa extends Model
+class Avatar extends Model
 {
     use HasFactory, HasUuids;
 
-    protected $table = 'siswa_badge';
+    protected $table = 'avatar';
 
     public $incrementing = false;
 
@@ -22,17 +22,15 @@ class BadgeSiswa extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'user_id',
-        'badge_id',
-        'diperoleh_at',
+        'nama',
+        'gambar_perempuan',
+        'gambar_laki_laki',
+        'harga_point',
+        'level_minimal',
     ];
 
     protected $casts = [
-        'diperoleh_at' => 'datetime',
+        'harga_point' => 'integer',
+        'level_minimal' => 'integer',
     ];
-
-    public function badge()
-    {
-        return $this->belongsTo(Badge::class, 'badge_id');
-    }
 }

@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\AdminEditor\EditorTryOutEditorController;
 use App\Http\Controllers\AdminSoalController;
 use App\Http\Controllers\AnalitikController;
+use App\Http\Controllers\AvatarController;
 use App\Http\Controllers\BattleController;
 use App\Http\Controllers\BerandaController;
 use App\Http\Controllers\BiodataController;
@@ -43,7 +44,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // Dasbor Utama
         Route::get('/dashboard', [BerandaController::class, 'index'])->name('dashboard');
 
-// Manajemen Profil Akun
+        // Manajemen Profil Akun
         Route::get('/akun/profil/utama', [ProfileController::class, 'profilUtama'])
             ->name('akun.profil.utama');
 
@@ -53,20 +54,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::patch('/akun/profil', [ProfileController::class, 'updateBiodata'])
             ->name('akun.profil.update');
 
-        Route::get('/akun/badge', [ProfileController::class, 'badge'])
-            ->name('akun.badge');
-
-        // Halaman Toko Avatar
-        Route::get('/akun/avatar', [ProfileController::class, 'avatar'])
-            ->name('akun.avatar');
-
-        // Beli Avatar
-        Route::post('/akun/avatar/beli', [ProfileController::class, 'beliAvatar'])
-            ->name('akun.avatar.beli');
-
-        // Aksi Pakai Avatar
-        Route::post('/akun/avatar/pakai', [ProfileController::class, 'pakaiAvatar'])
-            ->name('akun.avatar.pakai');
+        // Badge yang sudah diperoleh dan Toko Avatar (UCS5, RANCANGAN-badge-avatar.md 6.1).
+        Route::get('/akun/badge', [ProfileController::class, 'badge'])->name('akun.badge');
+        Route::get('/akun/avatar', [AvatarController::class, 'index'])->name('akun.avatar');
+        // block(): klik ganda diproses bergantian.
+        Route::post('/akun/avatar/beli', [AvatarController::class, 'beli'])->block(10, 10)->name('akun.avatar.beli');
+        Route::post('/akun/avatar/pakai', [AvatarController::class, 'pakai'])->block(10, 10)->name('akun.avatar.pakai');
 
         Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
         Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
@@ -193,4 +186,4 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 });
 
-require __DIR__ . '/auth.php';
+require __DIR__.'/auth.php';

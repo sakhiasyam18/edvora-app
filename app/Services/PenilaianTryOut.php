@@ -22,7 +22,7 @@ class PenilaianTryOut
     // Baris per query UPDATE massal; 1.000 baris × 3 nilai jauh di bawah batas 65.535 parameter Postgres.
     private const UKURAN_POTONGAN = 1000;
 
-    public function __construct(private SesiTryOut $sesi) {}
+    public function __construct(private SesiTryOut $sesi, private PemeriksaBadge $badge) {}
 
     // Paket yang sudah lewat jeda setelah ditutup dan belum dinilai, urut waktu selesai.
     public static function paketSiap(CarbonInterface $sekarang): Builder
@@ -129,6 +129,16 @@ class PenilaianTryOut
 
                 return true;
             });
+        }
+
+        // Rata-rata skor, peringkat, dan benar/salah Try Out baru ada setelah paket dinilai (RANCANGAN-badge-avatar.md 4.4).
+        // periksa() menangkap kegagalannya sendiri, jadi satu siswa yang gagal tidak menghentikan siswa lain.
+        if ($ditulis) {
+            $waktu = now();
+            Pengerjaan::where('try_out_id', $paket->id)
+                ->where('status', 'selesai')
+                ->pluck('user_id')
+                ->each(fn (string $userId) => $this->badge->periksa($userId, $waktu));
         }
 
         return ['peserta' => count($totalSkor), 'subtes' => $ringkasan, 'ditulis' => $ditulis];

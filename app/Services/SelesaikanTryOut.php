@@ -16,18 +16,18 @@ use Illuminate\Support\Facades\DB;
  */
 class SelesaikanTryOut
 {
-    public function __construct(private PenilaianLatihan $penilaian) {}
+    public function __construct(private PenilaianLatihan $penilaian, private PemeriksaBadge $badge) {}
 
     /**
      * @param  array<string, array{mulai: ?string, selesai: ?string, jawaban: array<string, array{opsiIds: string[], jawabanIsian: ?string, pilihanKolom?: array<string, int>}>}>  $catatan
      */
     public function jalankan(Pengerjaan $pengerjaan, array $catatan, CarbonInterface $waktuSelesai): void
     {
-        DB::transaction(function () use ($pengerjaan, $catatan, $waktuSelesai) {
+        $baru = DB::transaction(function () use ($pengerjaan, $catatan, $waktuSelesai) {
             // Kunci baris: penutupan lazy dan kirim otomatis bisa berjalan bersamaan; yang kedua melihat 'selesai'.
             $p = Pengerjaan::whereKey($pengerjaan->id)->lockForUpdate()->first();
             if (! $p || $p->status !== 'berjalan') {
-                return;
+                return false;
             }
 
             $subtesPaket = TryOutSubtes::where('try_out_id', $p->try_out_id)
@@ -104,8 +104,16 @@ class SelesaikanTryOut
 
             // total_skor tetap NULL sampai skor IRT dihitung setelah paket ditutup (T15).
             $p->update(['status' => 'selesai', 'finished_at' => $waktuSelesai]);
+
+            return true;
         });
 
         session()->forget(SesiTryOut::kunciSesi($pengerjaan->id));
+
+        // Debut TO dan jumlah soal (RANCANGAN-badge-avatar.md 4.4). Siswa diambil dari pengerjaan, karena penilaian
+        // batch juga menutup pengerjaan siswa lain. Benar/salah Try Out diperiksa lagi saat paket dinilai.
+        if ($baru) {
+            $this->badge->periksa($pengerjaan->user_id, $waktuSelesai);
+        }
     }
 }
