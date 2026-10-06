@@ -21,7 +21,6 @@ class Universitas extends Model
     protected $fillable = [
         'kode_ptn',
         'nama_universitas',
-        'singkatan',
         'is_aktif',
     ];
 

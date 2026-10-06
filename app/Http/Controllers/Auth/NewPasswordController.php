@@ -16,6 +16,8 @@ use Inertia\Response;
 
 class NewPasswordController extends Controller
 {
+    private const PESAN_TAUTAN_TIDAK_VALID = 'Tautan ubah kata sandi tidak valid atau sudah kedaluwarsa. Silakan minta tautan baru.';
+
     /**
      * Display the password reset view.
      */
@@ -24,6 +26,8 @@ class NewPasswordController extends Controller
         return Inertia::render('Auth/ResetPassword', [
             'email' => $request->email,
             'token' => $request->route('token'),
+            // Layar "Ubah kata sandi berhasil" ditampilkan di halaman ini setelah store() sukses.
+            'berhasil' => (bool) session('sandiDiperbarui', false),
         ]);
     }
 
@@ -34,10 +38,17 @@ class NewPasswordController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        // Email dan token berasal dari tautan (tidak diketik user), jadi kesalahannya ditampilkan sebagai tautan tidak valid.
         $request->validate([
             'token' => 'required',
             'email' => 'required|email',
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
+        ], [
+            'email.required' => self::PESAN_TAUTAN_TIDAK_VALID,
+            'email.email' => self::PESAN_TAUTAN_TIDAK_VALID,
+            'password.required' => 'Kata sandi wajib diisi.',
+            'password.confirmed' => 'Konfirmasi kata sandi tidak cocok.',
+            'password.min' => 'Kata sandi minimal 8 karakter.',
         ]);
 
         // Here we will attempt to reset the user's password. If it is successful we
@@ -55,15 +66,19 @@ class NewPasswordController extends Controller
             }
         );
 
-        // If the password was successfully reset, we will redirect the user back to
-        // the application's home authenticated view. If there is an error we can
-        // redirect them back to where they came from with their error message.
+        // Berhasil: kembali ke halaman reset yang sama untuk menampilkan layar berhasil
+        // (tombolnya mengarah ke Login). Gagal: pesan dikirim di kunci email.
         if ($status == Password::PASSWORD_RESET) {
-            return redirect()->route('login')->with('status', __($status));
+            return redirect()->route('password.reset', ['token' => $request->token, 'email' => $request->email])
+                ->with('sandiDiperbarui', true);
         }
 
         throw ValidationException::withMessages([
-            'email' => [trans($status)],
+            'email' => [match ($status) {
+                Password::INVALID_TOKEN => self::PESAN_TAUTAN_TIDAK_VALID,
+                Password::INVALID_USER => 'Email ini tidak terdaftar.',
+                default => trans($status),
+            }],
         ]);
     }
 }

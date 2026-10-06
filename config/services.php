@@ -31,4 +31,10 @@ return [
         ],
     ],
 
+    'supabase' => [
+        // Alamat publik bucket gambar soal di Supabase Storage, tanpa garis miring di akhir, mis.
+        // https://<project>.supabase.co/storage/v1/object/public/gambar_soal. Bukan rahasia.
+        'url_gambar_soal' => env('GAMBAR_SOAL_URL'),
+    ],
+
 ];

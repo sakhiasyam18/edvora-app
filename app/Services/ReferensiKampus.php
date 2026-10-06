@@ -22,7 +22,7 @@ class ReferensiKampus
     public const MENIT_CACHE = 10;
 
     /**
-     * @return array<int, array{id: string, nama: string, singkatan: string, prodi: array<int, array{id: string, nama: string, jenjang: string}>}>
+     * @return array<int, array{id: string, nama: string, prodi: array<int, array{id: string, nama: string, jenjang: string}>}>
      */
     public function universitasAktif(): array
     {
@@ -60,7 +60,6 @@ class ReferensiKampus
             ->map(fn (Universitas $universitas) => [
                 'id' => $universitas->id,
                 'nama' => $universitas->nama_universitas,
-                'singkatan' => $universitas->singkatan,
                 'prodi' => $universitas->programStudi
                     ->map(fn (ProgramStudi $prodi) => [
                         'id' => $prodi->id,

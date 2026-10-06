@@ -61,10 +61,12 @@ class RegisteredUserController extends Controller
             return $user;
         });
 
+        // Picu notifikasi pengiriman email verifikasi
         event(new Registered($user));
 
         Auth::login($user);
 
+        // Arahkan ke rute biodata (akan otomatis ditahan ke verifikasi email oleh middleware verified)
         return redirect(route('biodata', absolute: false));
     }
 }

@@ -156,8 +156,10 @@ Ini adalah fail-fail yang akan dipanggil langsung oleh *Controller* Laravel mela
   * `Profil.tsx` *(Avatar, biodata, dan lencana)*
 * 📁 **`Jadwal/`**
   * `Index.tsx` *(Kalender dan tabel jadwal belajar)*
-* 📁 **`Admin/`**
-  * `KelolaSoal.tsx` *(Formulir tambah soal baru)*
+* 📁 **`Editor/`** *(role admin_editor; tampilan dasar dari BE, dilanjutkan tim FE)*
+  * `Dashboard.tsx` *(Stok soal per subtes dan Try Out yang dibuka)*
+  * `BankSoal.tsx` *(Daftar soal per subtes, filter, upload Excel massal)*
+  * `FormSoal.tsx` *(Tambah dan edit satu soal, dengan pratinjau)*
 
 **2. Kerangka Komponen Reusable (Di dalam `resources/js/Components/`)**
 Ini adalah fail-fail UI yang tidak dipanggil oleh Laravel, melainkan dipanggil oleh fail di folder `Pages` agar desainnya konsisten.
@@ -188,7 +190,8 @@ Tim UI/UX dapat menjalankan `npm run dev` dan melihat pratinjau halaman melalui 
 - [`/battle/hasil`](http://localhost:8000/battle/hasil) $\rightarrow$ Hasil Head-to-head
 - [`/profile`](http://localhost:8000/profile) $\rightarrow$ Profil Akun & Lencana
 - [`/jadwal`](http://localhost:8000/jadwal) $\rightarrow$ Jadwal Belajar
-- [`/admin/kelola-soal`](http://localhost:8000/admin/kelola-soal) $\rightarrow$ Halaman Tambah Soal (Admin)
+- [`/editor`](http://localhost:8000/editor) $\rightarrow$ Dashboard Editor (login sebagai admin_editor)
+- [`/editor/bank-soal/PU`](http://localhost:8000/editor/bank-soal/PU) $\rightarrow$ Bank Soal per subtes (upload Excel, tambah/edit soal)
 
 
 ### 🧠 2. Tim Logika & Backend 

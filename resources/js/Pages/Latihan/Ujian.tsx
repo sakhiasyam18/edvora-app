@@ -3,77 +3,98 @@ import axios from 'axios';
 import { useMemo, useState } from 'react';
 import LatihanLayout from '@/Components/Layouts/LatihanLayout';
 import Modal from '@/Components/Modal';
-import ArenaPengerjaan, { NavigasiSoal, StatusJawabanSoal, TombolNavigasiSoal } from '@/Components/Ujian/ArenaPengerjaan';
+import ArenaPengerjaan, { NavigasiSoal, StatusJawabanSoal } from '@/Components/Ujian/ArenaPengerjaan';
+import KartuPembahasan from '@/Components/Ujian/KartuPembahasan';
 import KartuSoal, { TeksMatematika } from '@/Components/Ujian/KartuSoal';
+import TabelMajemuk from '@/Components/Ujian/TabelMajemuk';
 import TimerMundur from '@/Components/Ujian/TimerMundur';
 import TombolOpsi, { IkonHasil, StatusOpsi } from '@/Components/Ujian/TombolOpsi';
-import { KonfigurasiSesiLatihan, OpsiJawaban } from '@/types/latihan';
+import { JawabanTersimpan, KonfigurasiSesiLatihan, OpsiJawaban, UmpanBalikJawaban } from '@/types/latihan';
 import { dummyKonfigurasiSesi, dummyKunciJawaban, dummySoalList } from '@/data/dummyLatihan';
-
-// Sementara: Soal belum punya field hint.
-const HINT_SEMENTARA = 'Hint untuk soal ini belum tersedia.';
 
 type ModalAktif = 'hint' | 'keluar' | 'selesai' | null;
 
 type IdOpsi = string | number;
 
-type Jawaban = { soalId: IdOpsi; opsiIds: IdOpsi[]; jawabanIsian?: string };
+// pilihanKolom hanya untuk majemuk_tabel: id pernyataan => nomor kolom (mulai 1).
+type Jawaban = { soalId: IdOpsi; opsiIds: IdOpsi[]; jawabanIsian?: string; pilihanKolom?: Record<string, number> };
 
-// Balasan latihan.cek. kunciJawaban hanya ada saat benar === false.
-type HasilIsian = { benar: boolean; kunciJawaban?: string };
-
-// Urutan centang tidak boleh mempengaruhi hasil: {A,D,E} sama dengan {E,A,D}.
-function samaHimpunan(a: IdOpsi[], b: IdOpsi[]) {
-    return a.length === b.length && a.every((x) => b.includes(x));
+interface UjianProps {
+    subtes: any;
+    soalList: any[];
+    konfigurasi: any;
+    // Fleksibel (latihan.kerjakan): jawaban yang sudah tersimpan dan teks hint yang sudah dibuka. Kosong di mode lain.
+    jawabanTersimpan?: JawabanTersimpan[];
+    hintTerbuka?: Record<string, string>;
 }
 
-// Terjemahkan respons gagal dari latihan.cek menjadi pesan untuk siswa.
-function pesanGagalCek(e: unknown): string {
+// Terjemahkan respons gagal dari latihan.jawab dan latihan.hint menjadi pesan untuk siswa.
+// aksi melengkapi kalimat, mis. "memeriksa jawaban" atau "membuka hint".
+function pesanGagal(e: unknown, aksi: string): string {
     if (!axios.isAxiosError(e) || !e.response) return 'Gagal terhubung ke server. Periksa koneksi lalu coba lagi.';
 
     const { status, data } = e.response;
-    if (status === 422) return (Object.values(data?.errors ?? {}) as string[][]).flat()[0] ?? data?.message ?? 'Jawaban tidak valid.';
+    if (status === 422) return (Object.values(data?.errors ?? {}) as string[][]).flat()[0] ?? data?.message ?? 'Permintaan tidak valid.';
     if (status === 410) return 'Sesi latihan sudah berakhir. Silakan mulai ulang latihan.';
-    if (status === 429) return 'Terlalu sering memeriksa jawaban. Tunggu sebentar lalu coba lagi.';
+    if (status === 429) return `Terlalu sering ${aksi}. Tunggu sebentar lalu coba lagi.`;
     if (status === 419) return 'Sesi login kedaluwarsa. Muat ulang halaman.';
-    return data?.message ?? 'Gagal memeriksa jawaban. Coba lagi.';
+    return data?.message ?? `Gagal ${aksi}. Coba lagi.`;
 }
 
-export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; soalList: any[]; konfigurasi: any }) {
+export default function Ujian({ subtes, soalList, konfigurasi, jawabanTersimpan = [], hintTerbuka: hintAwal = {} }: UjianProps) {
     const simulasi = konfigurasi.mode === 'simulasi';
 
     // Semua tipe berbasis opsi memakai array; pilihan ganda = array beranggota satu.
     // Soal isian_singkat memakai jawabanIsian dengan opsiIds kosong.
+    // Lanjut Kerjakan: jawaban yang sudah tersimpan di server langsung terkunci.
     const form = useForm({
         ...konfigurasi,
-        jawaban: [] as Jawaban[],
+        jawaban: jawabanTersimpan.map((j) => ({
+            soalId: j.soalId,
+            opsiIds: j.opsiIds,
+            jawabanIsian: j.jawabanIsian ?? '',
+            pilihanKolom: j.pilihanKolom ?? {},
+        })) as Jawaban[],
     });
 
     const [indeksAktif, setIndeksAktif] = useState(0);
     // Mode fleksibel: pilihan belum final sampai "Simpan Jawaban" ditekan.
     const [pilihanSementara, setPilihanSementara] = useState<Record<string | number, IdOpsi[]>>({});
     const [isianSementara, setIsianSementara] = useState<Record<string | number, string>>({});
-    // Hasil penilaian isian dari server (latihan.cek), per soal. Hanya dipakai di mode fleksibel.
-    // kunci hanya dikirim server saat jawaban salah, untuk ditampilkan sebagai "Jawaban yang benar".
-    const [hasilIsian, setHasilIsian] = useState<Record<string | number, HasilIsian>>({});
-    const [mengecek, setMengecek] = useState(false);
-    const [pesanCek, setPesanCek] = useState<{ soalId: IdOpsi; pesan: string } | null>(null);
+    const [kolomSementara, setKolomSementara] = useState<Record<string | number, Record<string, number>>>({});
+    // Balasan latihan.jawab per soal: benar/salah, kunci, teks kunci, dan pembahasan. Tidak dipakai di simulasi.
+    const [hasilJawaban, setHasilJawaban] = useState<Record<string | number, UmpanBalikJawaban>>(() =>
+        Object.fromEntries(jawabanTersimpan.map((j) => [j.soalId, j.hasil])),
+    );
+    const [mengirim, setMengirim] = useState(false);
+    const [pesanKirim, setPesanKirim] = useState<{ soalId: IdOpsi; pesan: string } | null>(null);
+    // Teks hint dari latihan.hint, per soal. Soal yang ada di sini sudah tercatat di server memakai hint.
+    const [hintTerbuka, setHintTerbuka] = useState<Record<string | number, string>>(hintAwal);
+    const [memuatHint, setMemuatHint] = useState(false);
+    const [pesanHint, setPesanHint] = useState<string | null>(null);
     const [modal, setModal] = useState<ModalAktif>(null);
 
     const soal = soalList[indeksAktif];
     const isian = soal.tipe === 'isian_singkat';
+    const tabel = soal.tipe === 'majemuk_tabel';
     const cariJawaban = (soalId: IdOpsi): Jawaban | undefined => form.data.jawaban.find((j: Jawaban) => j.soalId === soalId);
     const tersimpan = cariJawaban(soal.id);
     const terkunci = !simulasi && tersimpan !== undefined;
     const opsiTerpilih: IdOpsi[] = (simulasi || terkunci ? tersimpan?.opsiIds : pilihanSementara[soal.id]) ?? [];
     const teksIsian: string = (simulasi || terkunci ? tersimpan?.jawabanIsian : isianSementara[soal.id]) ?? '';
-    const belumDiisi = isian ? teksIsian.trim() === '' : opsiTerpilih.length === 0;
+    const pilihanKolom: Record<string, number> = (simulasi || terkunci ? tersimpan?.pilihanKolom : kolomSementara[soal.id]) ?? {};
+    // Majemuk tabel di mode fleksibel baru bisa disimpan setelah setiap baris dipilih.
+    const belumDiisi = isian
+        ? teksIsian.trim() === ''
+        : tabel
+          ? soal.opsi_jawaban.some((o: OpsiJawaban) => pilihanKolom[String(o.id)] === undefined)
+          : opsiTerpilih.length === 0;
 
-    // Jawaban kosong (tanpa opsi dan tanpa teks) berarti soal kembali belum dijawab.
-    const simpanJawaban = (soalId: IdOpsi, opsiIds: IdOpsi[], jawabanIsian = '') => {
+    // Jawaban kosong (tanpa opsi, tanpa teks, dan tanpa pilihan kolom) berarti soal kembali belum dijawab.
+    const simpanJawaban = (soalId: IdOpsi, opsiIds: IdOpsi[], jawabanIsian = '', pilihanKolom: Record<string, number> = {}) => {
         const lainnya = form.data.jawaban.filter((j: Jawaban) => j.soalId !== soalId);
-        const kosong = opsiIds.length === 0 && jawabanIsian.trim() === '';
-        form.setData('jawaban', kosong ? lainnya : [...lainnya, { soalId, opsiIds, jawabanIsian }]);
+        const kosong = opsiIds.length === 0 && jawabanIsian.trim() === '' && Object.keys(pilihanKolom).length === 0;
+        form.setData('jawaban', kosong ? lainnya : [...lainnya, { soalId, opsiIds, jawabanIsian, pilihanKolom }]);
     };
 
     const ubahIsian = (teks: string) => {
@@ -81,20 +102,46 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
         else setIsianSementara((p) => ({ ...p, [soal.id]: teks }));
     };
 
-    // Mode fleksibel: isian dinilai di server. Soal baru dikunci setelah server menjawab,
-    // jadi kalau gagal (mis. koneksi putus) siswa masih bisa mencoba lagi.
-    const cekIsian = async () => {
+    // Fleksibel dan remedial: server menilai lalu menyimpan (fleksibel) atau mengunci di session (remedial), dan
+    // membalas kunci serta pembahasan. Soal baru dikunci setelah server menjawab, jadi kalau gagal
+    // (mis. koneksi putus) siswa masih bisa mencoba lagi.
+    const kirimSatuJawaban = async () => {
         const soalId = soal.id;
-        setMengecek(true);
-        setPesanCek(null);
+        const opsiIds = isian || tabel ? [] : opsiTerpilih;
+        const jawabanIsian = isian ? teksIsian : '';
+        const kolom = tabel ? pilihanKolom : {};
+        setMengirim(true);
+        setPesanKirim(null);
         try {
-            const { data } = await axios.post(route('latihan.cek'), { sesiId: konfigurasi.sesiId, soalId, jawabanIsian: teksIsian });
-            setHasilIsian((p) => ({ ...p, [soalId]: { benar: data.benar, kunciJawaban: data.kunciJawaban } }));
-            simpanJawaban(soalId, [], teksIsian);
+            const { data } = await axios.post<UmpanBalikJawaban>(route('latihan.jawab'), {
+                sesiId: konfigurasi.sesiId,
+                soalId,
+                opsiIds,
+                jawabanIsian: isian ? jawabanIsian : null,
+                pilihanKolom: tabel ? kolom : null,
+            });
+            setHasilJawaban((p) => ({ ...p, [soalId]: data }));
+            simpanJawaban(soalId, opsiIds, jawabanIsian, kolom);
         } catch (e) {
-            setPesanCek({ soalId, pesan: pesanGagalCek(e) });
+            setPesanKirim({ soalId, pesan: pesanGagal(e, 'menyimpan jawaban') });
         } finally {
-            setMengecek(false);
+            setMengirim(false);
+        }
+    };
+
+    // Mode fleksibel: server mencatat hint dibuka, lalu jawaban benar untuk soal ini bernilai setengah
+    // di skor topik. Teksnya disimpan per soal supaya membuka ulang tidak meminta ke server lagi.
+    const bukaHint = async () => {
+        const soalId = soal.id;
+        setMemuatHint(true);
+        setPesanHint(null);
+        try {
+            const { data } = await axios.post(route('latihan.hint'), { sesiId: konfigurasi.sesiId, soalId });
+            setHintTerbuka((p) => ({ ...p, [soalId]: data.hint }));
+        } catch (e) {
+            setPesanHint(pesanGagal(e, 'membuka hint'));
+        } finally {
+            setMemuatHint(false);
         }
     };
 
@@ -111,32 +158,30 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
         else setPilihanSementara((p) => ({ ...p, [soal.id]: baru }));
     };
 
-    // Mode fleksibel: jawaban yang sudah dikunci boleh ketahuan benar/salahnya di navigasi.
-    // Mode simulasi tidak memakai ini, supaya hasil belum terlihat sebelum latihan selesai.
-    // Aturannya sama dengan backend: semua-atau-nol terhadap himpunan is_kunci.
+    // Majemuk tabel: satu kolom per pernyataan; memilih kolom lain di baris yang sama mengganti pilihannya.
+    const pilihKolom = (opsi: OpsiJawaban, nomorKolom: number) => {
+        const baru = { ...pilihanKolom, [String(opsi.id)]: nomorKolom };
+
+        if (simulasi) simpanJawaban(soal.id, [], '', baru);
+        else setKolomSementara((p) => ({ ...p, [soal.id]: baru }));
+    };
+
+    // Fleksibel dan remedial: warna bulatan dari balasan server, termasuk majemuk tabel. Simulasi tidak memakai ini,
+    // supaya hasil belum terlihat sebelum latihan selesai. Belum dijawab = null, jadi bulatan tetap netral.
     const statusJawabanSoal = (indeks: number): StatusJawabanSoal => {
-        const soalKe = soalList[indeks];
-        // Isian dinilai di server (latihan.cek); frontend hanya menampilkan hasilnya.
-        // Belum dicek = null, jadi bulatan tetap biru "sudah dijawab".
-        if (soalKe.tipe === 'isian_singkat') {
-            const hasil = hasilIsian[soalKe.id];
-            return hasil === undefined ? null : hasil.benar ? 'benar' : 'salah';
-        }
-
-        const dipilih = cariJawaban(soalKe.id)?.opsiIds;
-        if (dipilih === undefined) return null;
-
-        const kunci = soalKe.opsi_jawaban.filter((o: any) => o.is_kunci).map((o: any) => o.id);
-        return kunci.length > 0 && samaHimpunan(dipilih, kunci) ? 'benar' : 'salah';
+        const hasil = hasilJawaban[soalList[indeks].id];
+        return hasil === undefined ? null : hasil.benar ? 'benar' : 'salah';
     };
 
     const statusOpsi = (opsi: OpsiJawaban): StatusOpsi => {
         const dipilih = opsiTerpilih.includes(opsi.id);
-        if (terkunci) {
+        const kunciOpsiIds = hasilJawaban[soal.id]?.kunciOpsiIds;
+        if (terkunci && kunciOpsiIds) {
+            const opsiKunci = kunciOpsiIds.includes(String(opsi.id));
             // Benar_salah: tiap pernyataan punya nilai kebenarannya sendiri, jadi semua opsi
             // diberi warna — bukan hanya yang dipilih — supaya siswa melihat jawaban lengkapnya.
-            if (soal.tipe === 'benar_salah') return opsi.is_kunci ? 'benar' : 'salah';
-            if (opsi.is_kunci) return 'benar';
+            if (soal.tipe === 'benar_salah') return opsiKunci ? 'benar' : 'salah';
+            if (opsiKunci) return 'benar';
             if (dipilih) return 'salah';
             return 'default';
         }
@@ -156,22 +201,55 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
         form.post(route('latihan.simpan'));
     };
 
-    const tombolKecil = 'rounded-md px-4 py-1.5 text-xs font-medium shadow transition disabled:opacity-50';
+    // Teks "Kunci Jawaban" di kartu umpan balik, dari balasan server (format PembahasanPengerjaan::teksKunci).
+    const teksKunci = (): string | null => hasilJawaban[soal.id]?.kunci ?? null;
+
+    const namaMode = { fleksibel: 'Fleksibel', simulasi: 'Simulasi', remedial: 'Remedial' }[konfigurasi.mode as string] ?? '';
+    const statusAktif = terkunci ? statusJawabanSoal(indeksAktif) : null;
+
+    // Tombol besar di bawah opsi (Simpan Jawaban, Selesaikan) dan tombol di modal.
+    const tombolBesar =
+        'h-11 min-w-[200px] rounded-[10px] px-6 text-sm font-semibold shadow-panel transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:shadow-md enabled:active:translate-y-0 md:min-w-[240px] lg:min-w-[300px]';
+    const tombolModal = 'h-9 min-w-[100px] rounded-[10px] px-5 text-sm font-semibold transition duration-200 hover:-translate-y-0.5 disabled:opacity-50';
+    const kelasModal = { backdropClassName: 'bg-siswa-laman-akhir/70 backdrop-blur-[2px]', panelClassName: 'rounded-[24px]' };
 
     return (
         <LatihanLayout
-            breadcrumb={['Latihan Soal', konfigurasi.namaSubtes]}
+            breadcrumb={[
+                { label: 'Latihan Soal', href: route('latihan.index') },
+                // Subtes → halaman Pilih Mode subtes itu, langsung di tab mode yang sedang dikerjakan.
+                {
+                    label: konfigurasi.namaSubtes,
+                    href: subtes?.kode_subtes ? route('latihan.mode', { subtes: subtes.kode_subtes, tab: konfigurasi.mode }) : undefined,
+                },
+                ...(namaMode ? [`Mode ${namaMode}`] : []),
+            ]}
             sidebar={
                 <NavigasiSoal
+                    judul={konfigurasi.namaSubtes}
                     jumlahSoal={soalList.length}
                     indeksAktif={indeksAktif}
                     sudahDijawab={(i) => cariJawaban(soalList[i].id) !== undefined}
                     statusJawaban={simulasi ? undefined : statusJawabanSoal}
                     onPilih={setIndeksAktif}
                     aksiBawah={
-                        !simulasi && (
-                            <button type="button" onClick={() => setModal('keluar')} className={`${tombolKecil} bg-[#F07B7B] text-white hover:bg-[#E86565]`}>
-                                Keluar
+                        // Simulasi tidak punya Keluar Halaman (UCS1 4b.3); Simpan Jawaban di tempatnya mengakhiri sesi (4b.4–4b.6).
+                        simulasi ? (
+                            <button
+                                type="button"
+                                onClick={() => setModal('selesai')}
+                                disabled={form.processing}
+                                className="h-10 w-full rounded-lg bg-ujian-hijau text-[13px] font-semibold text-white shadow-panel transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:shadow-md enabled:active:translate-y-0 disabled:opacity-60"
+                            >
+                                Simpan Jawaban
+                            </button>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={() => setModal('keluar')}
+                                className="h-10 w-full rounded-lg bg-ujian-merah text-[13px] font-semibold text-white shadow-panel transition duration-200 hover:-translate-y-0.5 hover:shadow-md active:translate-y-0"
+                            >
+                                ← Keluar Halaman
                             </button>
                         )
                     }
@@ -181,7 +259,7 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
             <Head title={`Latihan ${konfigurasi.namaSubtes}`} />
 
             <ArenaPengerjaan
-                judul={konfigurasi.namaSubtes}
+                judul={`Soal ${indeksAktif + 1} dari ${soalList.length}`}
                 aksiHeader={
                     simulasi && konfigurasi.waktuPengerjaanMenit ? (
                         <TimerMundur durasiMenit={konfigurasi.waktuPengerjaanMenit} onHabis={() => kirimJawaban(route('latihan.hasil', { ...konfigurasi }))} />
@@ -189,145 +267,172 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
                 }
                 footerKiri={
                     !simulasi && !terkunci && (
-                        <button type="button" onClick={() => setModal('hint')} className={`${tombolKecil} flex items-center gap-1 border border-[#E5D98A] bg-[#FBF1B8] text-[#6B5B12]`}>
-                            <IkonLampu className="h-3.5 w-3.5" /> Hint
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setPesanHint(null);
+                                setModal('hint');
+                            }}
+                            disabled={!soal.ada_hint}
+                            title={soal.ada_hint ? undefined : 'Soal ini belum punya hint'}
+                            className="flex h-11 items-center gap-1.5 rounded-[10px] border border-siswa-hint-garis bg-siswa-hint-latar px-5 text-sm font-semibold text-siswa-hint-teks shadow-panel transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:shadow-md disabled:opacity-50"
+                        >
+                            <IkonLampu className="h-[18px] w-[18px]" /> Hint
                         </button>
                     )
                 }
                 footerKanan={
-                    <div className="flex gap-2">
-                        <TombolNavigasiSoal jumlahSoal={soalList.length} indeksAktif={indeksAktif} onPilih={setIndeksAktif} />
-
-                        {simulasi ? (
-                            <button type="button" onClick={() => setModal('selesai')} disabled={form.processing} className={`${tombolKecil} bg-[#C5EBA8] text-[#2F5E1A] hover:bg-[#B5E194]`}>
-                                Selesaikan Sekarang
-                            </button>
-                        ) : !terkunci ? (
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    if (belumDiisi || mengecek) return;
-                                    if (isian) cekIsian();
-                                    else simpanJawaban(soal.id, opsiTerpilih, teksIsian);
-                                }}
-                                disabled={belumDiisi || mengecek}
-                                className={`${tombolKecil} bg-[#C5EBA8] text-[#2F5E1A] hover:bg-[#B5E194]`}
-                            >
-                                {mengecek ? 'Memeriksa…' : 'Simpan Jawaban'}
-                            </button>
-                        ) : (
-                            <button
-                                type="button"
-                                onClick={() => setModal('selesai')}
-                                className={`${tombolKecil} bg-[#5B86DB] text-white hover:bg-[#4673CD]`}
-                            >
-                                Selesaikan Latihan
-                            </button>
-                        )}
-                    </div>
+                    // Simulasi diakhiri lewat Simpan Jawaban di panel Navigasi Soal, jadi footer-nya kosong.
+                    simulasi ? null : !terkunci ? (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (belumDiisi || mengirim) return;
+                                kirimSatuJawaban();
+                            }}
+                            disabled={belumDiisi || mengirim}
+                            className={`${tombolBesar} ${belumDiisi ? 'bg-siswa-ujian-redup text-white/80 shadow-none' : 'bg-ujian-hijau text-white'}`}
+                        >
+                            {mengirim ? 'Menyimpan…' : 'Simpan Jawaban'}
+                        </button>
+                    ) : (
+                        <button type="button" onClick={() => setModal('selesai')} className={`${tombolBesar} bg-ujian-biru text-white`}>
+                            Selesaikan Latihan
+                        </button>
+                    )
                 }
             >
-                <KartuSoal nomor={indeksAktif + 1} teksSoal={soal.teks_soal} gambarUrl={soal.gambar_soal} />
+                {/* key: isi soal muncul pelan setiap pindah nomor. */}
+                <div key={soal.id} className="animate-muncul-halus">
+                    <KartuSoal nomor={indeksAktif + 1} teksSoal={soal.teks_soal} gambarUrl={soal.gambar_soal} />
 
-                <div className="mt-4 space-y-2.5">
-                    {soal.opsi_jawaban.map((opsi: any) => (
-                        <TombolOpsi
-                            key={opsi.id}
-                            opsi={opsi}
-                            status={statusOpsi(opsi)}
-                            disabled={terkunci}
-                            onPilih={pilihOpsi}
-                            kotakCentang={soal.tipe === 'benar_salah'}
-                            dipilih={opsiTerpilih.includes(opsi.id)}
+                    <div className="mt-3 space-y-2.5">
+                        {tabel ? (
+                            <TabelMajemuk
+                                kolom={soal.kolom_tabel ?? []}
+                                pernyataan={soal.opsi_jawaban}
+                                pilihan={pilihanKolom}
+                                onPilih={pilihKolom}
+                                terkunci={terkunci}
+                                kunci={hasilJawaban[soal.id]?.kunciKolom}
+                            />
+                        ) : (
+                            soal.opsi_jawaban.map((opsi: any) => (
+                                <TombolOpsi
+                                    key={opsi.id}
+                                    opsi={opsi}
+                                    status={statusOpsi(opsi)}
+                                    disabled={terkunci}
+                                    onPilih={pilihOpsi}
+                                    kotakCentang={soal.tipe === 'benar_salah'}
+                                    dipilih={opsiTerpilih.includes(opsi.id)}
+                                />
+                            ))
+                        )}
+                    </div>
+
+                    {/* Sebelum dikunci: field isian. Batas 100 karakter mengikuti validasi backend. */}
+                    {isian && !hasilJawaban[soal.id] && (
+                        <input
+                            type="text"
+                            value={teksIsian}
+                            onChange={(e) => ubahIsian(e.target.value)}
+                            disabled={terkunci || mengirim}
+                            maxLength={100}
+                            placeholder="Tulis Jawabanmu Disini..."
+                            aria-label="Jawaban isian singkat"
+                            className="mt-3 h-11 w-full rounded-[10px] border-transparent bg-white px-4 text-sm font-medium text-siswa-judul shadow-panel transition duration-200 placeholder:text-siswa-teks-redup focus:border-edvora-primary focus:ring-2 focus:ring-edvora-primary/30 disabled:opacity-60"
                         />
-                    ))}
-                </div>
+                    )}
 
-                {/* Sebelum dikunci: field isian. Batas 100 karakter mengikuti validasi backend. */}
-                {isian && !hasilIsian[soal.id] && (
-                    <input
-                        type="text"
-                        value={teksIsian}
-                        onChange={(e) => ubahIsian(e.target.value)}
-                        disabled={terkunci || mengecek}
-                        maxLength={100}
-                        placeholder="Tulis jawaban"
-                        aria-label="Jawaban isian singkat"
-                        className="mt-4 w-full rounded border border-gray-300 px-3 py-2"
-                    />
-                )}
-
-                {/* Setelah dikunci: jawaban siswa diganti bilah hasil dari latihan.cek. */}
-                {isian && hasilIsian[soal.id] && (
-                    <>
+                    {/* Setelah dikunci: jawaban siswa diganti bilah hasil dari latihan.jawab. */}
+                    {isian && hasilJawaban[soal.id] && (
                         <div
-                            className={`mt-5 flex items-center justify-between gap-3 rounded-lg px-4 py-3 text-lg shadow-sm ${
-                                hasilIsian[soal.id].benar ? 'bg-[#C5EBA8] text-[#1F2D5C]' : 'bg-[#F07676] text-white'
+                            className={`mt-3 flex min-h-11 animate-muncul-halus items-center justify-between gap-3 rounded-[10px] px-4 py-2.5 text-sm font-semibold text-white shadow-panel ${
+                                hasilJawaban[soal.id].benar ? 'bg-ujian-hijau' : 'bg-ujian-merah'
                             }`}
                         >
                             <span className="break-all">{teksIsian}</span>
-                            <span className="flex shrink-0 items-center gap-2 font-medium">
-                                <IkonHasil benar={hasilIsian[soal.id].benar} />
-                                {hasilIsian[soal.id].benar ? 'Benar' : 'Salah'}
+                            <span className="flex shrink-0 items-center gap-1.5 font-medium">
+                                <IkonHasil benar={hasilJawaban[soal.id].benar} />
+                                {hasilJawaban[soal.id].benar ? 'Benar' : 'Salah'}
                             </span>
                         </div>
+                    )}
+                    {pesanKirim && pesanKirim.soalId === soal.id && (
+                        <p role="alert" className="mt-2 text-sm text-siswa-umpan-salah-teks">
+                            {pesanKirim.pesan}
+                        </p>
+                    )}
 
-                        {/* Kunci hanya dikirim server saat jawaban salah. */}
-                        {hasilIsian[soal.id].kunciJawaban && (
-                            <div className="relative mt-7">
-                                <span className="absolute -top-3 left-4 rounded-md bg-[#2E3F85] px-3 py-1 text-sm font-medium text-white shadow">
-                                    Jawaban yang benar
-                                </span>
-                                <div className="rounded-lg bg-[#C5EBA8] px-4 pb-3 pt-6 text-lg text-[#1F2D5C] shadow-sm">
-                                    {hasilIsian[soal.id].kunciJawaban}
-                                </div>
-                            </div>
-                        )}
-                    </>
-                )}
-                {isian && pesanCek && pesanCek.soalId === soal.id && (
-                    <p role="alert" className="mt-2 text-sm text-[#B94040]">
-                        {pesanCek.pesan}
-                    </p>
-                )}
-
-                {terkunci && (
-                    <div className="relative mt-8">
-                        <span className="absolute -top-3 left-4 rounded-md bg-[#2E3F85] px-3 py-1 text-sm font-medium text-white shadow">Pembahasan</span>
-                        <div className="rounded-lg bg-white px-4 pb-4 pt-6 text-sm leading-relaxed text-[#1F2D5C] shadow">
-                            <TeksMatematika teks={soal.pembahasan} />
-                        </div>
-                    </div>
-                )}
+                    {/* Pembahasan dan gambarnya dari balasan latihan.jawab; props halaman ujian tidak memuatnya. */}
+                    {terkunci && (
+                        <KartuPembahasan
+                            status={statusAktif ?? 'kosong'}
+                            kunci={teksKunci()}
+                            pembahasan={hasilJawaban[soal.id]?.pembahasan ?? ''}
+                            gambar={hasilJawaban[soal.id]?.gambarPembahasan ?? null}
+                        />
+                    )}
+                </div>
             </ArenaPengerjaan>
 
-            <Modal show={modal === 'hint'} maxWidth="md" onClose={() => setModal(null)}>
-                <div className="p-5 font-['Poppins',sans-serif] text-[#1F2D5C]">
-                    <h3 className="flex items-center gap-2 text-lg font-semibold">
-                        <IkonLampu className="h-5 w-5 text-[#D4A017]" /> Hint
+            <Modal show={modal === 'hint'} maxWidth="md" onClose={() => setModal(null)} {...kelasModal}>
+                <div className="p-6 font-poppins text-siswa-judul md:px-8 md:py-7">
+                    <h3 className="flex items-center gap-2 text-xl font-semibold">
+                        <IkonLampu className="h-6 w-6 text-[#D4A017]" /> Hint
                     </h3>
-                    <p className="mt-2 text-sm text-gray-700">{HINT_SEMENTARA}</p>
-                    <div className="mt-4 flex justify-end">
-                        <button type="button" onClick={() => setModal(null)} className={`${tombolKecil} bg-[#5B86DB] text-sm text-white`}>
-                            Kembali
-                        </button>
+                    {hintTerbuka[soal.id] !== undefined ? (
+                        <div className="mt-2 text-[15px] font-medium leading-relaxed text-siswa-teks">
+                            <TeksMatematika teks={hintTerbuka[soal.id]} />
+                        </div>
+                    ) : (
+                        // Siswa diberi tahu dulu, karena begitu dibuka nilainya langsung tercatat di server.
+                        <p className="mt-2 text-[15px] font-medium leading-relaxed text-siswa-teks">
+                            Kalau jawabanmu benar setelah membuka hint, XP dan poin soal ini dihitung setengah, begitu juga nilainya untuk skor topik.
+                        </p>
+                    )}
+                    {pesanHint && (
+                        <p role="alert" className="mt-2 text-sm text-siswa-umpan-salah-teks">
+                            {pesanHint}
+                        </p>
+                    )}
+                    <div className="mt-5 flex justify-end gap-2">
+                        {hintTerbuka[soal.id] !== undefined ? (
+                            <button type="button" onClick={() => setModal(null)} className={`${tombolModal} bg-ujian-biru text-white shadow-panel`}>
+                                Kembali
+                            </button>
+                        ) : (
+                            <>
+                                <button type="button" onClick={() => setModal(null)} className={`${tombolModal} border border-siswa-teks/40 bg-white text-siswa-judul`}>
+                                    Batal
+                                </button>
+                                <button type="button" onClick={bukaHint} disabled={memuatHint} className={`${tombolModal} bg-ujian-biru text-white shadow-panel`}>
+                                    {memuatHint ? 'Membuka…' : 'Buka Hint'}
+                                </button>
+                            </>
+                        )}
                     </div>
                 </div>
             </Modal>
 
-            <Modal show={modal === 'keluar'} maxWidth="md" onClose={() => setModal(null)}>
-                <div className="p-5 font-['Poppins',sans-serif] text-[#1F2D5C]">
-                    <h3 className="text-lg font-semibold">Keluar</h3>
-                    <p className="mt-1 text-sm text-gray-700">Anda akan meninggalkan halaman latihan soal. Jawaban anda akan disimpan oleh sistem.</p>
-                    <div className="mt-4 flex justify-end gap-2">
-                        <button type="button" onClick={() => setModal(null)} className={`${tombolKecil} border border-gray-300 bg-white text-sm`}>
+            <Modal show={modal === 'keluar'} maxWidth="md" onClose={() => setModal(null)} {...kelasModal}>
+                <div className="p-6 font-poppins md:px-8 md:py-7">
+                    <h3 className="text-xl font-semibold text-siswa-umpan-salah-teks">Keluar</h3>
+                    <p className="mt-2 text-[15px] font-medium leading-relaxed text-siswa-teks">
+                        {konfigurasi.mode === 'remedial'
+                            ? 'Sesi remedial ini akan dibatalkan dan jawabanmu tidak disimpan. Soal-soalnya akan muncul lagi di sesi remedial berikutnya.'
+                            : 'Anda akan meninggalkan halaman latihan soal dan jawaban anda akan disimpan oleh sistem.'}
+                    </p>
+                    <div className="mt-5 flex justify-end gap-2">
+                        <button type="button" onClick={() => setModal(null)} className={`${tombolModal} border border-siswa-teks/40 bg-white text-siswa-judul`}>
                             Batal
                         </button>
                         <button
                             type="button"
                             onClick={() => kirimJawaban(route('dashboard'))}
                             disabled={form.processing}
-                            className={`${tombolKecil} bg-[#F07B7B] text-sm text-white`}
+                            className={`${tombolModal} bg-ujian-merah text-white shadow-panel`}
                         >
                             Keluar
                         </button>
@@ -335,21 +440,26 @@ export default function Ujian({ subtes, soalList, konfigurasi }: { subtes: any; 
                 </div>
             </Modal>
 
-            <Modal show={modal === 'selesai'} maxWidth="md" onClose={() => setModal(null)}>
-                <div className="p-5 font-['Poppins',sans-serif] text-[#1F2D5C]">
-                    <h3 className="text-lg font-semibold">Selesaikan Sekarang</h3>
-                    <p className="mt-1 text-sm text-gray-700">Anda yakin ingin menyimpan jawaban?</p>
-                    <div className="mt-6 flex justify-end gap-2">
-                        <button type="button" onClick={() => setModal(null)} className={`${tombolKecil} bg-[#F07B7B] text-sm text-white`}>
-                            Tidak
+            <Modal show={modal === 'selesai'} maxWidth="md" onClose={() => setModal(null)} {...kelasModal}>
+                <div className="p-6 font-poppins md:px-8 md:py-7">
+                    {/* Simulasi memakai teks konfirmasi UCS1 4b.5: "Yakin Menyimpan Jawaban?" dengan Iya/Tidak. */}
+                    <h3 className="text-xl font-semibold text-siswa-umpan-benar-teks">{simulasi ? 'Yakin Menyimpan Jawaban?' : 'Selesaikan Sekarang'}</h3>
+                    <p className="mt-2 text-[15px] font-medium leading-relaxed text-siswa-teks">
+                        {simulasi
+                            ? 'Jawaban akan dikirim dan sesi simulasi berakhir. Soal yang belum dijawab dihitung kosong.'
+                            : 'Anda akan menyelesaikan latihan soal dan jawaban yang sudah diisi tidak dapat diubah kembali.'}
+                    </p>
+                    <div className="mt-5 flex justify-end gap-2">
+                        <button type="button" onClick={() => setModal(null)} className={`${tombolModal} border border-siswa-teks/40 bg-white text-siswa-judul`}>
+                            {simulasi ? 'Tidak' : 'Batal'}
                         </button>
                         <button
                             type="button"
                             onClick={() => kirimJawaban(route('latihan.hasil', { ...konfigurasi }))}
                             disabled={form.processing}
-                            className={`${tombolKecil} bg-[#C5EBA8] text-sm text-[#2F5E1A]`}
+                            className={`${tombolModal} bg-ujian-hijau text-white shadow-panel`}
                         >
-                            Ya
+                            {simulasi ? 'Iya' : 'Selesaikan'}
                         </button>
                     </div>
                 </div>

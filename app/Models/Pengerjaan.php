@@ -2,17 +2,21 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
 
 class Pengerjaan extends Model
 {
     use HasFactory, HasUuids;
 
     protected $table = 'pengerjaan';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
+
     public $timestamps = false;
 
     protected $fillable = [
@@ -25,8 +29,33 @@ class Pengerjaan extends Model
         'try_out_id',
         'started_at',
         'finished_at',
-        'total_skor'
+        'total_skor',
+        'mode_latihan',
+        'soal_ids',
+        'hint_soal_ids',
     ];
+
+    protected $casts = [
+        'started_at' => 'datetime',
+        'finished_at' => 'datetime',
+    ];
+
+    // Soal yang diberikan di sesi, urut tampil (termasuk yang tidak dijawab). Postgres mengirim uuid[] sebagai
+    // teks "{a,b}"; sesi sebelum kolom ini ada bernilai NULL, jadi dibaca sebagai array kosong.
+    protected function soalIds(): Attribute
+    {
+        return Attribute::make(
+            get: fn ($v) => $v ? array_values(array_filter(explode(',', trim($v, '{}')))) : [],
+        );
+    }
+
+    // Soal yang hint-nya dibuka di sesi fleksibel (SF9); formatnya sama dengan soal_ids.
+    protected function hintSoalIds(): Attribute
+    {
+        return Attribute::make(
+            get: fn ($v) => $v ? array_values(array_filter(explode(',', trim($v, '{}')))) : [],
+        );
+    }
 
     public function jawabanPengerjaan()
     {
@@ -41,5 +70,15 @@ class Pengerjaan extends Model
     public function user()
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function tryOut()
+    {
+        return $this->belongsTo(TryOut::class, 'try_out_id');
+    }
+
+    public function subtesPengerjaan()
+    {
+        return $this->hasMany(PengerjaanSubtes::class, 'pengerjaan_id');
     }
 }
