@@ -2,27 +2,21 @@
 
 namespace App\Services;
 
+use Carbon\CarbonInterface;
+
 /**
- * Aturan Dashboard Analitik editor (UCS9): kapan butir soal punya cukup data, kapan butir dianggap bermasalah,
- * dan target stok soal per topik. Fungsi murni; query-nya ada di AnalitikController.
+ * Aturan Dashboard Analitik editor (UCS9 Melihat Analitik Soal): stok soal per topik, rata-rata penguasaan siswa
+ * per subtes, dan kapan data harian dihitung ulang. Fungsi murni; query-nya ada di DataAnalitik.
  */
 class AnalitikSoal
 {
-    // Butir dengan jawaban sebanyak ini atau lebih dianggap cukup data untuk dinilai.
-    public const MIN_RESPON = 30;
+    // UCS9: data diproses setiap hari pukul 00.00 waktu Indonesia, sedangkan aplikasi berjalan di UTC.
+    public const ZONA_WAKTU = 'Asia/Jakarta';
 
-    // Tingkat kesukaran (proporsi jawaban benar) di luar rentang ini patut dicek: kunci salah atau soal terlalu mudah.
-    public const P_TERLALU_SULIT = 0.10;
-
-    public const P_TERLALU_MUDAH = 0.95;
-
-    // Daya beda IRT (soal.irt_a) di bawah ini: soal kurang membedakan siswa yang paham dan yang tidak.
-    public const IRT_A_RENDAH = 0.5;
-
-    // Target stok soal published per topik, dan per tingkat kesulitan di dalam topik.
-    public const TARGET_TOPIK = 30;
-
+    // Target stok soal published per tingkat kesulitan di setiap topik; di bawahnya topik perlu tambahan soal.
     public const TARGET_TINGKAT = 10;
+
+    public const TINGKAT = ['mudah', 'sedang', 'sulit'];
 
     // Heatmap: akurasi jawaban dalam sekian hari terakhir, hanya topik dengan jawaban sebanyak ini atau lebih.
     public const HARI_HEATMAP = 30;
@@ -32,31 +26,76 @@ class AnalitikSoal
     public const MAKS_TOPIK_HEATMAP = 12;
 
     /**
-     * Alasan butir yang sudah cukup data dianggap bermasalah, atau null bila wajar.
+     * Topik yang stok soal published-nya kurang dari target di salah satu tingkat, beserta kekurangannya.
      *
-     * @param  float  $p  proporsi jawaban benar, 0–1
-     * @param  float|null  $irtA  daya beda hasil kalibrasi IRT; null bila belum dikalibrasi
+     * @param  array<int, array{kodeSubtes: string, topik: string, mudah: int, sedang: int, sulit: int}>  $stokTopik
+     * @return array<int, array{kodeSubtes: string, topik: string, kurang: array<string, int>}> kurang: tingkat => jumlah soal yang masih dibutuhkan
      */
-    public static function alasanBermasalah(float $p, ?float $irtA): ?string
+    public static function kekuranganTopik(array $stokTopik): array
     {
-        if ($p < self::P_TERLALU_SULIT) {
-            return 'Hampir semua siswa salah ('.self::persen($p).' benar). Cek kuncinya.';
+        $hasil = [];
+        foreach ($stokTopik as $t) {
+            $kurang = [];
+            foreach (self::TINGKAT as $tingkat) {
+                if ($t[$tingkat] < self::TARGET_TINGKAT) {
+                    $kurang[$tingkat] = self::TARGET_TINGKAT - $t[$tingkat];
+                }
+            }
+
+            if ($kurang !== []) {
+                $hasil[] = ['kodeSubtes' => $t['kodeSubtes'], 'topik' => $t['topik'], 'kurang' => $kurang];
+            }
         }
 
-        if ($p > self::P_TERLALU_MUDAH) {
-            return 'Hampir semua siswa benar ('.self::persen($p).' benar). Soal terlalu mudah.';
-        }
-
-        if ($irtA !== null && $irtA < self::IRT_A_RENDAH) {
-            return 'Daya beda rendah (a = '.number_format($irtA, 2, ',', '.').').';
-        }
-
-        return null;
+        return $hasil;
     }
 
-    // 0.517 => "51,7%"
-    private static function persen(float $p): string
+    /**
+     * Rata-rata persen penguasaan per subtes dari siswa yang sudah punya skor di subtes itu. Persen satu siswa sama
+     * dengan lingkaran subtes di Beranda (Penguasaan::persenSubtes). Siswa tanpa skor tidak dihitung, supaya
+     * rata-ratanya tidak tertarik ke 0 oleh siswa yang belum pernah berlatih.
+     *
+     * @param  array<string, array<int, string>>  $topikPerSubtes  subtes_id => id topik yang punya soal published
+     * @param  array<int, array{user_id: string, subtes_id: string, topik_id: string, tahap: int, skor: float|null}>  $baris  isi penguasaan_topik
+     * @return array<string, array{persen: float, siswa: int}> subtes_id => rata-rata; subtes tanpa siswa tidak ada
+     */
+    public static function rataPenguasaan(array $topikPerSubtes, array $baris): array
     {
-        return number_format($p * 100, 1, ',', '.').'%';
+        $perSiswa = [];
+        foreach ($baris as $b) {
+            $perSiswa[$b['subtes_id']][$b['user_id']][$b['topik_id']] = $b;
+        }
+
+        $hasil = [];
+        foreach ($perSiswa as $subtesId => $siswaList) {
+            $persen = [];
+            foreach ($siswaList as $milikSiswa) {
+                $topikList = array_map(fn (string $topikId) => [
+                    'adaSoal' => true,
+                    'tahap' => (int) ($milikSiswa[$topikId]['tahap'] ?? Penguasaan::TAHAP_AWAL),
+                    'skor' => $milikSiswa[$topikId]['skor'] ?? null,
+                ], $topikPerSubtes[$subtesId] ?? []);
+
+                $ringkas = Penguasaan::persenSubtes($topikList);
+                if ($ringkas['adaData']) {
+                    $persen[] = $ringkas['persen'];
+                }
+            }
+
+            if ($persen !== []) {
+                $hasil[$subtesId] = ['persen' => round(array_sum($persen) / count($persen), 1), 'siswa' => count($persen)];
+            }
+        }
+
+        return $hasil;
+    }
+
+    /**
+     * Data harian sudah basi bila belum pernah dihitung atau dihitung sebelum pukul 00.00 hari ini (WIB).
+     * Scheduler menghitungnya tepat pukul 00.00; ini cadangan bila scheduler sempat mati.
+     */
+    public static function perluDihitungUlang(?CarbonInterface $dihitungPada, CarbonInterface $sekarang): bool
+    {
+        return $dihitungPada === null || $dihitungPada->lt($sekarang->copy()->setTimezone(self::ZONA_WAKTU)->startOfDay());
     }
 }

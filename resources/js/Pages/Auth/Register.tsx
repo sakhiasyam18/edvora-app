@@ -1,6 +1,6 @@
 import { FormEventHandler, useState } from 'react';
 import { useForm } from '@inertiajs/react';
-import { HalamanAuth, KartuAuth, KELAS_TOMBOL_UTAMA, KolomAuth, PanelSambutan } from '@/Components/Auth/BagianAuth';
+import { HalamanAuth, KartuAuth, KELAS_TOMBOL_UTAMA, KolomAuth, PanelSambutan, TautanKembali } from '@/Components/Auth/BagianAuth';
 import { kekuatanSandi } from '@/lib/kekuatanSandi';
 
 export default function Register() {
@@ -123,6 +123,9 @@ export default function Register() {
                     </form>
                 </div>
             </KartuAuth>
+
+            {/* Kembali ke landing page, di bawah kartu supaya tidak bersaing dengan tombol formulir. */}
+            <TautanKembali href="/" label="Kembali ke Beranda" />
         </HalamanAuth>
     );
 }

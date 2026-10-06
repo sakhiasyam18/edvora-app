@@ -1,6 +1,6 @@
 import { FormEventHandler, useState } from 'react';
 import { Link, useForm } from '@inertiajs/react';
-import { HalamanAuth, KartuAuth, KELAS_TOMBOL_UTAMA, KolomAuth, PanelSambutan, PesanStatus } from '@/Components/Auth/BagianAuth';
+import { HalamanAuth, KartuAuth, KELAS_TOMBOL_UTAMA, KolomAuth, PanelSambutan, PesanStatus, TautanKembali } from '@/Components/Auth/BagianAuth';
 
 export default function Login({ status, canResetPassword }: { status?: string; canResetPassword?: boolean }) {
     const [showPassword, setShowPassword] = useState(false);
@@ -103,6 +103,9 @@ export default function Login({ status, canResetPassword }: { status?: string; c
                     labelTautan="Tidak punya akun? Daftar"
                 />
             </KartuAuth>
+
+            {/* Kembali ke landing page, di bawah kartu supaya tidak bersaing dengan tombol formulir. */}
+            <TautanKembali href="/" label="Kembali ke Beranda" />
         </HalamanAuth>
     );
 }
