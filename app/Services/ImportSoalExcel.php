@@ -210,7 +210,7 @@ class ImportSoalExcel
     {
         $sel = [];
         foreach (array_keys($this->daftarHeader()) as $kunci) {
-            $isi = trim(str_replace(["\r\n", "\r"], "\n", (string) ($nilai[$kunci] ?? '')));
+            $isi = Str::trim(str_replace(["\r\n", "\r"], "\n", (string) ($nilai[$kunci] ?? '')));
             $sel[$kunci] = ['nilai' => $isi === '' ? null : $isi, 'masalah' => null, 'kosong' => $isi === ''];
         }
 
@@ -820,7 +820,9 @@ class ImportSoalExcel
             $nilai = (string) (int) $nilai;
         }
 
-        $nilai = trim(str_replace(["\r\n", "\r"], "\n", (string) $nilai));
+        // Str::trim juga membuang spasi tak terlihat (non-breaking space, zero-width space) yang terbawa saat
+        // menyalin dari web/Word; trim() biasa tidak, sehingga sel yang tampak kosong dianggap terisi.
+        $nilai = Str::trim(str_replace(["\r\n", "\r"], "\n", (string) $nilai));
 
         return ['nilai' => $nilai === '' ? null : $nilai, 'masalah' => $masalah, 'kosong' => $nilai === '' && $masalah === null];
     }
