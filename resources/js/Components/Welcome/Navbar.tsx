@@ -1,50 +1,107 @@
 import { Link, usePage } from '@inertiajs/react';
+import { useEffect, useState } from 'react';
+import LambangEdvora from '@/Components/Layouts/LambangEdvora';
+
+// Tautan ke bagian-bagian landing page.
+const MENU = [
+    { label: 'Tentang', href: '#tentang' },
+    { label: 'Fitur', href: '#fitur' },
+    { label: 'Subtes', href: '#subtes' },
+    { label: 'Cara Kerja', href: '#cara-kerja' },
+];
 
 export default function Navbar() {
     const { auth } = usePage<any>().props;
+    const [menuTerbuka, setMenuTerbuka] = useState(false);
+    const [digulir, setDigulir] = useState(false);
+
+    // Bayangan navbar baru muncul setelah halaman digulir, supaya hero terlihat menyatu di posisi paling atas.
+    useEffect(() => {
+        const cek = () => setDigulir(window.scrollY > 8);
+        cek();
+        window.addEventListener('scroll', cek, { passive: true });
+        return () => window.removeEventListener('scroll', cek);
+    }, []);
 
     return (
-        <header className="w-full bg-white border-b border-slate-100 sticky top-0 z-50 shadow-sm" data-purpose="site-navigation">
-            <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
-                {/* Brand Logo */}
-                <Link aria-label="Beranda Edvora" className="flex items-center space-x-2 focus:outline-none" href="/">
-                    <span className="text-2xl sm:text-3xl font-extrabold tracking-wide text-[#28488E]">EDVORA</span>
+        <header
+            className={`sticky top-0 z-50 w-full border-b bg-white/90 backdrop-blur-md transition-shadow duration-300 ${
+                digulir ? 'border-siswa-garis-halus shadow-kartu' : 'border-transparent'
+            }`}
+        >
+            <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:px-6 lg:px-8">
+                <Link aria-label="Beranda Edvora" href="/" className="flex items-center gap-2.5">
+                    <LambangEdvora className="h-[34px] w-[29px]" />
+                    <span className="text-[20px] font-extrabold tracking-[2.5px] text-siswa-judul">EDVORA</span>
                 </Link>
 
-                {/* Navigation Action Controls */}
-                <div className="flex items-center space-x-3 sm:space-x-4">
-                    {auth?.user ? (
-                        <Link
-                            className="inline-flex items-center justify-center bg-[#5B88DD] hover:bg-[#4a75c7] active:scale-95 text-white text-xs sm:text-sm font-bold px-6 py-2.5 rounded-lg shadow-sm transition-all duration-200 tracking-wider uppercase"
-                            data-purpose="dashboard-button"
-                            href={route('dashboard')}
+                <nav aria-label="Navigasi halaman" className="hidden items-center gap-1 md:flex">
+                    {MENU.map((m) => (
+                        <a
+                            key={m.href}
+                            href={m.href}
+                            className="rounded-lg px-3.5 py-2 text-[14px] font-medium text-siswa-teks transition-colors duration-150 hover:bg-siswa-laman-awal hover:text-siswa-judul"
                         >
+                            {m.label}
+                        </a>
+                    ))}
+                </nav>
+
+                <div className="flex items-center gap-2.5">
+                    {auth?.user ? (
+                        <Link href={route('dashboard')} className={TOMBOL_BIRU}>
                             DASHBOARD
                         </Link>
                     ) : (
-                        <Link
-                            className="inline-flex items-center justify-center bg-[#5B88DD] hover:bg-[#4a75c7] active:scale-95 text-white text-xs sm:text-sm font-bold px-6 py-2.5 rounded-lg shadow-sm transition-all duration-200 tracking-wider uppercase"
-                            data-purpose="login-button"
-                            href={route('login')}
-                        >
-                            MASUK
-                        </Link>
+                        <>
+                            <Link href={route('login')} className={`${TOMBOL_GARIS} hidden sm:inline-flex`}>
+                                MASUK
+                            </Link>
+                            <Link href={route('register')} className={TOMBOL_BIRU}>
+                                DAFTAR
+                            </Link>
+                        </>
                     )}
 
-                    {/* Avatar Icon Profil */}
-                    <Link
-                        href={auth?.user ? route('dashboard') : route('login')}
-                        aria-label="Profil Pengguna"
-                        className="text-[#5B88DD] hover:text-[#4a75c7] focus:outline-none transition-colors p-0.5 rounded-full ring-2 ring-transparent focus:ring-[#5B88DD] inline-flex items-center justify-center"
-                        data-purpose="user-profile-button"
+                    {/* Menu bagian halaman di layar sempit. */}
+                    <button
+                        type="button"
+                        onClick={() => setMenuTerbuka(!menuTerbuka)}
+                        aria-label="Buka menu"
+                        aria-expanded={menuTerbuka}
+                        className="flex h-10 w-10 items-center justify-center rounded-lg text-siswa-judul transition hover:bg-siswa-laman-awal md:hidden"
                     >
-                        <svg aria-hidden="true" className="w-9 h-9 sm:w-10 sm:h-10 fill-current" viewBox="0 0 24 24">
-                            <path clipRule="evenodd" d="M18.685 19.097A9.723 9.723 0 0021.75 12c0-5.385-4.365-9.75-9.75-9.75S2.25 6.615 2.25 12a9.723 9.723 0 003.065 7.097A9.716 9.716 0 0012 21.75a9.716 9.716 0 006.685-2.653zm-12.54-1.285A7.486 7.486 0 0112 15a7.486 7.486 0 015.855 2.812A8.224 8.224 0 0112 20.25a8.224 8.224 0 01-5.855-2.438zM15.75 9a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" fillRule="evenodd" />
+                        <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
+                            {menuTerbuka ? <path d="M6 6l12 12M18 6L6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}
                         </svg>
-                    </Link>
+                    </button>
                 </div>
             </div>
+
+            {menuTerbuka && (
+                <nav aria-label="Navigasi halaman" className="animate-buka-menu border-t border-siswa-garis-halus bg-white px-5 py-3 md:hidden">
+                    {MENU.map((m) => (
+                        <a
+                            key={m.href}
+                            href={m.href}
+                            onClick={() => setMenuTerbuka(false)}
+                            className="block rounded-lg px-3 py-2.5 text-[15px] font-medium text-siswa-judul-seksi hover:bg-siswa-laman-awal"
+                        >
+                            {m.label}
+                        </a>
+                    ))}
+                    {!auth?.user && (
+                        <Link href={route('login')} className="mt-1 block rounded-lg px-3 py-2.5 text-[15px] font-semibold text-edvora-primary hover:bg-siswa-laman-awal">
+                            Masuk
+                        </Link>
+                    )}
+                </nav>
+            )}
         </header>
     );
 }
 
+const TOMBOL_BIRU =
+    'inline-flex h-10 items-center justify-center rounded-xl bg-edvora-primary px-5 text-[13px] font-bold tracking-wider text-white shadow-[0_4px_12px_rgba(91,136,221,0.35)] transition-all duration-150 hover:-translate-y-0.5 hover:bg-edvora-primary-hover active:translate-y-0';
+const TOMBOL_GARIS =
+    'h-10 items-center justify-center rounded-xl border-2 border-edvora-primary/70 px-5 text-[13px] font-bold tracking-wider text-edvora-primary transition-all duration-150 hover:border-edvora-primary hover:bg-siswa-laman-awal';
