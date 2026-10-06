@@ -17,3 +17,13 @@ export function formatWaktuWib(iso: string): string {
 
     return `${bagian.day} ${bagian.month} ${bagian.year}, ${bagian.hour}.${bagian.minute} WIB`;
 }
+
+// Tanggal saja dalam WIB. Contoh: "6 Okt 2026".
+export function formatTanggalWib(iso: string): string {
+    return new Intl.DateTimeFormat('id-ID', {
+        timeZone: 'Asia/Jakarta',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+    }).format(new Date(iso));
+}

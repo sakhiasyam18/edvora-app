@@ -10,6 +10,7 @@ use App\Models\Topik;
 use App\Models\TransaksiXp;
 use App\Services\MajemukTabel;
 use App\Services\PembahasanPengerjaan;
+use App\Services\PemeriksaBadge;
 use App\Services\PemilihSoal;
 use App\Services\Penguasaan;
 use App\Services\PenilaianJawaban;
@@ -383,7 +384,7 @@ class LatihanSoalController extends Controller
         return response()->json(['hint' => $hint]);
     }
 
-    public function simpanJawaban(Request $request, PerbaruiPenguasaan $penguasaan, PenilaianLatihan $penilaian, SesiFleksibel $fleksibel)
+    public function simpanJawaban(Request $request, PerbaruiPenguasaan $penguasaan, PenilaianLatihan $penilaian, SesiFleksibel $fleksibel, PemeriksaBadge $badge)
     {
         $sesiId = $request->input('sesiId');
         $kunciSesi = 'latihan.'.$sesiId;
@@ -395,7 +396,7 @@ class LatihanSoalController extends Controller
             : null;
 
         if ($pengerjaan) {
-            return $this->simpanFleksibel($request->get('aksi'), $pengerjaan, $fleksibel, $penguasaan);
+            return $this->simpanFleksibel($request->get('aksi'), $pengerjaan, $fleksibel, $penguasaan, $badge);
         }
 
         // Session: Keluar membatalkan sesi. Remedial tidak disimpan (SF8).
@@ -564,6 +565,9 @@ class LatihanSoalController extends Controller
             }
         }
 
+        // Badge dari statistik terbaru, sesudah penguasaan diperbarui (RANCANGAN-badge-avatar.md 4.4).
+        $badge->periksa(Auth::id(), $selesai);
+
         return redirect()->route('latihan.hasil', ['id' => $pengerjaan->id]);
     }
 
@@ -571,7 +575,7 @@ class LatihanSoalController extends Controller
      * Keluar atau Selesaikan untuk fleksibel di database. Keluar tidak menulis apa pun karena setiap jawaban sudah
      * tersimpan (SF3). Selesaikan yang dikirim ulang setelah sesi selesai langsung ke Hasil (SF14).
      */
-    private function simpanFleksibel(?string $aksi, Pengerjaan $pengerjaan, SesiFleksibel $fleksibel, PerbaruiPenguasaan $penguasaan)
+    private function simpanFleksibel(?string $aksi, Pengerjaan $pengerjaan, SesiFleksibel $fleksibel, PerbaruiPenguasaan $penguasaan, PemeriksaBadge $badge)
     {
         if ($pengerjaan->status === 'berjalan' && $aksi === 'keluar') {
             return redirect()->route('dashboard');
@@ -589,6 +593,9 @@ class LatihanSoalController extends Controller
                     report($e);
                 }
             }
+
+            // Hanya saat sesi diselesaikan; kiriman ulang sesi yang sudah selesai langsung ke Hasil.
+            $badge->periksa(Auth::id(), $pengerjaan->finished_at);
         }
 
         return redirect()->route('latihan.hasil', ['id' => $pengerjaan->id]);

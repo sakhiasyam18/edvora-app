@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\AdminEditor\EditorTryOutEditorController;
 use App\Http\Controllers\AdminSoalController;
 use App\Http\Controllers\AnalitikController;
+use App\Http\Controllers\AvatarController;
 use App\Http\Controllers\BattleController;
 use App\Http\Controllers\BerandaController;
 use App\Http\Controllers\BiodataController;
@@ -52,6 +53,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::patch('/akun/profil', [ProfileController::class, 'updateBiodata'])
             ->name('akun.profil.update');
+
+        // Badge yang sudah diperoleh dan Toko Avatar (UCS5, RANCANGAN-badge-avatar.md 6.1).
+        Route::get('/akun/badge', [ProfileController::class, 'badge'])->name('akun.badge');
+        Route::get('/akun/avatar', [AvatarController::class, 'index'])->name('akun.avatar');
+        // block(): klik ganda diproses bergantian.
+        Route::post('/akun/avatar/beli', [AvatarController::class, 'beli'])->block(10, 10)->name('akun.avatar.beli');
+        Route::post('/akun/avatar/pakai', [AvatarController::class, 'pakai'])->block(10, 10)->name('akun.avatar.pakai');
 
         Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
         Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');

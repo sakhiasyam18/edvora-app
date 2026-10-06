@@ -4,9 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
 use App\Http\Requests\SimpanBiodataRequest;
+use App\Models\BadgeSiswa;
 use App\Models\Siswa;
 use App\Services\LevelXp;
 use App\Services\ReferensiKampus;
+use App\Services\RiwayatPoint;
+use App\Services\TokoAvatar;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -90,7 +93,7 @@ class ProfileController extends Controller
     /**
      * Akun Pribadi: ringkasan profil, level XP, dan biodata siswa.
      */
-    public function profilUtama(Request $request): Response
+    public function profilUtama(Request $request, RiwayatPoint $riwayat): Response
     {
         $user = $request->user();
 
@@ -129,11 +132,21 @@ class ProfileController extends Controller
                         'jenjang' => $siswa->prodiTujuan->jenjang,
                     ]
                     : null,
+
+                // Avatar aktif, atau Default sesuai jenis kelamin (RANCANGAN-badge-avatar.md 6.4).
+                'avatarUrl' => TokoAvatar::urlGambar($siswa?->avatarAktif, $siswa?->jenis_kelamin),
             ],
 
             // Tanggal daftar akun (YYYY-MM-DD), diformat di frontend.
             'bergabung' => $user->created_at?->toDateString(),
             'level' => LevelXp::dariXp($xp),
+
+            // UCS5: hanya badge yang sudah diperoleh. Semua badge ada di halaman akun.badge.
+            'badges' => $this->badgeDiperoleh($user->id, 4),
+            'jumlahBadge' => BadgeSiswa::where('user_id', $user->id)->count(),
+
+            // SDD FR29.
+            'riwayatPoint' => $riwayat->terbaru($user->id),
         ]);
     }
 
@@ -233,5 +246,41 @@ class ProfileController extends Controller
         $request->session()->regenerateToken();
 
         return Redirect::to('/');
+    }
+
+    /**
+     * Semua badge yang sudah diperoleh siswa, tujuan "Lihat Semua" di Akun Pribadi.
+     */
+    public function badge(Request $request): Response
+    {
+        $user = $request->user();
+
+        abort_unless($user->role === 'siswa', 403);
+
+        return Inertia::render('Akun/Badge', [
+            'badges' => $this->badgeDiperoleh($user->id),
+        ]);
+    }
+
+    /**
+     * Badge yang sudah diperoleh, terbaru dulu. Klik badge membuka detail (UCS5 2c.2): nama, syarat, tanggal.
+     *
+     * @return array<int, array{id: string, nama: string, syarat: string, icon: string, diperolehAt: string}>
+     */
+    private function badgeDiperoleh(string $userId, ?int $batas = null): array
+    {
+        return BadgeSiswa::with('badge')
+            ->where('user_id', $userId)
+            ->orderByDesc('diperoleh_at')
+            ->when($batas !== null, fn ($q) => $q->limit($batas))
+            ->get()
+            ->map(fn (BadgeSiswa $b) => [
+                'id' => $b->badge->id,
+                'nama' => $b->badge->nama_badge,
+                'syarat' => $b->badge->syarat_text,
+                'icon' => $b->badge->icon,
+                'diperolehAt' => $b->diperoleh_at->toIso8601String(),
+            ])
+            ->all();
     }
 }

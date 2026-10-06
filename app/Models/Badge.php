@@ -7,13 +7,13 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Badge yang sudah diperoleh siswa. UNIQUE (user_id, badge_id): tiap badge hanya sekali (SDD 5.3.8).
+ * Badge SDD 8.2. Syaratnya data (jenis_syarat, target); penilaiannya di App\Services\PemeriksaBadge.
  */
-class BadgeSiswa extends Model
+class Badge extends Model
 {
     use HasFactory, HasUuids;
 
-    protected $table = 'siswa_badge';
+    protected $table = 'badge';
 
     public $incrementing = false;
 
@@ -22,17 +22,15 @@ class BadgeSiswa extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'user_id',
-        'badge_id',
-        'diperoleh_at',
+        'nama_badge',
+        'deskripsi',
+        'icon',
+        'syarat_text',
+        'jenis_syarat',
+        'target',
     ];
 
     protected $casts = [
-        'diperoleh_at' => 'datetime',
+        'target' => 'integer',
     ];
-
-    public function badge()
-    {
-        return $this->belongsTo(Badge::class, 'badge_id');
-    }
 }

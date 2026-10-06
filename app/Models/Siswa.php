@@ -55,4 +55,10 @@ class Siswa extends Model
     {
         return $this->belongsTo(ProgramStudi::class, 'prodi_tujuan_id', 'id');
     }
+
+    // Kosong berarti avatar Default (RANCANGAN-badge-avatar.md bagian 5).
+    public function avatarAktif()
+    {
+        return $this->belongsTo(Avatar::class, 'avatar_aktif_id');
+    }
 }
