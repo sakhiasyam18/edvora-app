@@ -1,4 +1,4 @@
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import { ReactNode, useState } from 'react';
 import GambarAvatar from '@/Components/Gamifikasi/GambarAvatar';
 import SiswaLayout from '@/Components/Layouts/SiswaLayout';
@@ -70,15 +70,6 @@ export default function Avatar({ totalPoint, level, avatars }: AvatarProps) {
             <Head title="Toko Avatar" />
 
             <div className="w-full space-y-4 font-poppins text-slate-800">
-                <div>
-                    <Link
-                        href={route('akun.profil.utama')}
-                        className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700"
-                    >
-                        Kembali ke Akun Pribadi
-                    </Link>
-                </div>
-
                 {/* Tab dan saldo point */}
                 <div className="flex flex-wrap items-center justify-between gap-4">
                     <div className="flex items-center gap-2 rounded-2xl bg-slate-100 p-1.5">

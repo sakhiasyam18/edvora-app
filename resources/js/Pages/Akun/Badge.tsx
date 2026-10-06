@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head } from '@inertiajs/react';
 import { ReactNode, useState } from 'react';
 import DetailBadge, { BadgeDiperoleh } from '@/Components/Gamifikasi/DetailBadge';
 import SiswaLayout from '@/Components/Layouts/SiswaLayout';
@@ -18,16 +18,7 @@ export default function Badge({ badges }: BadgeProps) {
 
             <div className="w-full space-y-6 font-poppins text-slate-800">
                 <div>
-                    <Link
-                        href={route('akun.profil.utama')}
-                        className="inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-500 transition duration-200 hover:text-edvora-primary"
-                    >
-                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
-                        </svg>
-                        Kembali ke Profil
-                    </Link>
-                    <h1 className="mt-2 text-[24px] font-bold text-slate-800">Koleksi Badge Saya</h1>
+                    <h1 className="text-[24px] font-bold text-slate-800">Koleksi Badge Saya</h1>
                     <p className="text-[13px] text-slate-500">
                         Kamu telah memperoleh <span className="font-semibold text-edvora-primary">{badges.length}</span> badge.
                     </p>
