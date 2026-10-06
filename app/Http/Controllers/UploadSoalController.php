@@ -36,13 +36,10 @@ class UploadSoalController extends Controller
         return response()->download(self::pathTemplate());
     }
 
-    /**
-     * Salinan template yang dipakai SA (ZFadhilWorkspace/TemplateSoalExcel.xlsx); ganti file ini bila template berubah.
-     * Disimpan di storage (di-gitignore), bukan di repo: repo publik, sedangkan sheet Petunjuk memuat link folder Drive tim.
-     */
+
     public static function pathTemplate(): string
     {
-        return storage_path('app/private/template/TemplateSoalExcel.xlsx');
+        return storage_path('app/template/TemplateSoalExcel.xlsx');
     }
 
     public function periksa(Request $request, Subtes $subtes, ImportSoalExcel $importer): JsonResponse

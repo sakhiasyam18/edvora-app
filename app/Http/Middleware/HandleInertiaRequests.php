@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Subtes;
+use App\Services\TokoAvatar;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -34,15 +35,19 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'auth' => [
                 'user' => $request->user(),
+                // Bulatan profil di topbar semua halaman. Admin dan editor tidak punya avatar, jadi tetap huruf inisial.
+                'avatarUrl' => fn () => $request->user()?->role === 'siswa'
+                    ? TokoAvatar::urlGambarSiswa($request->user()->id)
+                    : null,
             ],
-            'menuBankSoal' => fn() => $request->user()?->role === 'admin_editor'
+            'menuBankSoal' => fn () => $request->user()?->role === 'admin_editor'
                 ? Subtes::orderBy('urutan')->get(['kode_subtes', 'nama_subtes'])
-                ->map(fn(Subtes $s) => ['kode' => $s->kode_subtes, 'nama' => $s->nama_subtes])
+                    ->map(fn (Subtes $s) => ['kode' => $s->kode_subtes, 'nama' => $s->nama_subtes])
                 : null,
             // Notifikasi sukses/gagal untuk FlashPesan
             'flash' => [
-                'sukses' => fn() => $request->session()->get('sukses'),
-                'gagal' => fn() => $request->session()->get('gagal'),
+                'sukses' => fn () => $request->session()->get('sukses'),
+                'gagal' => fn () => $request->session()->get('gagal'),
             ],
         ];
     }

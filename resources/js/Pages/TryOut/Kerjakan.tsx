@@ -18,7 +18,7 @@ interface KerjakanProps {
 }
 
 // Jawaban dan tanda ragu subtes yang sedang dikerjakan. Hanya ada di browser (cadangan localStorage)
-// sampai Simpan Soal / Simpan Jawaban / waktu habis mengirimnya ke server.
+// sampai Simpan Jawaban atau waktu habis mengirimnya ke server.
 interface Draf {
     jawaban: Record<string, JawabanTryOut>;
     ragu: Record<string, boolean>;
@@ -142,7 +142,7 @@ function PengerjaanSubtes({ paket, pengerjaanId, subtes, soalList, sisaDetik }: 
         };
     }, [sisaDetik, kunciBatas]);
 
-    // Waktu habis: kirim tanpa konfirmasi (= Simpan Soal, atau Simpan Jawaban di subtes terakhir).
+    // Waktu habis: kirim tanpa konfirmasi, sama seperti menekan Simpan Jawaban.
     useEffect(() => {
         if (waktuHabis) kirim();
     }, [waktuHabis]);
@@ -209,6 +209,17 @@ function PengerjaanSubtes({ paket, pengerjaanId, subtes, soalList, sisaDetik }: 
                               ? 'border-transparent bg-ujian-biru text-white'
                               : undefined
                     }
+                    aksiBawah={
+                        // SIMPAN JAWABAN: satu tombol untuk semua subtes. Isinya selalu dikirim dengan cara yang sama;
+                        // server yang menentukan lanjut ke subtes berikutnya atau mengakhiri Try Out (TryOutController::kirim).
+                        <button
+                            type="button"
+                            onClick={() => setModal(subtes.terakhir ? 'selesai' : 'subtes')}
+                            className="h-10 w-full rounded-lg bg-ujian-hijau text-[13px] font-semibold text-white shadow-panel transition duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                        >
+                            Simpan Jawaban
+                        </button>
+                    }
                     aksiTengah={
                         <button
                             type="button"
@@ -232,41 +243,12 @@ function PengerjaanSubtes({ paket, pengerjaanId, subtes, soalList, sisaDetik }: 
                             Ragu-ragu
                         </button>
                     }
-                    aksiBawah={
-                        // SIMPAN JAWABAN: hanya aktif di subtes terakhir; mengakhiri Try Out.
-                        <button
-                            type="button"
-                            disabled={!subtes.terakhir}
-                            onClick={() => setModal('selesai')}
-                            className={`h-10 w-full rounded-lg text-[13px] font-semibold text-white transition duration-200 ${
-                                subtes.terakhir
-                                    ? 'bg-ujian-hijau shadow-panel hover:-translate-y-0.5 hover:shadow-md'
-                                    : 'cursor-not-allowed bg-siswa-ujian-redup text-white/80'
-                            }`}
-                        >
-                            Simpan Jawaban
-                        </button>
-                    }
                 />
             }
         >
             <Head title={`Pengerjaan Try Out - ${subtes.nama}`} />
 
-            <ArenaPengerjaan
-                judul={`Soal ${indeksAktif + 1} dari ${soalList.length}`}
-                footerKanan={
-                    // SIMPAN SOAL: menyelesaikan subtes ini dan pindah ke subtes berikutnya (tidak ada di subtes terakhir).
-                    !subtes.terakhir && (
-                        <button
-                            type="button"
-                            onClick={() => setModal('subtes')}
-                            className="h-11 min-w-[200px] rounded-[10px] bg-ujian-hijau px-6 text-sm font-semibold text-white shadow-panel transition duration-200 hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 md:min-w-[260px] lg:min-w-[380px]"
-                        >
-                            Simpan Soal
-                        </button>
-                    )
-                }
-            >
+            <ArenaPengerjaan judul={`Soal ${indeksAktif + 1} dari ${soalList.length}`}>
                 {/* key: isi soal muncul pelan setiap pindah nomor. */}
                 <div key={soal.id} className="animate-muncul-halus">
                     <KartuSoal nomor={indeksAktif + 1} teksSoal={soal.teks_soal} gambarUrl={soal.gambar_soal} />

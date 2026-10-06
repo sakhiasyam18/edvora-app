@@ -121,7 +121,8 @@ export function NavigasiSoal({
                     })}
                 </div>
 
-                {/* Mode simulasi (tanpa statusJawaban) tidak pernah menampilkan benar/salah, jadi hanya Kosong dan Terisi, rata kiri. */}
+                {/* Mode simulasi (tanpa statusJawaban) tidak pernah menampilkan benar/salah, jadi hanya Kosong dan Terisi, rata kiri.
+                    Di mode lain setiap soal yang sudah dijawab selalu berwarna benar/salah, jadi "Terisi" tidak dipakai. */}
                 {!tanpaKeterangan && (
                     <div className={`mt-3 flex flex-wrap gap-y-1 text-[10px] text-siswa-teks ${statusJawaban ? 'justify-between gap-x-3' : 'justify-start gap-x-5'}`}>
                         {statusJawaban && (
@@ -131,7 +132,7 @@ export function NavigasiSoal({
                             </>
                         )}
                         <Keterangan titik="border border-siswa-titik-terisi bg-white" label="Kosong" />
-                        <Keterangan titik="bg-siswa-titik-terisi" label="Terisi" />
+                        {!statusJawaban && <Keterangan titik="bg-siswa-titik-terisi" label="Terisi" />}
                     </div>
                 )}
 

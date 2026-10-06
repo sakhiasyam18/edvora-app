@@ -1,5 +1,6 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
+import GambarAvatar from '@/Components/Gamifikasi/GambarAvatar';
 
 // Halaman menu utama sidebar: tidak punya "halaman sebelumnya", jadi tombol kembali disembunyikan.
 const HALAMAN_UTAMA = [
@@ -50,7 +51,10 @@ interface TopbarSiswaProps {
  */
 export default function TopbarSiswa({ inisial, rutBeranda = 'dashboard' }: TopbarSiswaProps) {
     // usePage: SiswaLayout persisten, jadi topbar perlu dirender ulang setiap pindah halaman untuk mengecek rute aktif.
-    const user = usePage<any>().props.auth?.user;
+    const auth = usePage<any>().props.auth;
+    const user = auth?.user;
+    // Avatar aktif siswa (shared props); kosong untuk admin, jadi bulatannya memakai inisial.
+    const avatarUrl: string | null = auth?.avatarUrl ?? null;
     const subHalaman = !HALAMAN_UTAMA.some((nama) => route().current(nama));
     const breadcrumb = BREADCRUMB.find(([nama]) => route().current(nama))?.[1] ?? [];
 
@@ -109,8 +113,8 @@ export default function TopbarSiswa({ inisial, rutBeranda = 'dashboard' }: Topba
                     aria-expanded={menuTerbuka}
                     className="flex items-center gap-4"
                 >
-                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-edvora-primary text-[24px] font-normal leading-none text-white transition hover:bg-edvora-primary-hover">
-                        {inisial}
+                    <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-edvora-primary text-[24px] font-normal leading-none text-white transition hover:bg-edvora-primary-hover">
+                        {avatarUrl ? <GambarAvatar src={avatarUrl} nama={inisial} className="h-full w-full object-cover" /> : inisial}
                     </span>
                     <img
                         src="/images/ikon/panah-bawah.png"
@@ -126,7 +130,9 @@ export default function TopbarSiswa({ inisial, rutBeranda = 'dashboard' }: Topba
                     }`}
                 >
                     <div className="flex items-center gap-3 border-b border-siswa-garis-halus px-4 pb-3 pt-2">
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-edvora-primary text-[16px] text-white">{inisial}</span>
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-edvora-primary text-[16px] text-white">
+                            {avatarUrl ? <GambarAvatar src={avatarUrl} nama={inisial} className="h-full w-full object-cover" /> : inisial}
+                        </span>
                         <div className="min-w-0">
                             <p className="truncate text-[14px] font-semibold text-siswa-judul-seksi">{user?.name}</p>
                             <p className="truncate text-[12px] text-siswa-teks">{user?.email}</p>
