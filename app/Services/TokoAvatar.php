@@ -33,6 +33,24 @@ class TokoAvatar
         };
     }
 
+    /**
+     * URL avatar aktif siswa dalam satu query, untuk bulatan profil di topbar semua halaman (shared props Inertia).
+     * Akun tanpa baris siswa (admin, editor) dan siswa yang belum memakai avatar sama-sama mendapat Default.
+     */
+    public static function urlGambarSiswa(string $userId): string
+    {
+        $baris = DB::table('siswa as s')
+            ->leftJoin('avatar as a', 'a.id', '=', 's.avatar_aktif_id')
+            ->where('s.user_id', $userId)
+            ->first(['s.jenis_kelamin', 'a.gambar_perempuan', 'a.gambar_laki_laki']);
+
+        $avatar = $baris?->gambar_laki_laki === null
+            ? null
+            : new Avatar(['gambar_perempuan' => $baris->gambar_perempuan, 'gambar_laki_laki' => $baris->gambar_laki_laki]);
+
+        return self::urlGambar($avatar, $baris?->jenis_kelamin);
+    }
+
     /** Versi gambar sesuai jenis kelamin; $avatar null = Default. Jenis kelamin kosong memakai versi laki-laki. */
     public static function urlGambar(?Avatar $avatar, ?string $jenisKelamin): string
     {

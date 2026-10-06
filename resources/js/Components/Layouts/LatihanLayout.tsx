@@ -1,5 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import { ReactNode } from 'react';
+import GambarAvatar from '@/Components/Gamifikasi/GambarAvatar';
 import LambangEdvora from './LambangEdvora';
 
 // Satu langkah breadcrumb; href diisi bila langkah itu punya halaman yang bisa dibuka.
@@ -20,8 +21,11 @@ interface LatihanLayoutProps {
  * dan avatar; tanpa sidebar menu supaya siswa fokus mengerjakan soal.
  */
 export default function LatihanLayout({ breadcrumb = [], judulTengah, sidebar, children }: LatihanLayoutProps) {
-    const namaUser: string = usePage<any>().props.auth?.user?.name ?? '';
+    const auth = usePage<any>().props.auth;
+    const namaUser: string = auth?.user?.name ?? '';
     const inisial = namaUser.charAt(0).toUpperCase() || 'A';
+    // Avatar aktif siswa (shared props); kosong untuk admin dan editor, jadi bulatannya memakai inisial.
+    const avatarUrl: string | null = auth?.avatarUrl ?? null;
 
     return (
         <div className="flex h-screen flex-col bg-gradient-to-r from-siswa-laman-awal from-[24.711%] to-siswa-laman-akhir font-poppins text-siswa-judul">
@@ -66,11 +70,11 @@ export default function LatihanLayout({ breadcrumb = [], judulTengah, sidebar, c
                     </nav>
                 )}
 
-                <div className="flex shrink-0 items-center gap-4">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-edvora-primary text-[24px] font-normal leading-none text-white">
-                        {inisial}
+                {/* Tanpa ikon dropdown: menu akun hanya ada di topbar halaman menu, bukan di halaman pengerjaan. */}
+                <div className="flex shrink-0 items-center">
+                    <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-edvora-primary text-[24px] font-normal leading-none text-white">
+                        {avatarUrl ? <GambarAvatar src={avatarUrl} nama={inisial} className="h-full w-full object-cover" /> : inisial}
                     </span>
-                    {!judulTengah && <img src="/images/ikon/panah-bawah.png" alt="" className="hidden h-[19.542px] w-[19.542px] object-contain sm:block" />}
                 </div>
             </header>
 
