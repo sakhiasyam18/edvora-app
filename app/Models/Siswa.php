@@ -9,7 +9,7 @@ class Siswa extends Model
 {
     use HasFactory;
 
-    // Nilai kolom kelas => label yang ditampilkan; dipakai props halaman Biodata dan validasinya.
+    // Pilihan kelas di form Biodata dan Edit Biodata (nilai => label), juga dipakai validasinya.
     // PHP mengubah kunci angka seperti '10' menjadi int, jadi ubah ke string saat dikirim ke React.
     public const PILIHAN_KELAS = [
         '10' => 'Kelas 10 SMA/SMK',
@@ -20,9 +20,11 @@ class Siswa extends Model
         'umum' => 'Alumni / Mahasiswa Pasca',
     ];
 
+    // Keputusan tim: form menampilkan semua pilihan, tetapi yang disimpan ke kolom kelas selalu '12'.
+    public const KELAS_DISIMPAN = '12';
+
     protected $table = 'siswa';
 
-    // Primary key-nya user_id, yang merujuk ke users.id.
     protected $primaryKey = 'user_id';
 
     public $incrementing = false;

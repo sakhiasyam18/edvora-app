@@ -1,38 +1,32 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import axios from 'axios';
-import { useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 import LatihanLayout from '@/Components/Layouts/LatihanLayout';
 import Modal from '@/Components/Modal';
+import TurFitur, { LangkahTur } from '@/Components/Tur/TurFitur';
 import ArenaPengerjaan, { NavigasiSoal, StatusJawabanSoal } from '@/Components/Ujian/ArenaPengerjaan';
 import KartuPembahasan from '@/Components/Ujian/KartuPembahasan';
 import KartuSoal, { TeksMatematika } from '@/Components/Ujian/KartuSoal';
 import TabelMajemuk from '@/Components/Ujian/TabelMajemuk';
 import TimerMundur from '@/Components/Ujian/TimerMundur';
 import TombolOpsi, { IkonHasil, StatusOpsi } from '@/Components/Ujian/TombolOpsi';
-import { JawabanTersimpan, KonfigurasiSesiLatihan, OpsiJawaban, UmpanBalikJawaban } from '@/types/latihan';
-import { dummyKonfigurasiSesi, dummyKunciJawaban, dummySoalList } from '@/data/dummyLatihan';
+import { JawabanTersimpan, OpsiJawaban, UmpanBalikJawaban } from '@/types/latihan';
 
 type ModalAktif = 'hint' | 'keluar' | 'selesai' | null;
-
 type IdOpsi = string | number;
-
-// pilihanKolom hanya untuk majemuk_tabel: id pernyataan => nomor kolom (mulai 1).
 type Jawaban = { soalId: IdOpsi; opsiIds: IdOpsi[]; jawabanIsian?: string; pilihanKolom?: Record<string, number> };
 
 interface UjianProps {
-    subtes: any;
+    // Dikirim server, tapi halaman pengerjaan tidak memakainya: breadcrumb di sini tanpa tautan.
+    subtes?: any;
     soalList: any[];
     konfigurasi: any;
-    // Fleksibel (latihan.kerjakan): jawaban yang sudah tersimpan dan teks hint yang sudah dibuka. Kosong di mode lain.
     jawabanTersimpan?: JawabanTersimpan[];
     hintTerbuka?: Record<string, string>;
 }
 
-// Terjemahkan respons gagal dari latihan.jawab dan latihan.hint menjadi pesan untuk siswa.
-// aksi melengkapi kalimat, mis. "memeriksa jawaban" atau "membuka hint".
 function pesanGagal(e: unknown, aksi: string): string {
     if (!axios.isAxiosError(e) || !e.response) return 'Gagal terhubung ke server. Periksa koneksi lalu coba lagi.';
-
     const { status, data } = e.response;
     if (status === 422) return (Object.values(data?.errors ?? {}) as string[][]).flat()[0] ?? data?.message ?? 'Permintaan tidak valid.';
     if (status === 410) return 'Sesi latihan sudah berakhir. Silakan mulai ulang latihan.';
@@ -41,12 +35,79 @@ function pesanGagal(e: unknown, aksi: string): string {
     return data?.message ?? `Gagal ${aksi}. Coba lagi.`;
 }
 
-export default function Ujian({ subtes, soalList, konfigurasi, jawabanTersimpan = [], hintTerbuka: hintAwal = {} }: UjianProps) {
+// Langkah tur pengerjaan soal. Atribut data-tur dipasang di JSX halaman ini.
+const LANGKAH_SOAL: LangkahTur = {
+    target: 'ujian-soal',
+    posisi: 'bawah',
+    teks: (
+        <>
+            Ini adalah <strong className="font-semibold">soal yang akan kamu kerjakan</strong>. Baca dan teliti hingga kamu memahami maksud dari soal!
+        </>
+    ),
+};
+
+const LANGKAH_OPSI: LangkahTur = {
+    target: 'ujian-opsi',
+    posisi: 'atas',
+    teks: (
+        <>
+            <strong className="font-semibold">Pilih jawaban</strong> yang menurutmu paling tepat dan periksa kembali!
+        </>
+    ),
+};
+
+const LANGKAH_HINT: LangkahTur = {
+    target: 'ujian-hint',
+    posisi: 'atas',
+    teks: (
+        <>
+            <strong className="font-semibold">Bingung menjawab?</strong> Gunakan Hint untuk mendapatkan petunjuk!
+        </>
+    ),
+};
+
+const LANGKAH_NAVIGASI: LangkahTur = {
+    target: 'ujian-navigasi',
+    posisi: 'bawah',
+    teks: (
+        <>
+            Klik <strong className="font-semibold">Sebelumnya</strong> untuk kembali ke soal sebelumnya, dan{' '}
+            <strong className="font-semibold">Lanjutkan</strong> untuk mengerjakan soal selanjutnya.
+        </>
+    ),
+};
+
+const LANGKAH_KELUAR: LangkahTur = {
+    target: 'ujian-keluar',
+    posisi: 'atas',
+    teks: (
+        <>
+            Klik tombol <strong className="font-semibold">Keluar Halaman</strong> jika ingin meninggalkan sesi pengerjaan. Progresmu sudah tersimpan!
+        </>
+    ),
+};
+
+const LANGKAH_PEMBAHASAN: LangkahTur = {
+    target: 'ujian-pembahasan',
+    posisi: 'atas',
+    teks: (
+        <>
+            Yuk, <strong className="font-semibold">pelajari pembahasannya!</strong> Kamu bisa melihat kunci jawaban dan memahami cara mendapatkan jawaban yang benar
+        </>
+    ),
+};
+
+export default function Ujian({ soalList, konfigurasi, jawabanTersimpan = [], hintTerbuka: hintAwal = {} }: UjianProps) {
     const simulasi = konfigurasi.mode === 'simulasi';
 
-    // Semua tipe berbasis opsi memakai array; pilihan ganda = array beranggota satu.
-    // Soal isian_singkat memakai jawabanIsian dengan opsiIds kosong.
-    // Lanjut Kerjakan: jawaban yang sudah tersimpan di server langsung terkunci.
+    // Tur utama dipasang lewat TurFitur di bagian bawah JSX. Penanda tur versi lama tetap dihormati
+    // agar siswa yang sudah pernah melihatnya tidak melihat tur ini.
+    const [turUtamaAktif] = useState(() => localStorage.getItem('edvora_has_seen_ujian_tour') === null);
+
+    // Tur pembahasan muncul saat siswa pertama kali menjawab salah; `aktif` dimatikan setelah ditutup.
+    const [showPembahasanTour, setShowPembahasanTour] = useState(false);
+    const tutupPembahasanTour = useCallback(() => setShowPembahasanTour(false), []);
+
     const form = useForm({
         ...konfigurasi,
         jawaban: jawabanTersimpan.map((j) => ({
@@ -58,17 +119,14 @@ export default function Ujian({ subtes, soalList, konfigurasi, jawabanTersimpan 
     });
 
     const [indeksAktif, setIndeksAktif] = useState(0);
-    // Mode fleksibel: pilihan belum final sampai "Simpan Jawaban" ditekan.
     const [pilihanSementara, setPilihanSementara] = useState<Record<string | number, IdOpsi[]>>({});
     const [isianSementara, setIsianSementara] = useState<Record<string | number, string>>({});
     const [kolomSementara, setKolomSementara] = useState<Record<string | number, Record<string, number>>>({});
-    // Balasan latihan.jawab per soal: benar/salah, kunci, teks kunci, dan pembahasan. Tidak dipakai di simulasi.
     const [hasilJawaban, setHasilJawaban] = useState<Record<string | number, UmpanBalikJawaban>>(() =>
         Object.fromEntries(jawabanTersimpan.map((j) => [j.soalId, j.hasil])),
     );
     const [mengirim, setMengirim] = useState(false);
     const [pesanKirim, setPesanKirim] = useState<{ soalId: IdOpsi; pesan: string } | null>(null);
-    // Teks hint dari latihan.hint, per soal. Soal yang ada di sini sudah tercatat di server memakai hint.
     const [hintTerbuka, setHintTerbuka] = useState<Record<string | number, string>>(hintAwal);
     const [memuatHint, setMemuatHint] = useState(false);
     const [pesanHint, setPesanHint] = useState<string | null>(null);
@@ -83,15 +141,28 @@ export default function Ujian({ subtes, soalList, konfigurasi, jawabanTersimpan 
     const opsiTerpilih: IdOpsi[] = (simulasi || terkunci ? tersimpan?.opsiIds : pilihanSementara[soal.id]) ?? [];
     const teksIsian: string = (simulasi || terkunci ? tersimpan?.jawabanIsian : isianSementara[soal.id]) ?? '';
     const pilihanKolom: Record<string, number> = (simulasi || terkunci ? tersimpan?.pilihanKolom : kolomSementara[soal.id]) ?? {};
-    // Majemuk tabel di mode fleksibel baru bisa disimpan setelah setiap baris dipilih.
     const belumDiisi = isian
         ? teksIsian.trim() === ''
         : tabel
-          ? soal.opsi_jawaban.some((o: OpsiJawaban) => pilihanKolom[String(o.id)] === undefined)
-          : opsiTerpilih.length === 0;
+            ? soal.opsi_jawaban.some((o: OpsiJawaban) => pilihanKolom[String(o.id)] === undefined)
+            : opsiTerpilih.length === 0;
 
-    // Jawaban kosong (tanpa opsi, tanpa teks, dan tanpa pilihan kolom) berarti soal kembali belum dijawab.
-    const simpanJawaban = (soalId: IdOpsi, opsiIds: IdOpsi[], jawabanIsian = '', pilihanKolom: Record<string, number> = {}) => {
+    // Mode fleksibel dan remedial (bukan simulasi): Keluar Halaman hanya ada selama masih ada soal yang belum
+    // disimpan, dan Selesaikan Latihan baru muncul setelah SEMUA soal tersimpan.
+    const semuaTerjawab = soalList.every((s) => cariJawaban(s.id) !== undefined);
+
+    // Langkah hanya memuat elemen yang benar-benar tampil: Hint tidak ada di mode simulasi atau soal
+    // terkunci, dan Keluar Halaman tidak ada di mode simulasi atau bila semua soal sudah dijawab.
+    // Dihitung sekali supaya jumlah langkah tidak berubah di tengah tur.
+    const [langkahTur] = useState<LangkahTur[]>(() => [
+        LANGKAH_SOAL,
+        LANGKAH_OPSI,
+        ...(!simulasi && !terkunci ? [LANGKAH_HINT] : []),
+        LANGKAH_NAVIGASI,
+        ...(!simulasi && !semuaTerjawab ? [LANGKAH_KELUAR] : []),
+    ]);
+
+    const simpanJawaban =(soalId: IdOpsi, opsiIds: IdOpsi[], jawabanIsian = '', pilihanKolom: Record<string, number> = {}) => {
         const lainnya = form.data.jawaban.filter((j: Jawaban) => j.soalId !== soalId);
         const kosong = opsiIds.length === 0 && jawabanIsian.trim() === '' && Object.keys(pilihanKolom).length === 0;
         form.setData('jawaban', kosong ? lainnya : [...lainnya, { soalId, opsiIds, jawabanIsian, pilihanKolom }]);
@@ -102,9 +173,6 @@ export default function Ujian({ subtes, soalList, konfigurasi, jawabanTersimpan 
         else setIsianSementara((p) => ({ ...p, [soal.id]: teks }));
     };
 
-    // Fleksibel dan remedial: server menilai lalu menyimpan (fleksibel) atau mengunci di session (remedial), dan
-    // membalas kunci serta pembahasan. Soal baru dikunci setelah server menjawab, jadi kalau gagal
-    // (mis. koneksi putus) siswa masih bisa mencoba lagi.
     const kirimSatuJawaban = async () => {
         const soalId = soal.id;
         const opsiIds = isian || tabel ? [] : opsiTerpilih;
@@ -122,6 +190,12 @@ export default function Ujian({ subtes, soalList, konfigurasi, jawabanTersimpan 
             });
             setHasilJawaban((p) => ({ ...p, [soalId]: data }));
             simpanJawaban(soalId, opsiIds, jawabanIsian, kolom);
+
+            // CEK JIKA JAWABAN SALAH & BELUM PERNAH LIHAT TUR PEMBAHASAN
+            const hasSeenPembahasanTour = localStorage.getItem('edvora_has_seen_pembahasan_tour');
+            if (!data.benar && !hasSeenPembahasanTour) {
+                setShowPembahasanTour(true);
+            }
         } catch (e) {
             setPesanKirim({ soalId, pesan: pesanGagal(e, 'menyimpan jawaban') });
         } finally {
@@ -129,8 +203,6 @@ export default function Ujian({ subtes, soalList, konfigurasi, jawabanTersimpan 
         }
     };
 
-    // Mode fleksibel: server mencatat hint dibuka, lalu jawaban benar untuk soal ini bernilai setengah
-    // di skor topik. Teksnya disimpan per soal supaya membuka ulang tidak meminta ke server lagi.
     const bukaHint = async () => {
         const soalId = soal.id;
         setMemuatHint(true);
@@ -145,7 +217,6 @@ export default function Ujian({ subtes, soalList, konfigurasi, jawabanTersimpan 
         }
     };
 
-    // Pilihan ganda: ganti dengan satu opsi. Benar/salah: centang atau lepas centang.
     const pilihOpsi = (opsi: OpsiJawaban) => {
         const baru =
             soal.tipe === 'benar_salah'
@@ -158,7 +229,6 @@ export default function Ujian({ subtes, soalList, konfigurasi, jawabanTersimpan 
         else setPilihanSementara((p) => ({ ...p, [soal.id]: baru }));
     };
 
-    // Majemuk tabel: satu kolom per pernyataan; memilih kolom lain di baris yang sama mengganti pilihannya.
     const pilihKolom = (opsi: OpsiJawaban, nomorKolom: number) => {
         const baru = { ...pilihanKolom, [String(opsi.id)]: nomorKolom };
 
@@ -166,8 +236,6 @@ export default function Ujian({ subtes, soalList, konfigurasi, jawabanTersimpan 
         else setKolomSementara((p) => ({ ...p, [soal.id]: baru }));
     };
 
-    // Fleksibel dan remedial: warna bulatan dari balasan server, termasuk majemuk tabel. Simulasi tidak memakai ini,
-    // supaya hasil belum terlihat sebelum latihan selesai. Belum dijawab = null, jadi bulatan tetap netral.
     const statusJawabanSoal = (indeks: number): StatusJawabanSoal => {
         const hasil = hasilJawaban[soalList[indeks].id];
         return hasil === undefined ? null : hasil.benar ? 'benar' : 'salah';
@@ -178,8 +246,6 @@ export default function Ujian({ subtes, soalList, konfigurasi, jawabanTersimpan 
         const kunciOpsiIds = hasilJawaban[soal.id]?.kunciOpsiIds;
         if (terkunci && kunciOpsiIds) {
             const opsiKunci = kunciOpsiIds.includes(String(opsi.id));
-            // Benar_salah: tiap pernyataan punya nilai kebenarannya sendiri, jadi semua opsi
-            // diberi warna — bukan hanya yang dipilih — supaya siswa melihat jawaban lengkapnya.
             if (soal.tipe === 'benar_salah') return opsiKunci ? 'benar' : 'salah';
             if (opsiKunci) return 'benar';
             if (dipilih) return 'salah';
@@ -190,24 +256,15 @@ export default function Ujian({ subtes, soalList, konfigurasi, jawabanTersimpan 
 
     const kirimJawaban = (tujuan: string) => {
         if (form.processing) return;
-
         const aksi = tujuan === route('dashboard') ? 'keluar' : 'selesai';
-
-        form.transform((data) => ({
-            ...data,
-            aksi
-        }));
-
+        form.transform((data) => ({ ...data, aksi }));
         form.post(route('latihan.simpan'));
     };
 
-    // Teks "Kunci Jawaban" di kartu umpan balik, dari balasan server (format PembahasanPengerjaan::teksKunci).
     const teksKunci = (): string | null => hasilJawaban[soal.id]?.kunci ?? null;
-
     const namaMode = { fleksibel: 'Fleksibel', simulasi: 'Simulasi', remedial: 'Remedial' }[konfigurasi.mode as string] ?? '';
     const statusAktif = terkunci ? statusJawabanSoal(indeksAktif) : null;
 
-    // Tombol besar di bawah opsi (Simpan Jawaban, Selesaikan) dan tombol di modal.
     const tombolBesar =
         'h-11 min-w-[200px] rounded-[10px] px-6 text-sm font-semibold shadow-panel transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:shadow-md enabled:active:translate-y-0 md:min-w-[240px] lg:min-w-[300px]';
     const tombolModal = 'h-9 min-w-[100px] rounded-[10px] px-5 text-sm font-semibold transition duration-200 hover:-translate-y-0.5 disabled:opacity-50';
@@ -215,45 +272,47 @@ export default function Ujian({ subtes, soalList, konfigurasi, jawabanTersimpan 
 
     return (
         <LatihanLayout
-            breadcrumb={[
-                { label: 'Latihan Soal', href: route('latihan.index') },
-                // Subtes → halaman Pilih Mode subtes itu, langsung di tab mode yang sedang dikerjakan.
-                {
-                    label: konfigurasi.namaSubtes,
-                    href: subtes?.kode_subtes ? route('latihan.mode', { subtes: subtes.kode_subtes, tab: konfigurasi.mode }) : undefined,
-                },
-                ...(namaMode ? [`Mode ${namaMode}`] : []),
-            ]}
+            // Selama mengerjakan, breadcrumb hanya penunjuk posisi: tanpa tautan supaya siswa tidak
+            // keluar dari ujian lewat topbar dan kehilangan jawaban yang belum disimpan.
+            breadcrumb={['Latihan Soal', konfigurasi.namaSubtes, ...(namaMode ? [`Mode ${namaMode}`] : [])]}
+            tanpaTautan
             sidebar={
-                <NavigasiSoal
-                    judul={konfigurasi.namaSubtes}
-                    jumlahSoal={soalList.length}
-                    indeksAktif={indeksAktif}
-                    sudahDijawab={(i) => cariJawaban(soalList[i].id) !== undefined}
-                    statusJawaban={simulasi ? undefined : statusJawabanSoal}
-                    onPilih={setIndeksAktif}
-                    aksiBawah={
-                        // Simulasi tidak punya Keluar Halaman (UCS1 4b.3); Simpan Jawaban di tempatnya mengakhiri sesi (4b.4–4b.6).
-                        simulasi ? (
-                            <button
-                                type="button"
-                                onClick={() => setModal('selesai')}
-                                disabled={form.processing}
-                                className="h-10 w-full rounded-lg bg-ujian-hijau text-[13px] font-semibold text-white shadow-panel transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:shadow-md enabled:active:translate-y-0 disabled:opacity-60"
-                            >
-                                Simpan Jawaban
-                            </button>
-                        ) : (
-                            <button
-                                type="button"
-                                onClick={() => setModal('keluar')}
-                                className="h-10 w-full rounded-lg bg-ujian-merah text-[13px] font-semibold text-white shadow-panel transition duration-200 hover:-translate-y-0.5 hover:shadow-md active:translate-y-0"
-                            >
-                                ← Keluar Halaman
-                            </button>
-                        )
-                    }
-                />
+                <div className="relative space-y-4 font-poppins">
+                    {/* Panel navigasi soal: disorot di langkah 4 tur */}
+                    <div data-tur="ujian-navigasi">
+                        <NavigasiSoal
+                            judul={konfigurasi.namaSubtes}
+                            jumlahSoal={soalList.length}
+                            indeksAktif={indeksAktif}
+                            sudahDijawab={(i) => cariJawaban(soalList[i].id) !== undefined}
+                            statusJawaban={simulasi ? undefined : statusJawabanSoal}
+                            onPilih={(i) => setIndeksAktif(i)}
+                            aksiBawah={
+                                simulasi ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => setModal('selesai')}
+                                        disabled={form.processing}
+                                        className="h-10 w-full rounded-lg bg-ujian-hijau text-[13px] font-semibold text-white shadow-panel transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:shadow-md enabled:active:translate-y-0 disabled:opacity-60"
+                                    >
+                                        Simpan Jawaban
+                                    </button>
+                                ) : semuaTerjawab ? null : (
+                                    /* Tombol keluar: disorot di langkah 5 tur */
+                                    <div data-tur="ujian-keluar">
+                                        <button
+                                            type="button"
+                                            onClick={() => setModal('keluar')}
+                                            className="h-10 w-full rounded-lg bg-ujian-merah text-[13px] font-semibold text-white shadow-panel transition duration-200 hover:-translate-y-0.5 hover:shadow-md active:translate-y-0"
+                                        >
+                                            ← Keluar Halaman
+                                        </button>
+                                    </div>
+                                )
+                            }
+                        />
+                    </div>
+                </div>
             }
         >
             <Head title={`Latihan ${konfigurasi.namaSubtes}`} />
@@ -267,22 +326,23 @@ export default function Ujian({ subtes, soalList, konfigurasi, jawabanTersimpan 
                 }
                 footerKiri={
                     !simulasi && !terkunci && (
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setPesanHint(null);
-                                setModal('hint');
-                            }}
-                            disabled={!soal.ada_hint}
-                            title={soal.ada_hint ? undefined : 'Soal ini belum punya hint'}
-                            className="flex h-11 items-center gap-1.5 rounded-[10px] border border-siswa-hint-garis bg-siswa-hint-latar px-5 text-sm font-semibold text-siswa-hint-teks shadow-panel transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:shadow-md disabled:opacity-50"
-                        >
-                            <IkonLampu className="h-[18px] w-[18px]" /> Hint
-                        </button>
+                        <div data-tur="ujian-hint">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setPesanHint(null);
+                                    setModal('hint');
+                                }}
+                                disabled={!soal.ada_hint} // Hanya disabled jika soal tidak punya hint
+                                title={soal.ada_hint ? undefined : 'Soal ini belum punya hint'}
+                                className="flex h-11 items-center gap-1.5 rounded-[10px] border border-siswa-hint-garis bg-siswa-hint-latar px-5 text-sm font-semibold text-siswa-hint-teks shadow-panel transition duration-200 enabled:hover:-translate-y-0.5 enabled:hover:shadow-md"
+                            >
+                                <IkonLampu className="h-[18px] w-[18px]" /> Hint
+                            </button>
+                        </div>
                     )
                 }
                 footerKanan={
-                    // Simulasi diakhiri lewat Simpan Jawaban di panel Navigasi Soal, jadi footer-nya kosong.
                     simulasi ? null : !terkunci ? (
                         <button
                             type="button"
@@ -295,43 +355,48 @@ export default function Ujian({ subtes, soalList, konfigurasi, jawabanTersimpan 
                         >
                             {mengirim ? 'Menyimpan…' : 'Simpan Jawaban'}
                         </button>
-                    ) : (
+                    ) : semuaTerjawab ? (
                         <button type="button" onClick={() => setModal('selesai')} className={`${tombolBesar} bg-ujian-biru text-white`}>
                             Selesaikan Latihan
                         </button>
-                    )
+                    ) : null
                 }
             >
-                {/* key: isi soal muncul pelan setiap pindah nomor. */}
                 <div key={soal.id} className="animate-muncul-halus">
-                    <KartuSoal nomor={indeksAktif + 1} teksSoal={soal.teks_soal} gambarUrl={soal.gambar_soal} />
-
-                    <div className="mt-3 space-y-2.5">
-                        {tabel ? (
-                            <TabelMajemuk
-                                kolom={soal.kolom_tabel ?? []}
-                                pernyataan={soal.opsi_jawaban}
-                                pilihan={pilihanKolom}
-                                onPilih={pilihKolom}
-                                terkunci={terkunci}
-                                kunci={hasilJawaban[soal.id]?.kunciKolom}
-                            />
-                        ) : (
-                            soal.opsi_jawaban.map((opsi: any) => (
-                                <TombolOpsi
-                                    key={opsi.id}
-                                    opsi={opsi}
-                                    status={statusOpsi(opsi)}
-                                    disabled={terkunci}
-                                    onPilih={pilihOpsi}
-                                    kotakCentang={soal.tipe === 'benar_salah'}
-                                    dipilih={opsiTerpilih.includes(opsi.id)}
-                                />
-                            ))
-                        )}
+                    {/* Kartu soal: disorot di langkah 1 tur */}
+                    <div data-tur="ujian-soal">
+                        <KartuSoal nomor={indeksAktif + 1} teksSoal={soal.teks_soal} gambarUrl={soal.gambar_soal} />
                     </div>
 
-                    {/* Sebelum dikunci: field isian. Batas 100 karakter mengikuti validasi backend. */}
+                    {/* Opsi jawaban: disorot di langkah 2 tur */}
+                    <div data-tur="ujian-opsi" className="mt-3">
+                        <div className="space-y-2.5">
+                            {tabel ? (
+                                <TabelMajemuk
+                                    kolom={soal.kolom_tabel ?? []}
+                                    pernyataan={soal.opsi_jawaban}
+                                    pilihan={pilihanKolom}
+                                    onPilih={pilihKolom}
+                                    terkunci={terkunci}
+                                    kunci={hasilJawaban[soal.id]?.kunciKolom}
+                                />
+                            ) : (
+                                soal.opsi_jawaban.map((opsi: any) => (
+                                    <TombolOpsi
+                                        key={opsi.id}
+                                        opsi={opsi}
+                                        status={statusOpsi(opsi)}
+                                        disabled={terkunci}
+                                        onPilih={pilihOpsi}
+                                        kotakCentang={soal.tipe === 'benar_salah'}
+                                        dipilih={opsiTerpilih.includes(opsi.id)}
+                                    />
+                                ))
+                            )}
+                        </div>
+
+                    </div>
+
                     {isian && !hasilJawaban[soal.id] && (
                         <input
                             type="text"
@@ -345,12 +410,10 @@ export default function Ujian({ subtes, soalList, konfigurasi, jawabanTersimpan 
                         />
                     )}
 
-                    {/* Setelah dikunci: jawaban siswa diganti bilah hasil dari latihan.jawab. */}
                     {isian && hasilJawaban[soal.id] && (
                         <div
-                            className={`mt-3 flex min-h-11 animate-muncul-halus items-center justify-between gap-3 rounded-[10px] px-4 py-2.5 text-sm font-semibold text-white shadow-panel ${
-                                hasilJawaban[soal.id].benar ? 'bg-ujian-hijau' : 'bg-ujian-merah'
-                            }`}
+                            className={`mt-3 flex min-h-11 animate-muncul-halus items-center justify-between gap-3 rounded-[10px] px-4 py-2.5 text-sm font-semibold text-white shadow-panel ${hasilJawaban[soal.id].benar ? 'bg-ujian-hijau' : 'bg-ujian-merah'
+                                }`}
                         >
                             <span className="break-all">{teksIsian}</span>
                             <span className="flex shrink-0 items-center gap-1.5 font-medium">
@@ -365,18 +428,20 @@ export default function Ujian({ subtes, soalList, konfigurasi, jawabanTersimpan 
                         </p>
                     )}
 
-                    {/* Pembahasan dan gambarnya dari balasan latihan.jawab; props halaman ujian tidak memuatnya. */}
                     {terkunci && (
-                        <KartuPembahasan
-                            status={statusAktif ?? 'kosong'}
-                            kunci={teksKunci()}
-                            pembahasan={hasilJawaban[soal.id]?.pembahasan ?? ''}
-                            gambar={hasilJawaban[soal.id]?.gambarPembahasan ?? null}
-                        />
+                        <div data-tur="ujian-pembahasan">
+                            <KartuPembahasan
+                                status={statusAktif ?? 'kosong'}
+                                kunci={teksKunci()}
+                                pembahasan={hasilJawaban[soal.id]?.pembahasan ?? ''}
+                                gambar={hasilJawaban[soal.id]?.gambarPembahasan ?? null}
+                            />
+                        </div>
                     )}
                 </div>
             </ArenaPengerjaan>
 
+            {/* MODAL HINT */}
             <Modal show={modal === 'hint'} maxWidth="md" onClose={() => setModal(null)} {...kelasModal}>
                 <div className="p-6 font-poppins text-siswa-judul md:px-8 md:py-7">
                     <h3 className="flex items-center gap-2 text-xl font-semibold">
@@ -387,7 +452,6 @@ export default function Ujian({ subtes, soalList, konfigurasi, jawabanTersimpan 
                             <TeksMatematika teks={hintTerbuka[soal.id]} />
                         </div>
                     ) : (
-                        // Siswa diberi tahu dulu, karena begitu dibuka nilainya langsung tercatat di server.
                         <p className="mt-2 text-[15px] font-medium leading-relaxed text-siswa-teks">
                             Kalau jawabanmu benar setelah membuka hint, XP dan poin soal ini dihitung setengah, begitu juga nilainya untuk skor topik.
                         </p>
@@ -416,6 +480,7 @@ export default function Ujian({ subtes, soalList, konfigurasi, jawabanTersimpan 
                 </div>
             </Modal>
 
+            {/* MODAL KELUAR */}
             <Modal show={modal === 'keluar'} maxWidth="md" onClose={() => setModal(null)} {...kelasModal}>
                 <div className="p-6 font-poppins md:px-8 md:py-7">
                     <h3 className="text-xl font-semibold text-siswa-umpan-salah-teks">Keluar</h3>
@@ -440,9 +505,9 @@ export default function Ujian({ subtes, soalList, konfigurasi, jawabanTersimpan 
                 </div>
             </Modal>
 
+            {/* MODAL SELESAI */}
             <Modal show={modal === 'selesai'} maxWidth="md" onClose={() => setModal(null)} {...kelasModal}>
                 <div className="p-6 font-poppins md:px-8 md:py-7">
-                    {/* Simulasi memakai teks konfirmasi UCS1 4b.5: "Yakin Menyimpan Jawaban?" dengan Iya/Tidak. */}
                     <h3 className="text-xl font-semibold text-siswa-umpan-benar-teks">{simulasi ? 'Yakin Menyimpan Jawaban?' : 'Selesaikan Sekarang'}</h3>
                     <p className="mt-2 text-[15px] font-medium leading-relaxed text-siswa-teks">
                         {simulasi
@@ -464,6 +529,9 @@ export default function Ujian({ subtes, soalList, konfigurasi, jawabanTersimpan 
                     </div>
                 </div>
             </Modal>
+
+            <TurFitur kunci="ujian-pengerjaan" langkah={langkahTur} aktif={turUtamaAktif} />
+            <TurFitur kunci="ujian-pembahasan" langkah={[LANGKAH_PEMBAHASAN]} aktif={showPembahasanTour} onTutup={tutupPembahasanTour} />
         </LatihanLayout>
     );
 }

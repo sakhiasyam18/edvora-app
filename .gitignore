@@ -22,3 +22,10 @@ yarn-error.log
 /graphify-out
 claude.md
 /kebutuhan-konteks
+docs
+
+/cypress/screenshots
+/cypress/videos
+/cypress/downloads
+cypress.env.json
+

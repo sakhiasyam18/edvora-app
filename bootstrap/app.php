@@ -3,12 +3,17 @@
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\PastikanBiodataLengkap;
 use App\Http\Middleware\PastikanPeran;
+use App\Http\Middleware\TolakAkunNonaktif;
 use App\Http\Middleware\TolakSesiLogout;
 use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Inertia\Inertia;
+use Symfony\Component\HttpFoundation\Response;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -19,6 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->web(append: [
             TolakSesiLogout::class,
+            TolakAkunNonaktif::class,
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
         ]);
@@ -35,5 +41,13 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        // Logout dengan token lama padahal sudah tidak login (tab lain, sesi habis, klik saat halaman berpindah):
+        // tujuannya sudah tercapai, jadi ke beranda, bukan Page Expired. Yang masih login tetap 419.
+        $exceptions->respond(function (Response $response, Throwable $e, Request $request) {
+            if ($response->getStatusCode() === 419 && $request->routeIs('logout') && Auth::guest()) {
+                return Inertia::location(url('/'));
+            }
+
+            return $response;
+        });
     })->create();
