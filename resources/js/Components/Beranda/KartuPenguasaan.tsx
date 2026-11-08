@@ -17,7 +17,7 @@ export default function KartuPenguasaan({ penguasaanSubtes }: { penguasaanSubtes
             <h2 className="text-[18px] font-semibold leading-[33px] text-siswa-judul-seksi">Penguasaan Per Subtes</h2>
 
             {/* HP sempit: 2 kolom berjarak supaya nama subtes yang panjang tidak menimpa kolom sebelah; mulai sm sama seperti desain. */}
-            <ul className="mt-[22px] grid grid-cols-2 gap-x-3 gap-y-6 min-[400px]:grid-cols-3 sm:grid-cols-4 sm:gap-x-0 lg:grid-cols-7">
+            <ul className="mt-[22px] grid grid-cols-2 gap-x-3 gap-y-6 min-[400px]:grid-cols-3 sm:grid-cols-4 sm:gap-x-2 lg:grid-cols-7">
                 {penguasaanSubtes.map((subtes) => (
                     <li key={subtes.kode ?? subtes.nama} className="group flex flex-col items-center text-center">
                         {/* Cincin sedikit membesar saat kursor diarahkan ke kolom subtesnya. */}
@@ -34,7 +34,9 @@ export default function KartuPenguasaan({ penguasaanSubtes }: { penguasaanSubtes
                         </div>
 
                         <p className="mt-[13px] text-[18px] font-bold leading-4 text-siswa-subtes">{subtes.kode}</p>
-                        <p className="mt-[16px] w-full max-w-[94px] break-words text-[13px] font-medium leading-4 text-siswa-teks sm:text-[15px]">{subtes.nama}</p>
+                        {/* Selebar kolom dan hanya patah di antara kata (tanpa break-words), supaya kata panjang seperti
+                            "Pengetahuan" tidak terpotong di tengah. text-balance meratakan panjang baris nama dua-tiga baris. */}
+                        <p className="mt-[16px] w-full text-balance px-1 text-[13px] font-medium leading-[18px] text-siswa-teks sm:text-[15px]">{subtes.nama}</p>
 
                         {!subtes.adaData && <p className="mt-1 text-[11px] text-siswa-teks/80">Belum cukup data</p>}
                     </li>
