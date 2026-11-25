@@ -38,6 +38,10 @@ export default function Modal({
                 as="div"
                 id="modal"
                 className={`fixed inset-0 z-50 flex transform overflow-y-auto px-4 py-6 transition-all sm:px-0 ${pusatkan ? 'justify-center' : 'items-center'}`}
+                // Panel selalu di tengah layar, atas-bawah dan kiri-kanan, di semua ukuran layar.
+                // Tengah vertikal memakai my-auto di panel, bukan items-center di sini: pop-up yang lebih tinggi
+                // dari layar HP tetap bisa di-scroll dari bagian atasnya, tidak terpotong.
+                className="fixed inset-0 z-50 flex transform justify-center overflow-y-auto px-4 py-6 transition-all"
                 onClose={close}
             >
                 <TransitionChild
@@ -63,6 +67,7 @@ export default function Modal({
                         className={`transform overflow-hidden bg-white shadow-xl transition-all ${
                             pusatkan ? 'my-auto w-full' : 'mb-6 sm:mx-auto sm:w-full'
                         } ${panelClassName} ${maxWidthClass}`}
+                        className={`my-auto w-full transform overflow-hidden bg-white shadow-xl transition-all ${panelClassName} ${maxWidthClass}`}
                     >
                         {children}
                     </DialogPanel>
