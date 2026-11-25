@@ -99,6 +99,8 @@ export default function Siswa({ judul = 'Beranda', level, poin, rekomendasi, pen
 
             {/* MODAL WELCOME AWAL */}
             {showWelcomeModal && (
+                <div className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+                    <div className="w-full max-w-lg rounded-[28px] bg-white p-8 shadow-2xl text-[#2b4c7e] animate-fade-in">
                 <div className="fixed inset-0 z-[999] flex justify-center overflow-y-auto bg-slate-900/60 backdrop-blur-xs p-4">
                     {/* my-auto: tetap di tengah, tapi bisa di-scroll dari atas bila lebih tinggi dari layar HP. */}
                     <div className="my-auto w-full max-w-lg rounded-[28px] bg-white p-8 shadow-2xl text-[#2b4c7e] animate-fade-in">

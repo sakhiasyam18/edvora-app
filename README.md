@@ -160,6 +160,7 @@ Ini adalah fail-fail yang akan dipanggil langsung oleh *Controller* Laravel mela
   * `Dashboard.tsx` *(Stok soal per subtes dan Try Out yang dibuka)*
   * `BankSoal.tsx` *(Daftar soal per subtes, filter, upload Excel massal)*
   * `FormSoal.tsx` *(Tambah dan edit satu soal, dengan pratinjau)*
+  * `GeneratorSoal.tsx` *(Susun soal dengan AI, tinjau kartu, regenerate per kartu, simpan sebagai Draft)*
 
 **2. Kerangka Komponen Reusable (Di dalam `resources/js/Components/`)**
 Ini adalah fail-fail UI yang tidak dipanggil oleh Laravel, melainkan dipanggil oleh fail di folder `Pages` agar desainnya konsisten.
@@ -192,6 +193,7 @@ Tim UI/UX dapat menjalankan `npm run dev` dan melihat pratinjau halaman melalui 
 - [`/jadwal`](http://localhost:8000/jadwal) $\rightarrow$ Jadwal Belajar
 - [`/editor`](http://localhost:8000/editor) $\rightarrow$ Dashboard Editor (login sebagai admin_editor)
 - [`/editor/bank-soal/PU`](http://localhost:8000/editor/bank-soal/PU) $\rightarrow$ Bank Soal per subtes (upload Excel, tambah/edit soal)
+- [`/editor/generator`](http://localhost:8000/editor/generator) $\rightarrow$ Generator Soal AI (buat soal lewat OpenRouter, tinjau, simpan sebagai Draft)
 
 
 ### 🧠 2. Tim Logika & Backend 
@@ -221,6 +223,23 @@ Tim UI/UX dapat menjalankan `npm run dev` dan melihat pratinjau halaman melalui 
   ```php
   Route::get('/ujian', [SoalController::class, 'tampilkanUjian']);
   ```
+
+---
+
+## 🧠 Generator Soal AI (Editor)
+
+Fitur LLM untuk menyusun soal UTBK. Halaman hanya untuk role `admin_editor` di `/editor/generator`.
+
+- **View:** `resources/js/Pages/Editor/GeneratorSoal.tsx` — form spesifikasi, kartu soal, tombol **Regenerate** per kartu, dan panel riwayat generate.
+- **Controller:** `app/Http/Controllers/GeneratorSoalController.php` — `index`, `model`, `generate`, `simpan`.
+- **Service:** `app/Services/GeneratorSoalAI.php` — panggilan OpenRouter, validasi JSON/LaTeX, dan perpindahan model saat limit.
+- **Model:** `app/Models/GeneratorSoal.php` — riwayat generate (`generator_soal`) dengan relasi editor, subtes, dan topik.
+
+Soal yang disimpan memakai jalur yang sama dengan fitur Tambah Soal: `FormulirSoal::keKolom()` $\rightarrow$ `ImportSoalExcel::periksaSatu()` $\rightarrow$ `simpan(status: 'draft')`. Jadi data masuk ke tabel `soal` dan `opsi_jawaban` dengan format yang sama seperti formulir biasa.
+
+Riwayat generate memakai tabel `generator_soal` dari migrasi `2026_11_07_000001_buat_tabel_generator_soal.php`. Jalankan `php artisan migrate` untuk mengaktifkannya; tanpa tabel tersebut generator tetap berjalan, hanya panel riwayat yang kosong.
+
+Isi `OPENROUTER_API_KEY` di `.env` (contoh lengkap ada di `.env.example`). Kunci hanya dibaca server dan tidak pernah dikirim ke browser.
 
 ---
 

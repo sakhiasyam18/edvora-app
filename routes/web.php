@@ -10,6 +10,7 @@ use App\Http\Controllers\BattleController;
 use App\Http\Controllers\BerandaController;
 use App\Http\Controllers\BiodataController;
 use App\Http\Controllers\GambarSoalController;
+use App\Http\Controllers\GeneratorSoalController;
 use App\Http\Controllers\JadwalController;
 use App\Http\Controllers\LatihanSoalController;
 use App\Http\Controllers\PerkembanganController;
@@ -149,6 +150,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::prefix('editor')->middleware('peran:admin_editor')->group(function () {
         Route::get('/', [AdminSoalController::class, 'dashboard'])->name('editor.dashboard');
         Route::get('/analitik', [AnalitikController::class, 'index'])->name('editor.analitik');
+
+        // Generator soal AI (UCS7): susun soal lewat OpenRouter, tinjau kartu, lalu simpan sebagai draft bank soal.
+        Route::get('/generator', [GeneratorSoalController::class, 'index'])->name('editor.generator.index');
+        Route::get('/generator/model', [GeneratorSoalController::class, 'model'])->name('editor.generator.model');
+        Route::post('/generator/generate', [GeneratorSoalController::class, 'generate'])
+            ->middleware('throttle:30,1')
+            ->name('editor.generator.generate');
+        Route::post('/generator/simpan', [GeneratorSoalController::class, 'simpan'])
+            ->middleware('throttle:10,1')
+            ->name('editor.generator.simpan');
 
         // Bank soal per subtes; kode subtes tak dikenal → 404.
         Route::get('/bank-soal/template', [UploadSoalController::class, 'template'])->name('editor.soal.template');

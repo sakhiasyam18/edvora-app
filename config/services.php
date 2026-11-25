@@ -37,4 +37,11 @@ return [
         'url_gambar_soal' => env('GAMBAR_SOAL_URL'),
     ],
 
+    'openrouter' => [
+        // Kunci API OpenRouter untuk generator soal AI editor; isi di .env, jangan di-commit.
+        'api_key' => env('OPENROUTER_API_KEY'),
+        'url' => env('OPENROUTER_URL', 'https://openrouter.ai/api/v1'),
+        'timeout' => env('OPENROUTER_TIMEOUT', 180),
+    ],
+
 ];

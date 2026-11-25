@@ -125,6 +125,16 @@ function Sidebar({ menuBankSoal, subtesAktif, terbuka, onTutup }: { menuBankSoal
                     )}
 
                     <Link
+                        href={route('editor.generator.index')}
+                        onClick={onTutup}
+                        aria-current={route().current('editor.generator.*') ? 'page' : undefined}
+                        className={`${KELAS_BARIS} transition ${route().current('editor.generator.*') ? KELAS_AKTIF : 'hover:bg-white/10'}`}
+                    >
+                        <IkonMenu d="M12 3l1.9 4.6 4.6 1.9-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9zM18 15l.9 2.1 2.1.9-2.1.9L18 21l-.9-2.1L15 18l2.1-.9z" />
+                        Generator Soal AI
+                    </Link>
+
+                    <Link
                         href={route('editor.tryout.index')}
                         onClick={onTutup}
                         aria-current={route().current('editor.tryout.*') ? 'page' : undefined}
